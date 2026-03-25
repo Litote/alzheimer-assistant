@@ -1,4 +1,4 @@
-# Alzheimer Assistant
+# Alzheimer Assistant POC
 
 Voice assistant for Alzheimer's patients.
 **This is a POC**

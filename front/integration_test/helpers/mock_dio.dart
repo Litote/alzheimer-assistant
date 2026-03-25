@@ -48,7 +48,7 @@ Dio makeMockAdkDio({bool simulate404OnFirstRun = false}) {
 
           // SSE body in plain text format — identical to the real wire format.
           final sseBody =
-              'data: {"content":{"parts":[{"text":"$_kResponseText"}]}}\n\n';
+              'data: {"content":{"role":"model","parts":[{"text":"$_kResponseText"}]}}\n\n';
 
           handler.resolve(Response<String>(
             data: sseBody,
