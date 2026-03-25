@@ -104,7 +104,7 @@ jobs:
         run: flutter build apk --release --dart-define-from-file=secrets.json
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: front/build/app/outputs/flutter-apk/app-release.apk
@@ -157,7 +157,7 @@ jobs:
           zip -r AlzheimerAssistant-simulator.zip Runner.app
 
       - name: Upload .app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-simulator-app
           path: front/build/ios/iphonesimulator/AlzheimerAssistant-simulator.zip
@@ -182,7 +182,7 @@ jobs:
       # to decide whether the diff is a regression or an intentional change.
       - name: Upload golden diffs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: golden-failures
           path: front/test/golden/failures/
