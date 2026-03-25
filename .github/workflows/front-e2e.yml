@@ -24,7 +24,7 @@ jobs:
 
     steps:
       # ── Checkout ─────────────────────────────────────────────────────────
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # ── Flutter ──────────────────────────────────────────────────────────
       - name: Setup Flutter
@@ -116,7 +116,7 @@ jobs:
     steps:
       # Checkout first so that the `front/` working-directory (set in defaults)
       # exists before any `run` step executes.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # KVM must be enabled before the emulator action runs.
       - name: Enable KVM
@@ -193,7 +193,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
