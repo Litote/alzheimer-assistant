@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  # ── GitHub Actions ──────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - github-actions
+
+  # ── Flutter / Dart (pub) ────────────────────────────────────────────────────
+  - package-ecosystem: pub
+    directory: /front
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - flutter

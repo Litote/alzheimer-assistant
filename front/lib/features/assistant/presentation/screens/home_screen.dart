@@ -1,0 +1,76 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/widgets/response_bubble.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Center(
+            child: Column(
+              children: [
+                const SizedBox(height: 48),
+                _Header(),
+                const Spacer(),
+                const ResponseBubble(),
+                const Spacer(),
+                const MicButton(),
+                const SizedBox(height: 48),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return BlocBuilder<AssistantBloc, AssistantState>(
+      buildWhen: (prev, curr) => curr != prev,
+      builder: (context, state) {
+        final subtitle = switch (state) {
+          Idle() || AssistantError() =>
+            'Appuyez sur le bouton pour me parler.',
+          Listening() => 'Je vous écoute…',
+          Processing() => 'Je réfléchis…',
+          Speaking() => 'Je vous réponds.',
+          _ => '',
+        };
+
+        return Column(
+          children: [
+            Text(
+              'Bonjour, je suis là\npour vous aider',
+              style: theme.textTheme.displayLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: Text(
+                subtitle,
+                key: ValueKey(subtitle),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

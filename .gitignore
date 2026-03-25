@@ -1,0 +1,18 @@
+# Gradle
+.gradle/
+build/
+
+# Secrets
+secrets.json
+*.env
+.env*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+local.properties

@@ -1,0 +1,65 @@
+name: alzheimer_assistant
+description: 'Alzheimer Assistant - Voice-based assistant app'
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  bloc: ^9.0.0
+  flutter_bloc: ^9.1.1
+
+  # Routing
+  go_router: ^16.2.1
+
+  # Networking
+  dio: ^5.9.0
+
+  # Data models
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.11.0
+
+  # UI
+  google_fonts: ^6.3.1
+  cupertino_icons: ^1.0.8
+
+  # Voice input
+  speech_to_text: ^7.0.0
+
+  # Audio playback (ElevenLabs TTS)
+  audioplayers: ^6.1.0
+
+  # File system (TTS temp file)
+  path_provider: ^2.1.5
+
+  # Phone calls
+  flutter_contacts: ^2.0.1
+  flutter_phone_direct_caller: ^2.1.1
+
+  # Utilities
+  logger: ^2.6.1
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.7.1
+  freezed: ^3.2.0
+  json_serializable: ^6.11.0
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/fonts/

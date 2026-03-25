@@ -1,0 +1,103 @@
+name: Front — E2E Tests (iOS Simulator)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'front/**'
+      - '.github/workflows/front-e2e.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'front/**'
+      - '.github/workflows/front-e2e.yml'
+
+defaults:
+  run:
+    working-directory: front
+
+jobs:
+  e2e-ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Checkout ───────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── Flutter ────────────────────────────────────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # ── iOS Simulator ──────────────────────────────────────────────────────
+      # Find the first available iPhone in the simulator list.
+      # macos-latest includes Xcode and several pre-installed simulators.
+      - name: Boot iOS Simulator
+        id: boot_sim
+        run: |
+          # Find the UDID of the first available iPhone (not booted)
+          UDID=$(xcrun simctl list devices available --json \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime, devs in data['devices'].items():
+            for d in devs:
+              if 'iPhone' in d['name'] and d['isAvailable']:
+                print(d['udid'])
+                exit()
+          ")
+          echo "Booting simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+
+          # Open Simulator.app — required by Flutter to deploy
+          # and establish the WebSocket connection to the Dart VM service
+          open -a Simulator --args -CurrentDeviceUDID "$UDID"
+
+          # Wait for the simulator to be ready
+          xcrun simctl bootstatus "$UDID" -b
+
+          # Disable auto-lock to prevent the simulator from locking
+          # during the Xcode build (~2 min), which would prevent the
+          # Dart VM service from starting (WebSocketChannelException: Connection refused)
+          xcrun simctl spawn "$UDID" defaults write com.apple.springboard SBAutoLockTime -1
+          xcrun simctl spawn "$UDID" defaults write com.apple.Preferences SBAutoLockDelay -1
+
+      - name: Create secrets.json
+        run: |
+          cat > secrets.json <<EOF
+          {
+            "ADK_BASE_URL": "${{ secrets.ADK_BASE_URL }}",
+            "ELEVENLABS_API_KEY": "${{ secrets.ELEVENLABS_API_KEY }}",
+            "ELEVENLABS_VOICE_ID": "${{ secrets.ELEVENLABS_VOICE_ID }}"
+          }
+          EOF
+
+      # ── E2E tests on simulator ─────────────────────────────────────────────
+      - name: E2E tests on iOS Simulator
+        run: |
+          flutter test integration_test/app_e2e_test.dart \
+            -d "$SIMULATOR_UDID" \
+            --dart-define-from-file=secrets.json \
+            --reporter=github
+
+      # ── Failure report: simulator screenshot ──────────────────────────────
+      - name: Capture simulator screenshot on failure
+        if: failure()
+        run: |
+          xcrun simctl io "$SIMULATOR_UDID" screenshot failure_screenshot.png || true
+
+      - name: Upload failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-screenshot
+          path: front/failure_screenshot.png
+          retention-days: 7

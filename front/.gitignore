@@ -1,0 +1,30 @@
+# FVM Version Cache
+.fvm/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Android
+android/.gradle
+android/local.properties
+android/captures/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Web
+lib/generated_plugin_registrant.dart
+
+# Secrets — ne jamais commiter ce fichier (copier secrets.json.example → secrets.json)
+secrets.json

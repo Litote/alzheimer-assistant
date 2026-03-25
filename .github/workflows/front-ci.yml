@@ -1,0 +1,189 @@
+name: Front — CI Tests & Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'front/**'
+      - '.github/workflows/front-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'front/**'
+      - '.github/workflows/front-ci.yml'
+
+concurrency:
+  group: front-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: front
+
+jobs:
+  # ── Unit & widget tests ───────────────────────────────────────────────────
+  test:
+    name: Tests (unit + widget)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Verify code generation is up to date
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- lib/
+          # ^ Fails if committed generated files are stale
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Run tests
+        # Excludes golden tests: text rendering differs between Linux and macOS.
+        # Goldens are validated in the build-ios job (macOS).
+        run: flutter test test/ --exclude-tags golden --reporter=github
+
+  # ── Build Android ─────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The project targets Java 17 (see build.gradle.kts)
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Gradle
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('front/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Create secrets.json
+        run: |
+          cat > secrets.json <<EOF
+          {
+            "ADK_BASE_URL": "${{ secrets.ADK_BASE_URL }}",
+            "ELEVENLABS_API_KEY": "${{ secrets.ELEVENLABS_API_KEY }}",
+            "ELEVENLABS_VOICE_ID": "${{ secrets.ELEVENLABS_VOICE_ID }}"
+          }
+          EOF
+
+      # Release uses debug keys (signingConfig configured in build.gradle.kts)
+      # → no keystore secrets needed to validate the build in CI
+      - name: Build APK (release)
+        run: flutter build apk --release --dart-define-from-file=secrets.json
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: front/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+  # ── Build iOS ─────────────────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS (no codesign)
+    runs-on: macos-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v5
+        with:
+          path: front/ios/Pods
+          key: pods-${{ hashFiles('front/ios/Podfile.lock') }}
+          restore-keys: pods-
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Create secrets.json
+        run: |
+          cat > secrets.json <<EOF
+          {
+            "ADK_BASE_URL": "${{ secrets.ADK_BASE_URL }}",
+            "ELEVENLABS_API_KEY": "${{ secrets.ELEVENLABS_API_KEY }}",
+            "ELEVENLABS_VOICE_ID": "${{ secrets.ELEVENLABS_VOICE_ID }}"
+          }
+          EOF
+
+      # --no-codesign: no certificate or provisioning profile needed
+      # --simulator: targets x86_64, faster build (no arm64 device)
+      - name: Build iOS (simulator, no codesign)
+        run: flutter build ios --no-codesign --simulator --debug --dart-define-from-file=secrets.json
+
+      - name: Archive .app
+        run: |
+          cd build/ios/iphonesimulator
+          zip -r AlzheimerAssistant-simulator.zip Runner.app
+
+      - name: Upload .app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: front/build/ios/iphonesimulator/AlzheimerAssistant-simulator.zip
+          retention-days: 14
+
+      # ── Golden tests ───────────────────────────────────────────────────────
+      # Run on macOS only: text rendering (antialiasing, system fonts)
+      # differs between Linux and macOS and would invalidate comparisons.
+      #
+      # Skip if reference files do not exist yet:
+      # run the "Update Golden Screenshots" workflow to generate them.
+      - name: Golden tests
+        run: |
+          if [ -z "$(ls test/golden/goldens/*.png 2>/dev/null)" ]; then
+            echo "⚠️  No golden files found — skipping."
+            echo "   → Run the 'Update Golden Screenshots' workflow to generate them."
+          else
+            flutter test test/golden/ --tags golden --reporter=github
+          fi
+
+      # On failure, upload generated goldens for inspection
+      # to decide whether the diff is a regression or an intentional change.
+      - name: Upload golden diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: front/test/golden/failures/
+          retention-days: 7

@@ -1,0 +1,71 @@
+name: Front — Update Golden Screenshots
+
+# Triggered manually only:
+# Actions → "Front — Update Golden Screenshots" → Run workflow
+on:
+  workflow_dispatch:
+
+# Permission to write to the repository to commit the goldens
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: front
+
+jobs:
+  update-goldens:
+    name: Generate & commit golden screenshots
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          # Check out the current branch (not the detached SHA)
+          # so we can commit the generated goldens to it
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            front/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('front/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate golden files
+        run: flutter test test/golden/ --update-goldens --tags golden
+
+      - name: Commit & push goldens
+        working-directory: .
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add front/test/golden/goldens/
+
+          if git diff --staged --quiet; then
+            echo "✅ No changes in goldens."
+          else
+            CHANGED=$(git diff --staged --name-only | wc -l | tr -d ' ')
+            git commit -m "chore: update ${CHANGED} golden screenshot(s) [skip ci]
+
+          Generated on macOS by github-actions[bot]
+          Flutter $(flutter --version | head -1)"
+            git push
+            echo "✅ ${CHANGED} golden(s) committed and pushed."
+          fi
