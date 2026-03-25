@@ -37,7 +37,9 @@ class ManualFakeTtsService implements TtsService {
 
   @override
   Future<void> stop() async {
-    _completer?.complete();
+    if (_completer != null && !_completer!.isCompleted) {
+      _completer!.complete();
+    }
     _completer = null;
   }
 
