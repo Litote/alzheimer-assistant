@@ -12,6 +12,10 @@ on:
       - 'front/**'
       - '.github/workflows/front-e2e.yml'
 
+concurrency:
+  group: front-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 defaults:
   run:
     working-directory: front
