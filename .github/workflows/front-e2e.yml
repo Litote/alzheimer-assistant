@@ -164,12 +164,9 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
-          script: |
-            cd front
-            flutter test integration_test/app_e2e_test.dart \
-              -d emulator-5554 \
-              --dart-define-from-file=secrets.json \
-              --reporter=github
+          # Each line of the script runs as a separate sh -c invocation,
+          # so `cd` must be chained with && to stay in the same shell context.
+          script: cd front && flutter test integration_test/app_e2e_test.dart -d emulator-5554 --dart-define-from-file=secrets.json --reporter=github
 
       # ── Failure report: ADB screenshot ────────────────────────────────────
       - name: Capture emulator screenshot on failure
