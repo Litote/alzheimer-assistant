@@ -167,6 +167,7 @@ jobs:
           script: |
             cd front
             flutter test integration_test/app_e2e_test.dart \
+              -d emulator-5554 \
               --dart-define-from-file=secrets.json \
               --reporter=github
 
