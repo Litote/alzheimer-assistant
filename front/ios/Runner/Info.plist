@@ -70,5 +70,10 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	<!-- Opt out of iPad multitasking (Split View / Slide Over).
+	     The app is portrait-only by design (elderly users, simplified UX).
+	     Without this key, App Store Connect requires all 4 orientations. -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
 </dict>
 </plist>
