@@ -58,18 +58,9 @@ val frontBuildIos by tasks.registering(Exec::class) {
 }
 
 // ── SonarQube ──────────────────────────────────────────────────────────────
-//
-// Requires the sonar-flutter plugin to be installed on the SonarQube/SonarCloud
-// server (marketplace: "Flutter / Dart" by insideapp-oss).
-//
 // Pass the token via:
 //   ./gradlew sonar -Dsonar.token=$SONAR_TOKEN
 // or set SONAR_TOKEN in the environment.
-//
-// Project-specific properties can be overridden in ~/.gradle/gradle.properties:
-//   sonar.projectKey=alzheimer-assistant
-//   sonar.organization=your-sonarcloud-org
-
 sonar {
     properties {
         property(
@@ -85,16 +76,38 @@ sonar {
             providers.gradleProperty("sonar.host.url").orElse("https://sonarcloud.io").get(),
         )
 
-        // Flutter source paths
-        property("sonar.sources", "front/lib")
-        property("sonar.tests", "front/test")
+        // Multi-module: the front sub-module sets projectBaseDir=front/ so that
+        // LCOV SF paths (lib/...) resolve correctly — without this, coverage
+        // stays at 0.
+        // The root project owns GitHub Actions YAML files directly so the IaC
+        // GitHub Actions sensor can find them (sensors only see files declared
+        // in sonar.sources of their own project level).
+        property("sonar.sources", ".github/workflows")
+        property("sonar.tests", "")
+        property("sonar.modules", "front")
 
-        // Coverage report produced by `flutter test --coverage`
-        property("sonar.dart.lcov.reportPaths", "front/coverage/lcov.info")
+        // Assign .github/workflows files to the GitHub Actions language so the
+        // IaC GitHub Actions sensor picks them up (default patterns are empty).
+        // Restrict YAML patterns to avoid a language-conflict on the same file.
+        property(
+            "sonar.lang.patterns.githubactions",
+            ".github/workflows/**/*.yml,.github/workflows/**/*.yaml",
+        )
+        property("sonar.lang.patterns.yaml", "front/**/*.yaml,front/**/*.yml")
 
-        // Exclude Freezed / json_serializable generated files
-        property("sonar.exclusions", "**/*.freezed.dart,**/*.g.dart")
-        property("sonar.coverage.exclusions", "**/*.freezed.dart,**/*.g.dart,front/lib/main.dart")
+        // Enable the generic YAML/JSON analyzer (disabled by default on SonarCloud)
+        property("sonar.featureflag.cloud-security-enable-generic-yaml-and-json-analyzer", "true")
+
+        // ── front module (Flutter/Dart) ───────────────────────────────────────
+        // projectBaseDir = front/ so lcov.info SF paths (lib/...) resolve
+        // correctly — without this, coverage stays at 0.
+        property("front.sonar.projectName", "front")
+        property("front.sonar.projectBaseDir", flutterDir.absolutePath)
+        property("front.sonar.sources", "lib")
+        property("front.sonar.tests", "test")
+        property("front.sonar.dart.lcov.reportPaths", "coverage/lcov.info")
+        property("front.sonar.exclusions", "**/*.freezed.dart,**/*.g.dart")
+        property("front.sonar.coverage.exclusions", "**/*.freezed.dart,**/*.g.dart,lib/main.dart")
     }
 }
 

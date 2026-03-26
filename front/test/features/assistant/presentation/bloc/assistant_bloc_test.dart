@@ -38,6 +38,14 @@ const _kQuestion = 'Où sont mes médicaments ?';
 const _kAnswer = 'Vos médicaments sont sur la table de nuit.';
 final _kResponse = AssistantResponse(text: _kAnswer, audioBytes: [1, 2, 3]);
 
+const _kCandidates = <PhoneCandidate>[
+  (displayName: 'Maman Martin', number: '+33612345678'),
+];
+const _kTwoCandidates = <PhoneCandidate>[
+  (displayName: 'Martin Jean', number: '+33611111111'),
+  (displayName: 'Martin Paul', number: '+33622222222'),
+];
+
 void main() {
   late MockAssistantRepository repository;
   late MockSpeechRecognitionService speechService;
@@ -366,6 +374,251 @@ void main() {
     expect: () => [
       const AssistantState.listening(),
       const AssistantState.error(message: "Je n'ai rien entendu, réessayez."),
+    ],
+  );
+
+  // ── StartListening: STT final result triggers sendMessage ─────────────────
+  //
+  // Covers the onFinal callback with non-empty text (line 50 in bloc):
+  // add(AssistantEvent.sendMessage(text))
+
+  blocTest<AssistantBloc, AssistantState>(
+    'StartListening: STT final result → triggers sendMessage flow',
+    build: () {
+      when(
+        () => speechService.startListening(
+          onInterim: any(named: 'onInterim'),
+          onFinal: any(named: 'onFinal'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onFinal = invocation.namedArguments[const Symbol('onFinal')]
+            as void Function(String);
+        onFinal(_kQuestion);
+      });
+      when(() => repository.ask(_kQuestion))
+          .thenAnswer((_) async => _kResponse);
+      when(
+        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
+      ).thenAnswer((_) async {});
+      return _makeBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+      );
+    },
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [
+      const AssistantState.listening(),
+      const AssistantState.processing(userMessage: _kQuestion),
+      const AssistantState.speaking(responseText: _kAnswer),
+    ],
+  );
+
+  // ── StartListening: onInterim callback ────────────────────────────────────
+  //
+  // Covers the onInterim closure inside _onStartListening.
+
+  blocTest<AssistantBloc, AssistantState>(
+    'StartListening: onInterim callback → emits Listening with interimTranscript',
+    build: () {
+      when(
+        () => speechService.startListening(
+          onInterim: any(named: 'onInterim'),
+          onFinal: any(named: 'onFinal'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onInterim = invocation.namedArguments[const Symbol('onInterim')]
+            as void Function(String);
+        onInterim('Bon');
+      });
+      return _makeBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+      );
+    },
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [
+      const AssistantState.listening(),
+      const AssistantState.listening(interimTranscript: 'Bon'),
+    ],
+  );
+
+  // ── AudioFinished: awaitingDisambiguation ─────────────────────────────────
+  //
+  // After the disambiguation question is spoken, the bloc must re-enter
+  // Listening with the pending candidates still attached.
+
+  blocTest<AssistantBloc, AssistantState>(
+    'AudioFinished with awaitingDisambiguation → Listening with pendingCandidates',
+    build: () {
+      when(
+        () => speechService.startListening(
+          onInterim: any(named: 'onInterim'),
+          onFinal: any(named: 'onFinal'),
+        ),
+      ).thenAnswer((_) async {});
+      return _makeBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+      );
+    },
+    seed: () => const AssistantState.speaking(
+      responseText: _kAnswer,
+      awaitingDisambiguation: true,
+      pendingCandidates: _kCandidates,
+    ),
+    act: (bloc) => bloc.add(const AssistantEvent.audioFinished()),
+    expect: () => [
+      const AssistantState.listening(pendingCandidates: _kCandidates),
+    ],
+  );
+
+  // ── AudioFinished during disambiguation: empty STT → Error ────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'AudioFinished with awaitingDisambiguation: empty STT → Error',
+    build: () {
+      when(
+        () => speechService.startListening(
+          onInterim: any(named: 'onInterim'),
+          onFinal: any(named: 'onFinal'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onFinal = invocation.namedArguments[const Symbol('onFinal')]
+            as void Function(String);
+        onFinal('');
+      });
+      return _makeBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+      );
+    },
+    seed: () => const AssistantState.speaking(
+      responseText: _kAnswer,
+      awaitingDisambiguation: true,
+      pendingCandidates: _kCandidates,
+    ),
+    act: (bloc) => bloc.add(const AssistantEvent.audioFinished()),
+    expect: () => [
+      const AssistantState.listening(pendingCandidates: _kCandidates),
+      const AssistantState.error(message: "Je n'ai rien entendu, réessayez."),
+    ],
+  );
+
+  // ── DisambiguateCall: match found ─────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'DisambiguateCall: match found → callByNumber then PhoneCallSuccess',
+    build: () {
+      final phoneService = MockPhoneCallService();
+      when(
+        () => phoneService.callByNumber(
+          '+33612345678',
+          displayName: 'Maman Martin',
+        ),
+      ).thenAnswer((_) async => PhoneCallSuccess());
+      when(() => repository.synthesize(any()))
+          .thenAnswer((_) async => [1, 2, 3]);
+      when(
+        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
+      ).thenAnswer((_) async {});
+      return AssistantBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+        phoneCallService: phoneService,
+      );
+    },
+    seed: () =>
+        const AssistantState.listening(pendingCandidates: _kCandidates),
+    act: (bloc) =>
+        bloc.add(const AssistantEvent.disambiguateCall('Maman')),
+    expect: () => [
+      const AssistantState.idle(),
+      const AssistantState.speaking(
+        responseText: "J'appelle Maman Martin. Bonne conversation !",
+      ),
+    ],
+  );
+
+  // ── DisambiguateCall: no match ────────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'DisambiguateCall: no match → speaks disambiguation-error message',
+    build: () {
+      when(() => repository.synthesize(any()))
+          .thenAnswer((_) async => [1, 2, 3]);
+      when(
+        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
+      ).thenAnswer((_) async {});
+      return _makeBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+      );
+    },
+    seed: () =>
+        const AssistantState.listening(pendingCandidates: _kCandidates),
+    act: (bloc) =>
+        bloc.add(const AssistantEvent.disambiguateCall('Inconnu')),
+    expect: () => [
+      const AssistantState.speaking(
+        responseText: "Je n'ai pas compris. Voulez-vous réessayer ?",
+      ),
+    ],
+  );
+
+  // ── DisambiguateCall: no pendingCandidates → ignored ─────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'DisambiguateCall: no pendingCandidates → ignored',
+    build: () => _makeBloc(
+      repository: repository,
+      speechService: speechService,
+      ttsService: ttsService,
+    ),
+    seed: () => const AssistantState.idle(),
+    act: (bloc) =>
+        bloc.add(const AssistantEvent.disambiguateCall('Maman')),
+    expect: () => [],
+  );
+
+  // ── PhoneCallAmbiguous → asks disambiguation question ─────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'AudioFinished with PhoneCallAmbiguous → asks disambiguation question',
+    build: () {
+      final phoneService = MockPhoneCallService();
+      when(() => phoneService.callByName('Martin'))
+          .thenAnswer((_) async => PhoneCallAmbiguous(_kTwoCandidates));
+      when(() => repository.synthesize(any()))
+          .thenAnswer((_) async => [1, 2, 3]);
+      when(
+        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
+      ).thenAnswer((_) async {});
+      return AssistantBloc(
+        repository: repository,
+        speechService: speechService,
+        ttsService: ttsService,
+        phoneCallService: phoneService,
+      );
+    },
+    seed: () => const AssistantState.speaking(
+      responseText: _kAnswer,
+      pendingCallName: 'Martin',
+    ),
+    act: (bloc) => bloc.add(const AssistantEvent.audioFinished()),
+    expect: () => [
+      const AssistantState.idle(),
+      const AssistantState.speaking(
+        responseText:
+            "J'ai trouvé plusieurs contacts : Martin Jean et Martin Paul. Lequel voulez-vous appeler ?",
+        awaitingDisambiguation: true,
+        pendingCandidates: _kTwoCandidates,
+      ),
     ],
   );
 }

@@ -132,43 +132,14 @@ class AssistantRepositoryImpl implements AssistantRepository {
     var eventIndex = 0;
 
     for (final line in body.split('\n')) {
-      final trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-
-      final payload = trimmed.substring(5).trim();
-      if (payload == '[DONE]' || payload.isEmpty) continue;
+      final payload = _extractSsePayload(line);
+      if (payload == null) continue;
 
       eventIndex++;
       try {
         final decoded = jsonDecode(payload) as Map<String, dynamic>?;
-        final role    = decoded?['content']?['role'] as String?;
-        final partial = decoded?['partial'] as bool?;
-        final parts   = decoded?['content']?['parts'];
-        final texts   = (parts is List)
-            ? parts.whereType<Map>().map((p) => p['text']).whereType<String>().where((t) => t.isNotEmpty).toList()
-            : <String>[];
-
-        _logger.d('[SSE event #$eventIndex] role=$role partial=$partial texts=$texts');
-
-        // Only keep model events that are not partial.
-        if (role == 'model' && partial != true) {
-          for (final t in texts) {
-            buffer.write(t);
-          }
-        }
-
-        // Detect the call_phone action in stateDelta.
-        final actions = decoded?['actions'];
-        if (actions is Map) {
-          final stateDelta = actions['stateDelta'];
-          if (stateDelta is Map) {
-            final action = stateDelta['action'];
-            if (action is Map && action['type'] == 'call_phone') {
-              callPhoneName = action['payload']?['name'] as String?;
-              _logger.d('[SSE event #$eventIndex] stateDelta call_phone → $callPhoneName');
-            }
-          }
-        }
+        _appendModelTexts(buffer, decoded, eventIndex);
+        callPhoneName ??= _extractCallPhoneName(decoded, eventIndex);
       } catch (e) {
         _logger.w('[SSE event #$eventIndex] Parse error (skipped): $e');
       }
@@ -178,11 +149,54 @@ class AssistantRepositoryImpl implements AssistantRepository {
     return (text: buffer.toString(), callPhoneName: callPhoneName);
   }
 
+  /// Returns the payload string from a `data: ...` SSE line, or null to skip.
+  String? _extractSsePayload(String line) {
+    final trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return null;
+    final payload = trimmed.substring(5).trim();
+    if (payload == '[DONE]' || payload.isEmpty) return null;
+    return payload;
+  }
+
+  /// Appends non-partial model text fragments to [buffer].
+  void _appendModelTexts(
+    StringBuffer buffer,
+    Map<String, dynamic>? decoded,
+    int eventIndex,
+  ) {
+    final role = decoded?['content']?['role'] as String?;
+    final partial = decoded?['partial'] as bool?;
+    final parts = decoded?['content']?['parts'];
+    final texts = (parts is List)
+        ? parts.whereType<Map>().map((p) => p['text']).whereType<String>().where((t) => t.isNotEmpty).toList()
+        : <String>[];
+
+    _logger.d('[SSE event #$eventIndex] role=$role partial=$partial texts=$texts');
+
+    if (role != 'model' || partial == true) return;
+    for (final t in texts) {
+      buffer.write(t);
+    }
+  }
+
+  /// Extracts the contact name from a `call_phone` stateDelta action, or null.
+  String? _extractCallPhoneName(Map<String, dynamic>? decoded, int eventIndex) {
+    final actions = decoded?['actions'];
+    if (actions is! Map) return null;
+    final stateDelta = actions['stateDelta'];
+    if (stateDelta is! Map) return null;
+    final action = stateDelta['action'];
+    if (action is! Map || action['type'] != 'call_phone') return null;
+    final name = action['payload']?['name'] as String?;
+    _logger.d('[SSE event #$eventIndex] stateDelta call_phone → $name');
+    return name;
+  }
+
   // ── ElevenLabs TTS ────────────────────────────────────────────────────────
 
   Future<List<int>> _synthesizeSpeech(String text) async {
-    final apiKey = AppConstants.elevenLabsApiKey;
-    final voiceId = AppConstants.elevenLabsVoiceId;
+    const apiKey = AppConstants.elevenLabsApiKey;
+    const voiceId = AppConstants.elevenLabsVoiceId;
 
     if (apiKey.isEmpty || voiceId.isEmpty) {
       _logger.w('[TTS] Missing ElevenLabs keys — synthesis skipped');

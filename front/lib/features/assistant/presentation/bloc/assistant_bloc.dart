@@ -76,7 +76,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         callPhoneName: response.callPhoneName,
       ));
     } catch (e) {
-      add(AssistantEvent.errorOccurred('Désolé, une erreur est survenue.'));
+      add(const AssistantEvent.errorOccurred('Désolé, une erreur est survenue.'));
     }
   }
 

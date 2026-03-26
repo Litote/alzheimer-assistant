@@ -2,7 +2,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:logger/logger.dart';
 
 class SpeechRecognitionService {
-  SpeechRecognitionService() : _stt = SpeechToText();
+  SpeechRecognitionService({SpeechToText? stt}) : _stt = stt ?? SpeechToText();
 
   final SpeechToText _stt;
   final _logger = Logger();

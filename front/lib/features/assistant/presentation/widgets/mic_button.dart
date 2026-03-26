@@ -78,44 +78,44 @@ class MicButton extends StatelessWidget {
   }
 
   _ButtonConfig _configFor(AssistantState state) => switch (state) {
-        Idle() => _ButtonConfig(
+        Idle() => const _ButtonConfig(
             icon: Icons.mic,
-            backgroundColor: const Color(0xFF5B8DEF),
+            backgroundColor: Color(0xFF5B8DEF),
             label: 'Appuyez pour parler',
             semanticLabel: 'Bouton microphone. Appuyez pour parler à l\'assistant.',
             enabled: true,
           ),
-        Listening() => _ButtonConfig(
+        Listening() => const _ButtonConfig(
             icon: Icons.mic,
-            backgroundColor: const Color(0xFFEF5B5B),
+            backgroundColor: Color(0xFFEF5B5B),
             label: 'Écoute en cours…',
             semanticLabel: 'Écoute en cours. L\'assistant vous écoute.',
             enabled: false,
           ),
-        Processing() => _ButtonConfig(
+        Processing() => const _ButtonConfig(
             icon: Icons.mic,
-            backgroundColor: const Color(0xFF9B8DEF),
+            backgroundColor: Color(0xFF9B8DEF),
             label: 'Traitement…',
             semanticLabel: 'Traitement en cours. Veuillez patienter.',
             enabled: false,
           ),
-        Speaking() => _ButtonConfig(
+        Speaking() => const _ButtonConfig(
             icon: Icons.volume_up,
-            backgroundColor: const Color(0xFF5BCEEF),
+            backgroundColor: Color(0xFF5BCEEF),
             label: 'En train de répondre…',
             semanticLabel: 'L\'assistant répond.',
             enabled: false,
           ),
-        AssistantError() => _ButtonConfig(
+        AssistantError() => const _ButtonConfig(
             icon: Icons.refresh,
-            backgroundColor: const Color(0xFFEF8D5B),
+            backgroundColor: Color(0xFFEF8D5B),
             label: 'Appuyez pour réessayer',
             semanticLabel: 'Une erreur est survenue. Appuyez pour réessayer.',
             enabled: true,
           ),
-        _ => _ButtonConfig(
+        _ => const _ButtonConfig(
             icon: Icons.mic,
-            backgroundColor: const Color(0xFF5B8DEF),
+            backgroundColor: Color(0xFF5B8DEF),
             label: '',
             semanticLabel: '',
             enabled: false,

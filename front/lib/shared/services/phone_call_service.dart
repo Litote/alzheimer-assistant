@@ -19,23 +19,38 @@ class PhoneCallAmbiguous extends PhoneCallResult {
 }
 
 class PhoneCallService {
+  PhoneCallService({
+    Future<PermissionStatus> Function()? requestPermission,
+    Future<List<Contact>> Function()? getContacts,
+    Future<bool?> Function(String)? callNumber,
+  })  : _requestPermission = requestPermission ?? _defaultRequestPermission,
+        _getContacts = getContacts ?? _defaultGetContacts,
+        _callNumber = callNumber ?? FlutterPhoneDirectCaller.callNumber;
+
+  static Future<PermissionStatus> _defaultRequestPermission() =>
+      FlutterContacts.permissions.request(PermissionType.read);
+
+  static Future<List<Contact>> _defaultGetContacts() =>
+      FlutterContacts.getAll(properties: {ContactProperty.phone});
+
   final _logger = Logger();
+  final Future<PermissionStatus> Function() _requestPermission;
+  final Future<List<Contact>> Function() _getContacts;
+  final Future<bool?> Function(String) _callNumber;
 
   /// Looks up [name] in contacts and initiates the call.
   /// Returns [PhoneCallSuccess], [PhoneCallError] or [PhoneCallAmbiguous].
   Future<PhoneCallResult> callByName(String name) async {
     _logger.i('[Phone] Looking up contact: "$name"');
 
-    final status = await FlutterContacts.permissions.request(PermissionType.read);
+    final status = await _requestPermission();
     final hasPermission = status == PermissionStatus.granted;
     if (!hasPermission) {
       _logger.w('[Phone] Contacts permission denied');
       return PhoneCallError("Je n'ai pas la permission d'accéder aux contacts.");
     }
 
-    final allContacts = await FlutterContacts.getAll(
-      properties: {ContactProperty.phone},
-    );
+    final allContacts = await _getContacts();
     final nameLower = name.toLowerCase();
     final contacts = allContacts
         .where((c) => c.displayName?.toLowerCase().contains(nameLower) ?? false)
@@ -75,7 +90,7 @@ class PhoneCallService {
   Future<PhoneCallResult> callByNumber(String number, {String? displayName}) async {
     final label = displayName ?? number;
     _logger.i('[Phone] Calling $label → $number');
-    final called = await FlutterPhoneDirectCaller.callNumber(number);
+    final called = await _callNumber(number);
     if (called == true) {
       return PhoneCallSuccess();
     }

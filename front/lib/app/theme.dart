@@ -13,19 +13,19 @@ class AppTheme {
   static const _subtleTextColor = Color(0xFF6B7280);
 
   static ThemeData get light {
-    final colorScheme = ColorScheme(
+    const colorScheme = ColorScheme(
       brightness: Brightness.light,
       primary: _primaryColor,
       onPrimary: _onPrimaryColor,
-      secondary: const Color(0xFF7CB9E8),
+      secondary: Color(0xFF7CB9E8),
       onSecondary: _onPrimaryColor,
-      error: const Color(0xFFE53E3E),
+      error: Color(0xFFE53E3E),
       onError: _onPrimaryColor,
       surface: _surfaceColor,
       onSurface: _textColor,
-      surfaceContainerHighest: const Color(0xFFEEF2FF),
+      surfaceContainerHighest: Color(0xFFEEF2FF),
       onSurfaceVariant: _subtleTextColor,
-      outline: const Color(0xFFD1D5DB),
+      outline: Color(0xFFD1D5DB),
     );
 
     final textTheme = GoogleFonts.interTextTheme().copyWith(

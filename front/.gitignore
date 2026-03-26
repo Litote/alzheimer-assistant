@@ -28,3 +28,6 @@ lib/generated_plugin_registrant.dart
 
 # Secrets — ne jamais commiter ce fichier (copier secrets.json.example → secrets.json)
 secrets.json
+
+# Sonar
+coverage/lcov.info
