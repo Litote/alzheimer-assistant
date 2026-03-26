@@ -77,12 +77,16 @@ jobs:
           xcrun simctl spawn "$UDID" defaults write com.apple.Preferences SBAutoLockDelay -1
 
       - name: Create secrets.json
+        env:
+          ADK_BASE_URL: ${{ secrets.ADK_BASE_URL }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
         run: |
           cat > secrets.json <<EOF
           {
-            "ADK_BASE_URL": "${{ secrets.ADK_BASE_URL }}",
-            "ELEVENLABS_API_KEY": "${{ secrets.ELEVENLABS_API_KEY }}",
-            "ELEVENLABS_VOICE_ID": "${{ secrets.ELEVENLABS_VOICE_ID }}"
+            "ADK_BASE_URL": "$ADK_BASE_URL",
+            "ELEVENLABS_API_KEY": "$ELEVENLABS_API_KEY",
+            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID"
           }
           EOF
 
@@ -147,12 +151,16 @@ jobs:
         run: flutter pub get --enforce-lockfile
 
       - name: Create secrets.json
+        env:
+          ADK_BASE_URL: ${{ secrets.ADK_BASE_URL }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
         run: |
           cat > secrets.json <<EOF
           {
-            "ADK_BASE_URL": "${{ secrets.ADK_BASE_URL }}",
-            "ELEVENLABS_API_KEY": "${{ secrets.ELEVENLABS_API_KEY }}",
-            "ELEVENLABS_VOICE_ID": "${{ secrets.ELEVENLABS_VOICE_ID }}"
+            "ADK_BASE_URL": "$ADK_BASE_URL",
+            "ELEVENLABS_API_KEY": "$ELEVENLABS_API_KEY",
+            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID"
           }
           EOF
 
@@ -210,12 +218,16 @@ jobs:
         run: flutter pub get --enforce-lockfile
 
       - name: Create secrets.json
+        env:
+          ADK_BASE_URL: ${{ secrets.ADK_BASE_URL }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
         run: |
           cat > secrets.json <<EOF
           {
-            "ADK_BASE_URL": "${{ secrets.ADK_BASE_URL }}",
-            "ELEVENLABS_API_KEY": "${{ secrets.ELEVENLABS_API_KEY }}",
-            "ELEVENLABS_VOICE_ID": "${{ secrets.ELEVENLABS_VOICE_ID }}"
+            "ADK_BASE_URL": "$ADK_BASE_URL",
+            "ELEVENLABS_API_KEY": "$ELEVENLABS_API_KEY",
+            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID"
           }
           EOF
 
