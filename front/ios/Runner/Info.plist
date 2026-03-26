@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Encryption export compliance: the app uses only standard HTTPS/TLS
+	     provided by the iOS OS (no proprietary or custom crypto algorithms).
+	     This declaration exempts the app from export compliance documentation. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<!-- Contacts permission for phone call feature -->
