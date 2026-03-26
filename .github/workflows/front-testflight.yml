@@ -153,9 +153,16 @@ jobs:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
+          IPA_PATH=$(find /tmp/Runner-ipa -name "*.ipa" | head -1)
+          echo "IPA found: $IPA_PATH"
+          if [ -z "$IPA_PATH" ]; then
+            echo "Export directory contents:"
+            ls -la /tmp/Runner-ipa/ || echo "(empty or missing)"
+            exit 1
+          fi
           xcrun altool --upload-app \
             --type ios \
-            --file /tmp/Runner-ipa/Runner.ipa \
+            --file "$IPA_PATH" \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
 
