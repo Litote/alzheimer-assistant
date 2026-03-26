@@ -35,11 +35,12 @@
 ## Definition of Done
 
 A change is complete when:
-- 
+-
 - [ ] Only relevant files are modified
 - [ ] Type safety is preserved
 - [ ] Architecture boundaries are respected
 - [ ] Tests are added for new logic
+- [ ] SonarCloud quality gate passes (coverage ≥ 80%, 0 hotspots to review, 0 bugs, 0 vulnerabilities)
 
 ---
 
