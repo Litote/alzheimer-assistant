@@ -355,4 +355,300 @@ void main() {
       reason: 'Empty text must be replaced by the fallback message',
     );
   });
+
+  // ── Session response as a List ─────────────────────────────────────────────
+  //
+  // Some ADK versions return a JSON array for the session endpoint.
+  // The first element's 'id' field must be extracted.
+
+  test(
+    '_getSessionId(): server returns List → extracts first element id',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+
+      when(() => mockAdkDio.post<dynamic>(
+            any(that: contains('/sessions')),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<dynamic>(
+            data: [
+              {'id': 'sess-from-list'}
+            ],
+            statusCode: 200,
+            requestOptions: _opts('/sessions'),
+          ));
+
+      when(() => mockAdkDio.post<String>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => _runSuccess('ok'));
+
+      when(() => mockElevenLabsDio.post<List<int>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<List<int>>(
+            data: [],
+            statusCode: 200,
+            requestOptions: _opts(),
+          ));
+
+      final repo = AssistantRepositoryImpl(
+        adkDio: mockAdkDio,
+        elevenLabsDio: mockElevenLabsDio,
+      );
+      final response = await repo.ask('test');
+      expect(response.text, 'ok');
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('adk_session_id'), 'sess-from-list');
+    },
+  );
+
+  // ── Session response with sessionId key ───────────────────────────────────
+
+  test(
+    '_getSessionId(): server returns Map with sessionId key',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+
+      when(() => mockAdkDio.post<dynamic>(
+            any(that: contains('/sessions')),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<dynamic>(
+            data: {'sessionId': 'sess-alt-key'},
+            statusCode: 200,
+            requestOptions: _opts('/sessions'),
+          ));
+
+      when(() => mockAdkDio.post<String>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => _runSuccess('ok'));
+
+      when(() => mockElevenLabsDio.post<List<int>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<List<int>>(
+            data: [],
+            statusCode: 200,
+            requestOptions: _opts(),
+          ));
+
+      final repo = AssistantRepositoryImpl(
+        adkDio: mockAdkDio,
+        elevenLabsDio: mockElevenLabsDio,
+      );
+      await repo.ask('test');
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('adk_session_id'), 'sess-alt-key');
+    },
+  );
+
+  // ── Unexpected session response format ─────────────────────────────────────
+
+  test(
+    '_getSessionId(): unexpected response format → throws Exception',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+
+      when(() => mockAdkDio.post<dynamic>(
+            any(that: contains('/sessions')),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<dynamic>(
+            data: 42, // unexpected integer type
+            statusCode: 200,
+            requestOptions: _opts('/sessions'),
+          ));
+
+      final repo = AssistantRepositoryImpl(
+        adkDio: mockAdkDio,
+        elevenLabsDio: mockElevenLabsDio,
+      );
+
+      await expectLater(
+        () => repo.ask('test'),
+        throwsA(isA<Exception>()),
+        reason: 'Unexpected session format must throw an Exception',
+      );
+    },
+  );
+
+  // ── call_phone stateDelta action ───────────────────────────────────────────
+  //
+  // When the ADK SSE contains a stateDelta with action.type == 'call_phone',
+  // the repository must extract the contact name and return it.
+
+  test('ask(): SSE with call_phone stateDelta → returns callPhoneName',
+      () async {
+    SharedPreferences.setMockInitialValues({'adk_session_id': 'sess-ok'});
+
+    const sseBody =
+        'data: {"content":{"role":"model","parts":[{"text":"Je vais appeler Maman"}]},"actions":{"stateDelta":{"action":{"type":"call_phone","payload":{"name":"Maman"}}}}}\n\n';
+
+    when(() => mockAdkDio.post<String>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+          cancelToken: any(named: 'cancelToken'),
+          onSendProgress: any(named: 'onSendProgress'),
+          onReceiveProgress: any(named: 'onReceiveProgress'),
+        )).thenAnswer((_) async => Response<String>(
+          data: sseBody,
+          statusCode: 200,
+          requestOptions: _opts('/run_sse'),
+        ));
+
+    when(() => mockElevenLabsDio.post<List<int>>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+          cancelToken: any(named: 'cancelToken'),
+          onSendProgress: any(named: 'onSendProgress'),
+          onReceiveProgress: any(named: 'onReceiveProgress'),
+        )).thenAnswer((_) async => Response<List<int>>(
+          data: [],
+          statusCode: 200,
+          requestOptions: _opts(),
+        ));
+
+    final repo = AssistantRepositoryImpl(
+      adkDio: mockAdkDio,
+      elevenLabsDio: mockElevenLabsDio,
+    );
+
+    final response = await repo.ask('Appelle maman');
+    expect(response.callPhoneName, 'Maman');
+  });
+
+  // ── Malformed JSON in SSE ──────────────────────────────────────────────────
+  //
+  // Parse errors on individual SSE events must be swallowed.
+  // Valid subsequent events must still be processed.
+
+  test(
+    'ask(): malformed JSON in SSE → skipped, returns valid text from other events',
+    () async {
+      SharedPreferences.setMockInitialValues({'adk_session_id': 'sess-ok'});
+
+      const sseBody =
+          'data: {invalid json}\ndata: {"content":{"role":"model","parts":[{"text":"Bonjour"}]}}\n\n';
+
+      when(() => mockAdkDio.post<String>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<String>(
+            data: sseBody,
+            statusCode: 200,
+            requestOptions: _opts('/run_sse'),
+          ));
+
+      when(() => mockElevenLabsDio.post<List<int>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<List<int>>(
+            data: [],
+            statusCode: 200,
+            requestOptions: _opts(),
+          ));
+
+      final repo = AssistantRepositoryImpl(
+        adkDio: mockAdkDio,
+        elevenLabsDio: mockElevenLabsDio,
+      );
+
+      final response = await repo.ask('Bonjour');
+      expect(response.text, 'Bonjour');
+    },
+  );
+
+  // ── partial=true event ─────────────────────────────────────────────────────
+  //
+  // SSE events with partial=true must not be appended to the text buffer.
+
+  test(
+    '_appendModelTexts(): partial=true event → text not appended',
+    () async {
+      SharedPreferences.setMockInitialValues({'adk_session_id': 'sess-ok'});
+
+      // First event has partial=true — must be skipped.
+      // Second event has no partial flag — must be included.
+      const sseBody =
+          'data: {"content":{"role":"model","parts":[{"text":"partiel"}]},"partial":true}\n\n'
+          'data: {"content":{"role":"model","parts":[{"text":"final"}]}}\n\n';
+
+      when(() => mockAdkDio.post<String>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<String>(
+            data: sseBody,
+            statusCode: 200,
+            requestOptions: _opts('/run_sse'),
+          ));
+
+      when(() => mockElevenLabsDio.post<List<int>>(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+            cancelToken: any(named: 'cancelToken'),
+            onSendProgress: any(named: 'onSendProgress'),
+            onReceiveProgress: any(named: 'onReceiveProgress'),
+          )).thenAnswer((_) async => Response<List<int>>(
+            data: [],
+            statusCode: 200,
+            requestOptions: _opts(),
+          ));
+
+      final repo = AssistantRepositoryImpl(
+        adkDio: mockAdkDio,
+        elevenLabsDio: mockElevenLabsDio,
+      );
+
+      final response = await repo.ask('test');
+      expect(
+        response.text,
+        'final',
+        reason: 'Only non-partial events must contribute to the final text',
+      );
+    },
+  );
 }

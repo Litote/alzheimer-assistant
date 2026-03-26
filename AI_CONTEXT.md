@@ -138,3 +138,5 @@ Secrets are **never** logged or committed.
 | `front-ci` | push/PR on `front/**` | Analyze, unit+widget tests, golden tests (macOS), build Android+iOS |
 | `front-e2e` | push/PR on `front/**` | E2E tests on iOS simulator |
 | `front-update-goldens` | Manual | Regenerates golden screenshots and commits them |
+| `sonar` | push/PR on `front/**` or `.github/**` | SonarCloud analysis (Dart coverage + GitHub Actions IaC) |
+| `front-testflight` | push on `v*.*` tags or manual | Build signed iOS IPA and upload to TestFlight |
