@@ -98,6 +98,7 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -o pipefail
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -137,6 +138,7 @@ jobs:
           </plist>
           EOF
 
+          set -o pipefail
           xcodebuild -exportArchive \
             -archivePath /tmp/Runner.xcarchive \
             -exportPath /tmp/Runner-ipa \
