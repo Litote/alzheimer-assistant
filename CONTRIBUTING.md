@@ -59,7 +59,37 @@ cp front/secrets.json.example front/secrets.json
 | `ELEVENLABS_API_KEY` | [elevenlabs.io](https://elevenlabs.io) → Profile → API Keys |
 | `ELEVENLABS_VOICE_ID` | ElevenLabs voice library — copy the ID of the chosen voice |
 
-### use provided intellij runner `App` 
+### Use provided intellij runner `App`
+
+### iOS device signing setup (local only)
+
+The CI signs with the org Apple Developer account. To run on a physical device locally you need your own Apple Developer account connected to Xcode.
+
+**One-time setup:**
+```bash
+cp front/dev.env.example front/dev.env
+# Fill in your Apple Team ID (developer.apple.com/account → Membership → Team ID)
+```
+
+```bash
+cd front
+make dev-setup
+```
+
+This will:
+1. Patch `project.pbxproj` with your personal team ID and bundle ID (`com.<your-username>.alzheimerAssistant`)
+2. Mark `project.pbxproj` and `Podfile.lock` as `skip-worktree` so git ignores your local changes
+
+#### Updating `project.pbxproj` or `Podfile.lock`
+
+When you need to make a legitimate change to either file (new dependency, Xcode setting, etc.):
+
+```bash
+make dev-reset   # removes skip-worktree and restores committed versions
+# ... make your changes ...
+git add ios/... && git commit
+make dev-setup   # re-applies local dev signing
+```
 
 ---
 
