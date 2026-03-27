@@ -101,6 +101,22 @@ void main() {
     expect(find.text('En train de répondre…'), findsOneWidget);
   });
 
+  testWidgets(
+    'Speaking state → tap dispatches StartListening (cancel TTS)',
+    (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(const AssistantState.speaking(responseText: ''));
+      when(() => mockBloc.add(any())).thenReturn(null);
+
+      await _pump(tester, mockBloc);
+
+      await tester.tap(find.byType(GestureDetector).first);
+      await tester.pump();
+
+      verify(() => mockBloc.add(const AssistantEvent.startListening())).called(1);
+    },
+  );
+
   // ── Error state ────────────────────────────────────────────────────────────
 
   testWidgets('AssistantError state → shows refresh icon and retry label',
@@ -115,10 +131,10 @@ void main() {
     expect(find.text('Appuyez pour réessayer'), findsOneWidget);
   });
 
-  // ── Disabled state (Listening) ─────────────────────────────────────────────
+  // ── Listening state — tap restarts ────────────────────────────────────────
 
   testWidgets(
-    'Listening state (disabled) → tap does nothing (no event dispatched)',
+    'Listening state → tap dispatches StartListening (cancel and restart)',
     (tester) async {
       when(() => mockBloc.state).thenReturn(const AssistantState.listening());
       when(() => mockBloc.add(any())).thenReturn(null);
@@ -128,7 +144,7 @@ void main() {
       await tester.tap(find.byType(GestureDetector).first);
       await tester.pump();
 
-      verifyNever(() => mockBloc.add(any()));
+      verify(() => mockBloc.add(const AssistantEvent.startListening())).called(1);
     },
   );
 }

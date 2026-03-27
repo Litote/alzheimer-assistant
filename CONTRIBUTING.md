@@ -2,8 +2,7 @@
 
 ## Prerequisites
 
-- Flutter 3.x (stable channel)
-- Dart (bundled with Flutter)
+- Flutter SDK
 - Xcode (macOS, for iOS builds)
 - Android Studio / Java 17 (for Android builds)
 

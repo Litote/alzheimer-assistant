@@ -1,5 +1,4 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 
 part 'assistant_event.freezed.dart';
 
@@ -18,12 +17,6 @@ abstract class AssistantEvent with _$AssistantEvent {
   const factory AssistantEvent.speakResponse({
     required String text,
     required List<int> audioBytes,
-    /// Contact name to call after playback ends (null = no call).
-    @Default(null) String? callPhoneName,
-    /// True if this audio is a phone call disambiguation question.
-    @Default(false) bool awaitingDisambiguation,
-    /// Candidates to disambiguate (null when not in disambiguation).
-    @Default(null) List<PhoneCandidate>? pendingCandidates,
   }) = SpeakResponse;
 
   /// Audio playback has ended — returns to Idle.
@@ -32,6 +25,6 @@ abstract class AssistantEvent with _$AssistantEvent {
   /// An error occurred.
   const factory AssistantEvent.errorOccurred(String message) = ErrorOccurred;
 
-  /// The user has responded to disambiguate a call.
-  const factory AssistantEvent.disambiguateCall(String spokenText) = DisambiguateCall;
+  /// The app has returned to the foreground (Android lifecycle).
+  const factory AssistantEvent.appResumed() = AppResumed;
 }

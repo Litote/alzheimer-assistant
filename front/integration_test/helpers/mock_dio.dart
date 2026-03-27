@@ -2,6 +2,70 @@ import 'package:dio/dio.dart';
 
 const String _kResponseText = 'Vos médicaments sont sur la table de nuit.';
 
+// ── Disambiguation scenario ──────────────────────────────────────────────────
+
+/// Agent texts used by [makeMockAdkDioForDisambiguation].
+/// Exported so the test file can assert on them without duplicating the strings.
+const String kDisambiguationAgentQuestion =
+    'Souhaitez-vous appeler Marie Dupont ou Marie Martin ?';
+const String kCallConfirmationAgentText =
+    "J'appelle Marie Dupont. Bonne conversation !";
+
+String _callPhoneSseBody(String text, String contactName) =>
+    'data: {"content":{"role":"model","parts":[{"text":"$text"}]},'
+    '"actions":{"stateDelta":{"action":{"type":"call_phone","payload":{"name":"$contactName"}}}}}\n\n';
+
+String _textOnlySseBody(String text) =>
+    'data: {"content":{"role":"model","parts":[{"text":"$text"}]}}\n\n';
+
+/// ADK mock for the [phone] feedback loop (4 sequential /run_sse calls):
+///
+/// 1. "Appelle Marie"              → call_phone("Marie")         [text ignored by BLoC]
+/// 2. "[phone] plusieurs…"     → disambiguation question      [spoken by TTS]
+/// 3. "Marie Dupont"               → call_phone("Marie Dupont")  [text ignored by BLoC]
+/// 4. "[phone] Marie Dupont…"  → confirmation text            [spoken by TTS]
+Dio makeMockAdkDioForDisambiguation() {
+  final dio = Dio(BaseOptions(baseUrl: 'http://mock-adk'));
+  var runCallCount = 0;
+
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final path = options.path;
+
+        if (path.contains('sessions')) {
+          handler.resolve(Response<dynamic>(
+            data: {'id': 'e2e-session-disambiguation'},
+            statusCode: 200,
+            requestOptions: options,
+          ));
+          return;
+        }
+
+        if (path.contains('/run_sse')) {
+          runCallCount++;
+          final body = switch (runCallCount) {
+            1 => _callPhoneSseBody('...', 'Marie'),
+            2 => _textOnlySseBody(kDisambiguationAgentQuestion),
+            3 => _callPhoneSseBody('...', 'Marie Dupont'),
+            _ => _textOnlySseBody(kCallConfirmationAgentText),
+          };
+          handler.resolve(Response<String>(
+            data: body,
+            statusCode: 200,
+            requestOptions: options,
+          ));
+          return;
+        }
+
+        handler.next(options);
+      },
+    ),
+  );
+
+  return dio;
+}
+
 /// In-memory Dio interceptor for the ADK — no real network requests.
 ///
 /// [simulate404OnFirstRun] reproduces the "session expired in memory" scenario:

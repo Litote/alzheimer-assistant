@@ -89,8 +89,9 @@ class MicButton extends StatelessWidget {
             icon: Icons.mic,
             backgroundColor: Color(0xFFEF5B5B),
             label: 'Écoute en cours…',
-            semanticLabel: 'Écoute en cours. L\'assistant vous écoute.',
-            enabled: false,
+            semanticLabel:
+                'Écoute en cours. Appuyez pour recommencer.',
+            enabled: true,
           ),
         Processing() => const _ButtonConfig(
             icon: Icons.mic,
@@ -103,8 +104,9 @@ class MicButton extends StatelessWidget {
             icon: Icons.volume_up,
             backgroundColor: Color(0xFF5BCEEF),
             label: 'En train de répondre…',
-            semanticLabel: 'L\'assistant répond.',
-            enabled: false,
+            semanticLabel:
+                'L\'assistant répond. Appuyez pour annuler.',
+            enabled: true,
           ),
         AssistantError() => const _ButtonConfig(
             icon: Icons.refresh,

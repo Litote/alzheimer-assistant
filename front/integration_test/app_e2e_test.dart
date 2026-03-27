@@ -5,6 +5,7 @@ import 'package:alzheimer_assistant/app/app.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/assistant_repository_impl.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
+import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 
 import 'helpers/fake_speech_service.dart';
 import 'helpers/fake_tts_service.dart';
@@ -14,6 +15,25 @@ import 'helpers/mock_dio.dart';
 
 const _kQuestion = 'Où sont mes médicaments ?';
 const _kResponse = 'Vos médicaments sont sur la table de nuit.';
+
+// Scenario 3 constants come from mock_dio (kDisambiguationAgentQuestion,
+// kCallConfirmationAgentText) to stay in sync with the mock responses.
+
+// ── Fakes ──────────────────────────────────────────────────────────────────
+
+/// Overrides [callByName] with a preset sequence of results, bypassing the
+/// real contacts/permissions stack entirely.
+class _FakePhoneCallService extends PhoneCallService {
+  _FakePhoneCallService({required List<PhoneCallResult> results})
+      : _results = results;
+
+  final List<PhoneCallResult> _results;
+  var _index = 0;
+
+  @override
+  Future<PhoneCallResult> callByName(String name, {bool exactMatch = false}) async =>
+      _results[_index++];
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -126,6 +146,101 @@ void main() {
         );
 
         // Clean close: all async operations are finished
+        await bloc.close();
+      },
+    );
+
+    // ── Scenario 3: ambiguous call → [phone] feedback loop ────────────
+    //
+    // Full flow ([phone] architecture):
+    //   Tap 1: "Appelle Marie"
+    //     → ADK call_phone("Marie") — BLoC skips TTS
+    //     → callByName("Marie") → PhoneCallAmbiguous
+    //     → sendMessage("[phone] plusieurs contacts…")
+    //     → ADK responds with disambiguation question → Speaking → Idle
+    //   Tap 2: "Marie Dupont"
+    //     → ADK call_phone("Marie Dupont") — BLoC skips TTS
+    //     → callByName("Marie Dupont") → PhoneCallSuccess
+    //     → sendMessage("[phone] Marie Dupont appelé.")
+    //     → ADK responds with confirmation → Speaking → Idle
+
+    testWidgets(
+      'Scenario 3: ambiguous call → [phone] feedback → agent asks → user answers → call initiated',
+      (tester) async {
+        final tts = ManualFakeTtsService();
+        final bloc = AssistantBloc(
+          repository: AssistantRepositoryImpl(
+            adkDio: makeMockAdkDioForDisambiguation(),
+            elevenLabsDio: makeMockElevenLabsDio(),
+          ),
+          speechService: SequentialFakeSpeechRecognitionService(
+            transcripts: ['Appelle Marie', 'Marie Dupont'],
+          ),
+          ttsService: tts,
+          phoneCallService: _FakePhoneCallService(
+            results: [
+              PhoneCallAmbiguous([
+                (displayName: 'Marie Dupont', number: '0601020304'),
+                (displayName: 'Marie Martin', number: '0605060708'),
+              ]),
+              PhoneCallSuccess(),
+            ],
+          ),
+        );
+
+        await tester.pumpWidget(App.forTesting(bloc: bloc));
+        await tester.pumpAndSettle();
+        expect(find.text('Appuyez pour parler'), findsOneWidget);
+
+        // ── Tap 1: "Appelle Marie" ──────────────────────────────────────────
+        // ADK call 1 → call_phone("Marie") → callByName → PhoneCallAmbiguous
+        // → sendMessage("[phone] plusieurs contacts…")
+        // ADK call 2 → disambiguation question → Speaking
+        await _tapMic(tester);
+        expect(find.text('Écoute en cours…'), findsOneWidget);
+
+        // Two sequential ADK calls happen before Speaking — give extra margin.
+        await _waitForSpeaking(tester, extraMs: 100);
+
+        expect(
+          find.text(kDisambiguationAgentQuestion),
+          findsOneWidget,
+          reason: 'Agent disambiguation question must appear in the bubble',
+        );
+        expect(find.text('En train de répondre…'), findsOneWidget);
+
+        // TTS ends → Idle (user must tap again to answer)
+        tts.completePlayback();
+        await tester.pump();
+        await tester.pumpAndSettle();
+        expect(find.text('Appuyez pour parler'), findsOneWidget);
+
+        // ── Tap 2: "Marie Dupont" ──────────────────────────────────────────
+        // ADK call 3 → call_phone("Marie Dupont") → callByName → PhoneCallSuccess
+        // → sendMessage("[phone] Marie Dupont appelé.")
+        // ADK call 4 → confirmation text → Speaking
+        await _tapMic(tester);
+        expect(find.text('Écoute en cours…'), findsOneWidget);
+
+        await _waitForSpeaking(tester, extraMs: 100);
+
+        expect(
+          find.text(kCallConfirmationAgentText),
+          findsOneWidget,
+          reason: 'Agent confirmation must appear after the call is initiated',
+        );
+
+        // TTS ends → Idle
+        tts.completePlayback();
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Appuyez pour parler'),
+          findsOneWidget,
+          reason: 'App must return to Idle after the call confirmation',
+        );
+
         await bloc.close();
       },
     );

@@ -55,7 +55,7 @@ extension AssistantEventPatterns on AssistantEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StartListening value)?  startListening,TResult Function( InterimTranscript value)?  interimTranscript,TResult Function( SendMessage value)?  sendMessage,TResult Function( SpeakResponse value)?  speakResponse,TResult Function( AudioFinished value)?  audioFinished,TResult Function( ErrorOccurred value)?  errorOccurred,TResult Function( DisambiguateCall value)?  disambiguateCall,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StartListening value)?  startListening,TResult Function( InterimTranscript value)?  interimTranscript,TResult Function( SendMessage value)?  sendMessage,TResult Function( SpeakResponse value)?  speakResponse,TResult Function( AudioFinished value)?  audioFinished,TResult Function( ErrorOccurred value)?  errorOccurred,TResult Function( AppResumed value)?  appResumed,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
@@ -64,8 +64,8 @@ return interimTranscript(_that);case SendMessage() when sendMessage != null:
 return sendMessage(_that);case SpeakResponse() when speakResponse != null:
 return speakResponse(_that);case AudioFinished() when audioFinished != null:
 return audioFinished(_that);case ErrorOccurred() when errorOccurred != null:
-return errorOccurred(_that);case DisambiguateCall() when disambiguateCall != null:
-return disambiguateCall(_that);case _:
+return errorOccurred(_that);case AppResumed() when appResumed != null:
+return appResumed(_that);case _:
   return orElse();
 
 }
@@ -83,7 +83,7 @@ return disambiguateCall(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StartListening value)  startListening,required TResult Function( InterimTranscript value)  interimTranscript,required TResult Function( SendMessage value)  sendMessage,required TResult Function( SpeakResponse value)  speakResponse,required TResult Function( AudioFinished value)  audioFinished,required TResult Function( ErrorOccurred value)  errorOccurred,required TResult Function( DisambiguateCall value)  disambiguateCall,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StartListening value)  startListening,required TResult Function( InterimTranscript value)  interimTranscript,required TResult Function( SendMessage value)  sendMessage,required TResult Function( SpeakResponse value)  speakResponse,required TResult Function( AudioFinished value)  audioFinished,required TResult Function( ErrorOccurred value)  errorOccurred,required TResult Function( AppResumed value)  appResumed,}){
 final _that = this;
 switch (_that) {
 case StartListening():
@@ -92,8 +92,8 @@ return interimTranscript(_that);case SendMessage():
 return sendMessage(_that);case SpeakResponse():
 return speakResponse(_that);case AudioFinished():
 return audioFinished(_that);case ErrorOccurred():
-return errorOccurred(_that);case DisambiguateCall():
-return disambiguateCall(_that);case _:
+return errorOccurred(_that);case AppResumed():
+return appResumed(_that);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -110,7 +110,7 @@ return disambiguateCall(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StartListening value)?  startListening,TResult? Function( InterimTranscript value)?  interimTranscript,TResult? Function( SendMessage value)?  sendMessage,TResult? Function( SpeakResponse value)?  speakResponse,TResult? Function( AudioFinished value)?  audioFinished,TResult? Function( ErrorOccurred value)?  errorOccurred,TResult? Function( DisambiguateCall value)?  disambiguateCall,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StartListening value)?  startListening,TResult? Function( InterimTranscript value)?  interimTranscript,TResult? Function( SendMessage value)?  sendMessage,TResult? Function( SpeakResponse value)?  speakResponse,TResult? Function( AudioFinished value)?  audioFinished,TResult? Function( ErrorOccurred value)?  errorOccurred,TResult? Function( AppResumed value)?  appResumed,}){
 final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
@@ -119,8 +119,8 @@ return interimTranscript(_that);case SendMessage() when sendMessage != null:
 return sendMessage(_that);case SpeakResponse() when speakResponse != null:
 return speakResponse(_that);case AudioFinished() when audioFinished != null:
 return audioFinished(_that);case ErrorOccurred() when errorOccurred != null:
-return errorOccurred(_that);case DisambiguateCall() when disambiguateCall != null:
-return disambiguateCall(_that);case _:
+return errorOccurred(_that);case AppResumed() when appResumed != null:
+return appResumed(_that);case _:
   return null;
 
 }
@@ -137,16 +137,16 @@ return disambiguateCall(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  startListening,TResult Function( String text)?  interimTranscript,TResult Function( String text)?  sendMessage,TResult Function( String text,  List<int> audioBytes,  String? callPhoneName,  bool awaitingDisambiguation,  List<PhoneCandidate>? pendingCandidates)?  speakResponse,TResult Function()?  audioFinished,TResult Function( String message)?  errorOccurred,TResult Function( String spokenText)?  disambiguateCall,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  startListening,TResult Function( String text)?  interimTranscript,TResult Function( String text)?  sendMessage,TResult Function( String text,  List<int> audioBytes)?  speakResponse,TResult Function()?  audioFinished,TResult Function( String message)?  errorOccurred,TResult Function()?  appResumed,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
 return startListening();case InterimTranscript() when interimTranscript != null:
 return interimTranscript(_that.text);case SendMessage() when sendMessage != null:
 return sendMessage(_that.text);case SpeakResponse() when speakResponse != null:
-return speakResponse(_that.text,_that.audioBytes,_that.callPhoneName,_that.awaitingDisambiguation,_that.pendingCandidates);case AudioFinished() when audioFinished != null:
+return speakResponse(_that.text,_that.audioBytes);case AudioFinished() when audioFinished != null:
 return audioFinished();case ErrorOccurred() when errorOccurred != null:
-return errorOccurred(_that.message);case DisambiguateCall() when disambiguateCall != null:
-return disambiguateCall(_that.spokenText);case _:
+return errorOccurred(_that.message);case AppResumed() when appResumed != null:
+return appResumed();case _:
   return orElse();
 
 }
@@ -164,16 +164,16 @@ return disambiguateCall(_that.spokenText);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  startListening,required TResult Function( String text)  interimTranscript,required TResult Function( String text)  sendMessage,required TResult Function( String text,  List<int> audioBytes,  String? callPhoneName,  bool awaitingDisambiguation,  List<PhoneCandidate>? pendingCandidates)  speakResponse,required TResult Function()  audioFinished,required TResult Function( String message)  errorOccurred,required TResult Function( String spokenText)  disambiguateCall,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  startListening,required TResult Function( String text)  interimTranscript,required TResult Function( String text)  sendMessage,required TResult Function( String text,  List<int> audioBytes)  speakResponse,required TResult Function()  audioFinished,required TResult Function( String message)  errorOccurred,required TResult Function()  appResumed,}) {final _that = this;
 switch (_that) {
 case StartListening():
 return startListening();case InterimTranscript():
 return interimTranscript(_that.text);case SendMessage():
 return sendMessage(_that.text);case SpeakResponse():
-return speakResponse(_that.text,_that.audioBytes,_that.callPhoneName,_that.awaitingDisambiguation,_that.pendingCandidates);case AudioFinished():
+return speakResponse(_that.text,_that.audioBytes);case AudioFinished():
 return audioFinished();case ErrorOccurred():
-return errorOccurred(_that.message);case DisambiguateCall():
-return disambiguateCall(_that.spokenText);case _:
+return errorOccurred(_that.message);case AppResumed():
+return appResumed();case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -190,16 +190,16 @@ return disambiguateCall(_that.spokenText);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  startListening,TResult? Function( String text)?  interimTranscript,TResult? Function( String text)?  sendMessage,TResult? Function( String text,  List<int> audioBytes,  String? callPhoneName,  bool awaitingDisambiguation,  List<PhoneCandidate>? pendingCandidates)?  speakResponse,TResult? Function()?  audioFinished,TResult? Function( String message)?  errorOccurred,TResult? Function( String spokenText)?  disambiguateCall,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  startListening,TResult? Function( String text)?  interimTranscript,TResult? Function( String text)?  sendMessage,TResult? Function( String text,  List<int> audioBytes)?  speakResponse,TResult? Function()?  audioFinished,TResult? Function( String message)?  errorOccurred,TResult? Function()?  appResumed,}) {final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
 return startListening();case InterimTranscript() when interimTranscript != null:
 return interimTranscript(_that.text);case SendMessage() when sendMessage != null:
 return sendMessage(_that.text);case SpeakResponse() when speakResponse != null:
-return speakResponse(_that.text,_that.audioBytes,_that.callPhoneName,_that.awaitingDisambiguation,_that.pendingCandidates);case AudioFinished() when audioFinished != null:
+return speakResponse(_that.text,_that.audioBytes);case AudioFinished() when audioFinished != null:
 return audioFinished();case ErrorOccurred() when errorOccurred != null:
-return errorOccurred(_that.message);case DisambiguateCall() when disambiguateCall != null:
-return disambiguateCall(_that.spokenText);case _:
+return errorOccurred(_that.message);case AppResumed() when appResumed != null:
+return appResumed();case _:
   return null;
 
 }
@@ -375,7 +375,7 @@ as String,
 
 
 class SpeakResponse implements AssistantEvent {
-  const SpeakResponse({required this.text, required final  List<int> audioBytes, this.callPhoneName = null, this.awaitingDisambiguation = false, final  List<PhoneCandidate>? pendingCandidates = null}): _audioBytes = audioBytes,_pendingCandidates = pendingCandidates;
+  const SpeakResponse({required this.text, required final  List<int> audioBytes}): _audioBytes = audioBytes;
   
 
  final  String text;
@@ -384,21 +384,6 @@ class SpeakResponse implements AssistantEvent {
   if (_audioBytes is EqualUnmodifiableListView) return _audioBytes;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_audioBytes);
-}
-
-/// Contact name to call after playback ends (null = no call).
-@JsonKey() final  String? callPhoneName;
-/// True if this audio is a phone call disambiguation question.
-@JsonKey() final  bool awaitingDisambiguation;
-/// Candidates to disambiguate (null when not in disambiguation).
- final  List<PhoneCandidate>? _pendingCandidates;
-/// Candidates to disambiguate (null when not in disambiguation).
-@JsonKey() List<PhoneCandidate>? get pendingCandidates {
-  final value = _pendingCandidates;
-  if (value == null) return null;
-  if (_pendingCandidates is EqualUnmodifiableListView) return _pendingCandidates;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(value);
 }
 
 
@@ -412,16 +397,16 @@ $SpeakResponseCopyWith<SpeakResponse> get copyWith => _$SpeakResponseCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SpeakResponse&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other._audioBytes, _audioBytes)&&(identical(other.callPhoneName, callPhoneName) || other.callPhoneName == callPhoneName)&&(identical(other.awaitingDisambiguation, awaitingDisambiguation) || other.awaitingDisambiguation == awaitingDisambiguation)&&const DeepCollectionEquality().equals(other._pendingCandidates, _pendingCandidates));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SpeakResponse&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other._audioBytes, _audioBytes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,text,const DeepCollectionEquality().hash(_audioBytes),callPhoneName,awaitingDisambiguation,const DeepCollectionEquality().hash(_pendingCandidates));
+int get hashCode => Object.hash(runtimeType,text,const DeepCollectionEquality().hash(_audioBytes));
 
 @override
 String toString() {
-  return 'AssistantEvent.speakResponse(text: $text, audioBytes: $audioBytes, callPhoneName: $callPhoneName, awaitingDisambiguation: $awaitingDisambiguation, pendingCandidates: $pendingCandidates)';
+  return 'AssistantEvent.speakResponse(text: $text, audioBytes: $audioBytes)';
 }
 
 
@@ -432,7 +417,7 @@ abstract mixin class $SpeakResponseCopyWith<$Res> implements $AssistantEventCopy
   factory $SpeakResponseCopyWith(SpeakResponse value, $Res Function(SpeakResponse) _then) = _$SpeakResponseCopyWithImpl;
 @useResult
 $Res call({
- String text, List<int> audioBytes, String? callPhoneName, bool awaitingDisambiguation, List<PhoneCandidate>? pendingCandidates
+ String text, List<int> audioBytes
 });
 
 
@@ -449,14 +434,11 @@ class _$SpeakResponseCopyWithImpl<$Res>
 
 /// Create a copy of AssistantEvent
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? text = null,Object? audioBytes = null,Object? callPhoneName = freezed,Object? awaitingDisambiguation = null,Object? pendingCandidates = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? text = null,Object? audioBytes = null,}) {
   return _then(SpeakResponse(
 text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String,audioBytes: null == audioBytes ? _self._audioBytes : audioBytes // ignore: cast_nullable_to_non_nullable
-as List<int>,callPhoneName: freezed == callPhoneName ? _self.callPhoneName : callPhoneName // ignore: cast_nullable_to_non_nullable
-as String?,awaitingDisambiguation: null == awaitingDisambiguation ? _self.awaitingDisambiguation : awaitingDisambiguation // ignore: cast_nullable_to_non_nullable
-as bool,pendingCandidates: freezed == pendingCandidates ? _self._pendingCandidates : pendingCandidates // ignore: cast_nullable_to_non_nullable
-as List<PhoneCandidate>?,
+as List<int>,
   ));
 }
 
@@ -564,67 +546,33 @@ as String,
 /// @nodoc
 
 
-class DisambiguateCall implements AssistantEvent {
-  const DisambiguateCall(this.spokenText);
+class AppResumed implements AssistantEvent {
+  const AppResumed();
   
 
- final  String spokenText;
 
-/// Create a copy of AssistantEvent
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$DisambiguateCallCopyWith<DisambiguateCall> get copyWith => _$DisambiguateCallCopyWithImpl<DisambiguateCall>(this, _$identity);
+
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DisambiguateCall&&(identical(other.spokenText, spokenText) || other.spokenText == spokenText));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppResumed);
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,spokenText);
+int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AssistantEvent.disambiguateCall(spokenText: $spokenText)';
+  return 'AssistantEvent.appResumed()';
 }
 
 
 }
 
-/// @nodoc
-abstract mixin class $DisambiguateCallCopyWith<$Res> implements $AssistantEventCopyWith<$Res> {
-  factory $DisambiguateCallCopyWith(DisambiguateCall value, $Res Function(DisambiguateCall) _then) = _$DisambiguateCallCopyWithImpl;
-@useResult
-$Res call({
- String spokenText
-});
 
 
-
-
-}
-/// @nodoc
-class _$DisambiguateCallCopyWithImpl<$Res>
-    implements $DisambiguateCallCopyWith<$Res> {
-  _$DisambiguateCallCopyWithImpl(this._self, this._then);
-
-  final DisambiguateCall _self;
-  final $Res Function(DisambiguateCall) _then;
-
-/// Create a copy of AssistantEvent
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? spokenText = null,}) {
-  return _then(DisambiguateCall(
-null == spokenText ? _self.spokenText : spokenText // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-
-}
 
 // dart format on

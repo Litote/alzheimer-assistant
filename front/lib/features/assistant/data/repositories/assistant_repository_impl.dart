@@ -70,7 +70,7 @@ class AssistantRepositoryImpl implements AssistantRepository {
 
   // ── ADK /run_sse ───────────────────────────────────────────────────────────
 
-  Future<({String text, String? callPhoneName})> _callAdk(
+  Future<({String text, String? callPhoneName, bool callPhoneExactMatch})> _callAdk(
     String question, {
     bool isRetry = false,
   }) async {
@@ -103,11 +103,15 @@ class AssistantRepositoryImpl implements AssistantRepository {
       final result = _parseSseBody(response.data ?? '');
       _logger.i('[ADK] Extracted text: "${result.text}"');
       if (result.callPhoneName != null) {
-        _logger.i('[ADK] call_phone action detected: "${result.callPhoneName}"');
+        _logger.i(
+          '[ADK] call_phone action detected: "${result.callPhoneName}"'
+          '${result.callPhoneExactMatch ? ' (exactMatch)' : ''}',
+        );
       }
       return (
         text: result.text.isNotEmpty ? result.text : 'Pas de réponse reçue',
         callPhoneName: result.callPhoneName,
+        callPhoneExactMatch: result.callPhoneExactMatch,
       );
     } on DioException catch (e) {
       _logger.e('[ADK] HTTP error ${e.response?.statusCode}: ${e.message}');
@@ -126,9 +130,10 @@ class AssistantRepositoryImpl implements AssistantRepository {
   /// Expected format (one line per event):
   ///   data: {"content":{"parts":[{"text":"…"}]}}\n
   ///   \n
-  ({String text, String? callPhoneName}) _parseSseBody(String body) {
+  ({String text, String? callPhoneName, bool callPhoneExactMatch}) _parseSseBody(String body) {
     final buffer = StringBuffer();
     String? callPhoneName;
+    var callPhoneExactMatch = false;
     var eventIndex = 0;
 
     for (final line in body.split('\n')) {
@@ -139,14 +144,20 @@ class AssistantRepositoryImpl implements AssistantRepository {
       try {
         final decoded = jsonDecode(payload) as Map<String, dynamic>?;
         _appendModelTexts(buffer, decoded, eventIndex);
-        callPhoneName ??= _extractCallPhoneName(decoded, eventIndex);
+        if (callPhoneName == null) {
+          final action = _extractCallPhoneAction(decoded, eventIndex);
+          if (action != null) {
+            callPhoneName = action.name;
+            callPhoneExactMatch = action.exactMatch;
+          }
+        }
       } catch (e) {
         _logger.w('[SSE event #$eventIndex] Parse error (skipped): $e');
       }
     }
 
     _logger.i('[SSE] $eventIndex event(s) received, final text: "${buffer.toString()}"');
-    return (text: buffer.toString(), callPhoneName: callPhoneName);
+    return (text: buffer.toString(), callPhoneName: callPhoneName, callPhoneExactMatch: callPhoneExactMatch);
   }
 
   /// Returns the payload string from a `data: ...` SSE line, or null to skip.
@@ -179,8 +190,11 @@ class AssistantRepositoryImpl implements AssistantRepository {
     }
   }
 
-  /// Extracts the contact name from a `call_phone` stateDelta action, or null.
-  String? _extractCallPhoneName(Map<String, dynamic>? decoded, int eventIndex) {
+  /// Extracts the call_phone action from a stateDelta, or null.
+  ({String name, bool exactMatch})? _extractCallPhoneAction(
+    Map<String, dynamic>? decoded,
+    int eventIndex,
+  ) {
     final actions = decoded?['actions'];
     if (actions is! Map) return null;
     final stateDelta = actions['stateDelta'];
@@ -188,8 +202,10 @@ class AssistantRepositoryImpl implements AssistantRepository {
     final action = stateDelta['action'];
     if (action is! Map || action['type'] != 'call_phone') return null;
     final name = action['payload']?['name'] as String?;
-    _logger.d('[SSE event #$eventIndex] stateDelta call_phone → $name');
-    return name;
+    if (name == null) return null;
+    final exactMatch = action['payload']?['exactMatch'] as bool? ?? false;
+    _logger.d('[SSE event #$eventIndex] stateDelta call_phone → $name (exactMatch=$exactMatch)');
+    return (name: name, exactMatch: exactMatch);
   }
 
   // ── ElevenLabs TTS ────────────────────────────────────────────────────────
@@ -241,13 +257,26 @@ class AssistantRepositoryImpl implements AssistantRepository {
   @override
   Future<AssistantResponse> ask(String question) async {
     _logger.i('[Repository] ask() → "$question"');
-    final (:text, :callPhoneName) = await _callAdk(question);
+    final (:text, :callPhoneName, :callPhoneExactMatch) = await _callAdk(question);
+
+    // Skip TTS synthesis when a phone call action is returned: the BLoC will
+    // handle the call immediately and relay the result back to the agent. The
+    // spoken response will come from the agent's reply to the [phone] message.
+    if (callPhoneName != null) {
+      _logger.i('[Repository] call_phone("$callPhoneName") — skipping TTS');
+      return AssistantResponse(
+        text: text,
+        audioBytes: const [],
+        callPhoneName: callPhoneName,
+        callPhoneExactMatch: callPhoneExactMatch,
+      );
+    }
+
     final audioBytes = await _synthesizeSpeech(text);
     _logger.i('[Repository] Final response: "$text" (${audioBytes.length} audio bytes)');
     return AssistantResponse(
       text: text,
       audioBytes: audioBytes,
-      callPhoneName: callPhoneName,
     );
   }
 }

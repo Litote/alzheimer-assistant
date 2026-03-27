@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AssistantResponse {
 
- String get text; List<int> get audioBytes; String? get callPhoneName;
+ String get text; List<int> get audioBytes; String? get callPhoneName; bool get callPhoneExactMatch;
 /// Create a copy of AssistantResponse
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $AssistantResponseCopyWith<AssistantResponse> get copyWith => _$AssistantRespons
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AssistantResponse&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other.audioBytes, audioBytes)&&(identical(other.callPhoneName, callPhoneName) || other.callPhoneName == callPhoneName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AssistantResponse&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other.audioBytes, audioBytes)&&(identical(other.callPhoneName, callPhoneName) || other.callPhoneName == callPhoneName)&&(identical(other.callPhoneExactMatch, callPhoneExactMatch) || other.callPhoneExactMatch == callPhoneExactMatch));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,text,const DeepCollectionEquality().hash(audioBytes),callPhoneName);
+int get hashCode => Object.hash(runtimeType,text,const DeepCollectionEquality().hash(audioBytes),callPhoneName,callPhoneExactMatch);
 
 @override
 String toString() {
-  return 'AssistantResponse(text: $text, audioBytes: $audioBytes, callPhoneName: $callPhoneName)';
+  return 'AssistantResponse(text: $text, audioBytes: $audioBytes, callPhoneName: $callPhoneName, callPhoneExactMatch: $callPhoneExactMatch)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $AssistantResponseCopyWith<$Res>  {
   factory $AssistantResponseCopyWith(AssistantResponse value, $Res Function(AssistantResponse) _then) = _$AssistantResponseCopyWithImpl;
 @useResult
 $Res call({
- String text, List<int> audioBytes, String? callPhoneName
+ String text, List<int> audioBytes, String? callPhoneName, bool callPhoneExactMatch
 });
 
 
@@ -62,12 +62,13 @@ class _$AssistantResponseCopyWithImpl<$Res>
 
 /// Create a copy of AssistantResponse
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? text = null,Object? audioBytes = null,Object? callPhoneName = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? text = null,Object? audioBytes = null,Object? callPhoneName = freezed,Object? callPhoneExactMatch = null,}) {
   return _then(_self.copyWith(
 text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String,audioBytes: null == audioBytes ? _self.audioBytes : audioBytes // ignore: cast_nullable_to_non_nullable
 as List<int>,callPhoneName: freezed == callPhoneName ? _self.callPhoneName : callPhoneName // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,callPhoneExactMatch: null == callPhoneExactMatch ? _self.callPhoneExactMatch : callPhoneExactMatch // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -152,10 +153,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String text,  List<int> audioBytes,  String? callPhoneName)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String text,  List<int> audioBytes,  String? callPhoneName,  bool callPhoneExactMatch)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AssistantResponse() when $default != null:
-return $default(_that.text,_that.audioBytes,_that.callPhoneName);case _:
+return $default(_that.text,_that.audioBytes,_that.callPhoneName,_that.callPhoneExactMatch);case _:
   return orElse();
 
 }
@@ -173,10 +174,10 @@ return $default(_that.text,_that.audioBytes,_that.callPhoneName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String text,  List<int> audioBytes,  String? callPhoneName)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String text,  List<int> audioBytes,  String? callPhoneName,  bool callPhoneExactMatch)  $default,) {final _that = this;
 switch (_that) {
 case _AssistantResponse():
-return $default(_that.text,_that.audioBytes,_that.callPhoneName);case _:
+return $default(_that.text,_that.audioBytes,_that.callPhoneName,_that.callPhoneExactMatch);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -193,10 +194,10 @@ return $default(_that.text,_that.audioBytes,_that.callPhoneName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String text,  List<int> audioBytes,  String? callPhoneName)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String text,  List<int> audioBytes,  String? callPhoneName,  bool callPhoneExactMatch)?  $default,) {final _that = this;
 switch (_that) {
 case _AssistantResponse() when $default != null:
-return $default(_that.text,_that.audioBytes,_that.callPhoneName);case _:
+return $default(_that.text,_that.audioBytes,_that.callPhoneName,_that.callPhoneExactMatch);case _:
   return null;
 
 }
@@ -208,7 +209,7 @@ return $default(_that.text,_that.audioBytes,_that.callPhoneName);case _:
 
 
 class _AssistantResponse implements AssistantResponse {
-  const _AssistantResponse({required this.text, required final  List<int> audioBytes, this.callPhoneName}): _audioBytes = audioBytes;
+  const _AssistantResponse({required this.text, required final  List<int> audioBytes, this.callPhoneName, this.callPhoneExactMatch = false}): _audioBytes = audioBytes;
   
 
 @override final  String text;
@@ -220,6 +221,7 @@ class _AssistantResponse implements AssistantResponse {
 }
 
 @override final  String? callPhoneName;
+@override@JsonKey() final  bool callPhoneExactMatch;
 
 /// Create a copy of AssistantResponse
 /// with the given fields replaced by the non-null parameter values.
@@ -231,16 +233,16 @@ _$AssistantResponseCopyWith<_AssistantResponse> get copyWith => __$AssistantResp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AssistantResponse&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other._audioBytes, _audioBytes)&&(identical(other.callPhoneName, callPhoneName) || other.callPhoneName == callPhoneName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AssistantResponse&&(identical(other.text, text) || other.text == text)&&const DeepCollectionEquality().equals(other._audioBytes, _audioBytes)&&(identical(other.callPhoneName, callPhoneName) || other.callPhoneName == callPhoneName)&&(identical(other.callPhoneExactMatch, callPhoneExactMatch) || other.callPhoneExactMatch == callPhoneExactMatch));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,text,const DeepCollectionEquality().hash(_audioBytes),callPhoneName);
+int get hashCode => Object.hash(runtimeType,text,const DeepCollectionEquality().hash(_audioBytes),callPhoneName,callPhoneExactMatch);
 
 @override
 String toString() {
-  return 'AssistantResponse(text: $text, audioBytes: $audioBytes, callPhoneName: $callPhoneName)';
+  return 'AssistantResponse(text: $text, audioBytes: $audioBytes, callPhoneName: $callPhoneName, callPhoneExactMatch: $callPhoneExactMatch)';
 }
 
 
@@ -251,7 +253,7 @@ abstract mixin class _$AssistantResponseCopyWith<$Res> implements $AssistantResp
   factory _$AssistantResponseCopyWith(_AssistantResponse value, $Res Function(_AssistantResponse) _then) = __$AssistantResponseCopyWithImpl;
 @override @useResult
 $Res call({
- String text, List<int> audioBytes, String? callPhoneName
+ String text, List<int> audioBytes, String? callPhoneName, bool callPhoneExactMatch
 });
 
 
@@ -268,12 +270,13 @@ class __$AssistantResponseCopyWithImpl<$Res>
 
 /// Create a copy of AssistantResponse
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? text = null,Object? audioBytes = null,Object? callPhoneName = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? text = null,Object? audioBytes = null,Object? callPhoneName = freezed,Object? callPhoneExactMatch = null,}) {
   return _then(_AssistantResponse(
 text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String,audioBytes: null == audioBytes ? _self._audioBytes : audioBytes // ignore: cast_nullable_to_non_nullable
 as List<int>,callPhoneName: freezed == callPhoneName ? _self.callPhoneName : callPhoneName // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,callPhoneExactMatch: null == callPhoneExactMatch ? _self.callPhoneExactMatch : callPhoneExactMatch // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

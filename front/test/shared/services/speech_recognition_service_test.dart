@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:alzheimer_assistant/shared/services/speech_recognition_service.dart';
@@ -39,6 +40,7 @@ void main() {
   setUp(() {
     mockStt = MockSpeechToText();
     when(() => mockStt.stop()).thenAnswer((_) async {});
+    when(() => mockStt.cancel()).thenAnswer((_) async => true);
   });
 
   // ── initialize ────────────────────────────────────────────────────────────
@@ -154,6 +156,128 @@ void main() {
     );
 
     expect(finalText, '');
+  });
+
+  // ── startListening: timeout / no-match → calls onTimeout ─────────────────
+  //
+  // When Android fires error_speech_timeout or error_no_match the session
+  // is stuck (cancelOnError: false). The service must stop the recogniser
+  // and invoke onTimeout so the BLoC can reset to Idle without an error msg.
+
+  test('error_speech_timeout → stops STT and calls onTimeout', () async {
+    void Function(SpeechRecognitionError)? capturedOnError;
+    when(
+      () => mockStt.initialize(onError: any(named: 'onError')),
+    ).thenAnswer((invocation) async {
+      capturedOnError = invocation.namedArguments[const Symbol('onError')]
+          as void Function(SpeechRecognitionError);
+      return true;
+    });
+    when(
+      () => mockStt.listen(
+        onResult: any(named: 'onResult'),
+        localeId: any(named: 'localeId'),
+        pauseFor: any(named: 'pauseFor'),
+        listenFor: any(named: 'listenFor'),
+        listenOptions: any(named: 'listenOptions'),
+      ),
+    ).thenAnswer((_) async {});
+    final service = SpeechRecognitionService(stt: mockStt);
+
+    bool timeoutCalled = false;
+    await service.startListening(
+      onInterim: (_) {},
+      onFinal: (_) {},
+      onTimeout: () => timeoutCalled = true,
+    );
+
+    capturedOnError!(SpeechRecognitionError('error_speech_timeout', false));
+
+    expect(timeoutCalled, isTrue);
+    verify(() => mockStt.stop()).called(greaterThanOrEqualTo(1));
+  });
+
+  test('error_no_match → stops STT and calls onTimeout', () async {
+    void Function(SpeechRecognitionError)? capturedOnError;
+    when(
+      () => mockStt.initialize(onError: any(named: 'onError')),
+    ).thenAnswer((invocation) async {
+      capturedOnError = invocation.namedArguments[const Symbol('onError')]
+          as void Function(SpeechRecognitionError);
+      return true;
+    });
+    when(
+      () => mockStt.listen(
+        onResult: any(named: 'onResult'),
+        localeId: any(named: 'localeId'),
+        pauseFor: any(named: 'pauseFor'),
+        listenFor: any(named: 'listenFor'),
+        listenOptions: any(named: 'listenOptions'),
+      ),
+    ).thenAnswer((_) async {});
+    final service = SpeechRecognitionService(stt: mockStt);
+
+    bool timeoutCalled = false;
+    await service.startListening(
+      onInterim: (_) {},
+      onFinal: (_) {},
+      onTimeout: () => timeoutCalled = true,
+    );
+
+    capturedOnError!(SpeechRecognitionError('error_no_match', false));
+
+    expect(timeoutCalled, isTrue);
+    verify(() => mockStt.stop()).called(greaterThanOrEqualTo(1));
+  });
+
+  test('other error codes → onTimeout NOT called', () async {
+    void Function(SpeechRecognitionError)? capturedOnError;
+    when(
+      () => mockStt.initialize(onError: any(named: 'onError')),
+    ).thenAnswer((invocation) async {
+      capturedOnError = invocation.namedArguments[const Symbol('onError')]
+          as void Function(SpeechRecognitionError);
+      return true;
+    });
+    when(
+      () => mockStt.listen(
+        onResult: any(named: 'onResult'),
+        localeId: any(named: 'localeId'),
+        pauseFor: any(named: 'pauseFor'),
+        listenFor: any(named: 'listenFor'),
+        listenOptions: any(named: 'listenOptions'),
+      ),
+    ).thenAnswer((_) async {});
+    final service = SpeechRecognitionService(stt: mockStt);
+
+    bool timeoutCalled = false;
+    await service.startListening(
+      onInterim: (_) {},
+      onFinal: (_) {},
+      onTimeout: () => timeoutCalled = true,
+    );
+
+    capturedOnError!(SpeechRecognitionError('error_client', false));
+
+    expect(timeoutCalled, isFalse);
+  });
+
+  // ── startListening: cancel before listen ──────────────────────────────────
+  //
+  // On Android, calling listen() while a previous SpeechRecognizer session is
+  // still tearing down produces ERROR_CLIENT, which with cancelOnError:false
+  // causes an infinite error/restart loop. Calling cancel() first forces the
+  // native session to be destroyed before a new one is created.
+
+  test('startListening: cancels any previous session before calling listen()', () async {
+    when(() => mockStt.initialize(onError: any(named: 'onError')))
+        .thenAnswer((_) async => true);
+    _stubListen(mockStt, _result('Bonjour', isFinal: true));
+    final service = SpeechRecognitionService(stt: mockStt);
+
+    await service.startListening(onInterim: (_) {}, onFinal: (_) {});
+
+    verify(() => mockStt.cancel()).called(1);
   });
 
   // ── stopListening ─────────────────────────────────────────────────────────

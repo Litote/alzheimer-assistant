@@ -39,9 +39,15 @@ class PhoneCallService {
   final Future<bool?> Function(String) _callNumber;
 
   /// Looks up [name] in contacts and initiates the call.
+  ///
+  /// When [exactMatch] is true, only contacts whose display name equals [name]
+  /// (case-insensitive) are considered. If multiple exact matches exist the
+  /// first one is used — this handles accented/unaccented variants that the
+  /// substring search would conflate (e.g. "Fred" vs "Frederic").
+  ///
   /// Returns [PhoneCallSuccess], [PhoneCallError] or [PhoneCallAmbiguous].
-  Future<PhoneCallResult> callByName(String name) async {
-    _logger.i('[Phone] Looking up contact: "$name"');
+  Future<PhoneCallResult> callByName(String name, {bool exactMatch = false}) async {
+    _logger.i('[Phone] Looking up contact: "$name"${exactMatch ? ' (exactMatch)' : ''}');
 
     final status = await _requestPermission();
     final hasPermission = status == PermissionStatus.granted;
@@ -53,7 +59,12 @@ class PhoneCallService {
     final allContacts = await _getContacts();
     final nameLower = name.toLowerCase();
     final contacts = allContacts
-        .where((c) => c.displayName?.toLowerCase().contains(nameLower) ?? false)
+        .where((c) {
+          final displayLower = c.displayName?.toLowerCase() ?? '';
+          return exactMatch
+              ? displayLower == nameLower
+              : displayLower.contains(nameLower);
+        })
         .toList();
 
     if (contacts.isEmpty) {
@@ -61,7 +72,10 @@ class PhoneCallService {
       return PhoneCallError("Je n'ai pas trouvé $name dans vos contacts.");
     }
 
-    if (contacts.length > 1) {
+    // With exactMatch, multiple hits mean the user said exactly the right name
+    // but several contacts share it — take the first one rather than asking
+    // for disambiguation again.
+    if (contacts.length > 1 && !exactMatch) {
       final candidates = contacts
           .where((c) => c.phones.isNotEmpty)
           .map((c) => (

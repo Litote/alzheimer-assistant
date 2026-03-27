@@ -117,6 +117,18 @@ When the agent determines the user wants to call someone, it returns a function 
 
 ---
 
+## Flutter Toolchain
+
+Use `flutter` and `dart` directly:
+
+```bash
+flutter pub get
+flutter test test/ --exclude-tags golden
+dart run build_runner build --delete-conflicting-outputs
+```
+
+---
+
 ## Configuration (Secrets)
 
 Injected at build time via `--dart-define-from-file=secrets.json`. See `front/secrets.json.example`.

@@ -1,12 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/response_bubble.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<AssistantBloc>().add(const AssistantEvent.appResumed());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

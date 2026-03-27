@@ -157,6 +157,60 @@ void main() {
     expect(dialledNumber, '0612345678');
   });
 
+  // ── callByName: exactMatch=true — exact name wins ─────────────────────────
+  //
+  // Scenario: contacts are "Fred" and "Frederic". User said "Fred" after
+  // disambiguation. Agent sends call_phone(name:"Fred", exactMatch:true).
+  // Substring search would return both; exact match returns only "Fred".
+
+  test('callByName exactMatch: exact name selected among substring candidates', () async {
+    final service = _makeService(
+      requestPermission: _granted,
+      getContacts: () async => [
+        _contact('Fred', '+33611111111'),
+        _contact('Frederic', '+33622222222'),
+      ],
+      callNumber: _callSuccess,
+    );
+
+    final result = await service.callByName('Fred', exactMatch: true);
+
+    expect(result, isA<PhoneCallSuccess>());
+  });
+
+  test('callByName exactMatch: multiple exact-name contacts → first one called', () async {
+    String? dialledNumber;
+    final service = _makeService(
+      requestPermission: _granted,
+      getContacts: () async => [
+        _contact('Fred', '+33611111111'),
+        _contact('Fred', '+33622222222'),
+      ],
+      callNumber: (n) async {
+        dialledNumber = n;
+        return true;
+      },
+    );
+
+    final result = await service.callByName('Fred', exactMatch: true);
+
+    expect(result, isA<PhoneCallSuccess>());
+    expect(dialledNumber, '+33611111111');
+  });
+
+  test('callByName exactMatch: no exact match → PhoneCallError', () async {
+    final service = _makeService(
+      requestPermission: _granted,
+      getContacts: () async => [
+        _contact('Frederic', '+33622222222'),
+      ],
+    );
+
+    final result = await service.callByName('Fred', exactMatch: true);
+
+    expect(result, isA<PhoneCallError>());
+  });
+
   // ── callByNumber: success ─────────────────────────────────────────────────
 
   test('callByNumber: called returns true → PhoneCallSuccess', () async {

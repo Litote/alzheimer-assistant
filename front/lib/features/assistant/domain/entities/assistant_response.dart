@@ -8,5 +8,6 @@ abstract class AssistantResponse with _$AssistantResponse {
     required String text,
     required List<int> audioBytes,
     String? callPhoneName,
+    @Default(false) bool callPhoneExactMatch,
   }) = _AssistantResponse;
 }

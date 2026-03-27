@@ -131,13 +131,13 @@ return error(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  idle,TResult Function( String interimTranscript,  List<PhoneCandidate>? pendingCandidates)?  listening,TResult Function( String userMessage)?  processing,TResult Function( String responseText,  String? pendingCallName,  bool awaitingDisambiguation,  List<PhoneCandidate>? pendingCandidates)?  speaking,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  idle,TResult Function( String interimTranscript)?  listening,TResult Function( String userMessage)?  processing,TResult Function( String responseText)?  speaking,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Idle() when idle != null:
 return idle();case Listening() when listening != null:
-return listening(_that.interimTranscript,_that.pendingCandidates);case Processing() when processing != null:
+return listening(_that.interimTranscript);case Processing() when processing != null:
 return processing(_that.userMessage);case Speaking() when speaking != null:
-return speaking(_that.responseText,_that.pendingCallName,_that.awaitingDisambiguation,_that.pendingCandidates);case AssistantError() when error != null:
+return speaking(_that.responseText);case AssistantError() when error != null:
 return error(_that.message);case _:
   return orElse();
 
@@ -156,13 +156,13 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  idle,required TResult Function( String interimTranscript,  List<PhoneCandidate>? pendingCandidates)  listening,required TResult Function( String userMessage)  processing,required TResult Function( String responseText,  String? pendingCallName,  bool awaitingDisambiguation,  List<PhoneCandidate>? pendingCandidates)  speaking,required TResult Function( String message)  error,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  idle,required TResult Function( String interimTranscript)  listening,required TResult Function( String userMessage)  processing,required TResult Function( String responseText)  speaking,required TResult Function( String message)  error,}) {final _that = this;
 switch (_that) {
 case Idle():
 return idle();case Listening():
-return listening(_that.interimTranscript,_that.pendingCandidates);case Processing():
+return listening(_that.interimTranscript);case Processing():
 return processing(_that.userMessage);case Speaking():
-return speaking(_that.responseText,_that.pendingCallName,_that.awaitingDisambiguation,_that.pendingCandidates);case AssistantError():
+return speaking(_that.responseText);case AssistantError():
 return error(_that.message);case _:
   throw StateError('Unexpected subclass');
 
@@ -180,13 +180,13 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  idle,TResult? Function( String interimTranscript,  List<PhoneCandidate>? pendingCandidates)?  listening,TResult? Function( String userMessage)?  processing,TResult? Function( String responseText,  String? pendingCallName,  bool awaitingDisambiguation,  List<PhoneCandidate>? pendingCandidates)?  speaking,TResult? Function( String message)?  error,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  idle,TResult? Function( String interimTranscript)?  listening,TResult? Function( String userMessage)?  processing,TResult? Function( String responseText)?  speaking,TResult? Function( String message)?  error,}) {final _that = this;
 switch (_that) {
 case Idle() when idle != null:
 return idle();case Listening() when listening != null:
-return listening(_that.interimTranscript,_that.pendingCandidates);case Processing() when processing != null:
+return listening(_that.interimTranscript);case Processing() when processing != null:
 return processing(_that.userMessage);case Speaking() when speaking != null:
-return speaking(_that.responseText,_that.pendingCallName,_that.awaitingDisambiguation,_that.pendingCandidates);case AssistantError() when error != null:
+return speaking(_that.responseText);case AssistantError() when error != null:
 return error(_that.message);case _:
   return null;
 
@@ -231,21 +231,10 @@ String toString() {
 
 
 class Listening implements AssistantState {
-  const Listening({this.interimTranscript = '', final  List<PhoneCandidate>? pendingCandidates = null}): _pendingCandidates = pendingCandidates;
+  const Listening({this.interimTranscript = ''});
   
 
 @JsonKey() final  String interimTranscript;
-/// Pending candidates during a phone call disambiguation.
- final  List<PhoneCandidate>? _pendingCandidates;
-/// Pending candidates during a phone call disambiguation.
-@JsonKey() List<PhoneCandidate>? get pendingCandidates {
-  final value = _pendingCandidates;
-  if (value == null) return null;
-  if (_pendingCandidates is EqualUnmodifiableListView) return _pendingCandidates;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(value);
-}
-
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
@@ -257,16 +246,16 @@ $ListeningCopyWith<Listening> get copyWith => _$ListeningCopyWithImpl<Listening>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Listening&&(identical(other.interimTranscript, interimTranscript) || other.interimTranscript == interimTranscript)&&const DeepCollectionEquality().equals(other._pendingCandidates, _pendingCandidates));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Listening&&(identical(other.interimTranscript, interimTranscript) || other.interimTranscript == interimTranscript));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,interimTranscript,const DeepCollectionEquality().hash(_pendingCandidates));
+int get hashCode => Object.hash(runtimeType,interimTranscript);
 
 @override
 String toString() {
-  return 'AssistantState.listening(interimTranscript: $interimTranscript, pendingCandidates: $pendingCandidates)';
+  return 'AssistantState.listening(interimTranscript: $interimTranscript)';
 }
 
 
@@ -277,7 +266,7 @@ abstract mixin class $ListeningCopyWith<$Res> implements $AssistantStateCopyWith
   factory $ListeningCopyWith(Listening value, $Res Function(Listening) _then) = _$ListeningCopyWithImpl;
 @useResult
 $Res call({
- String interimTranscript, List<PhoneCandidate>? pendingCandidates
+ String interimTranscript
 });
 
 
@@ -294,11 +283,10 @@ class _$ListeningCopyWithImpl<$Res>
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? interimTranscript = null,Object? pendingCandidates = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? interimTranscript = null,}) {
   return _then(Listening(
 interimTranscript: null == interimTranscript ? _self.interimTranscript : interimTranscript // ignore: cast_nullable_to_non_nullable
-as String,pendingCandidates: freezed == pendingCandidates ? _self._pendingCandidates : pendingCandidates // ignore: cast_nullable_to_non_nullable
-as List<PhoneCandidate>?,
+as String,
   ));
 }
 
@@ -375,25 +363,10 @@ as String,
 
 
 class Speaking implements AssistantState {
-  const Speaking({required this.responseText, this.pendingCallName = null, this.awaitingDisambiguation = false, final  List<PhoneCandidate>? pendingCandidates = null}): _pendingCandidates = pendingCandidates;
+  const Speaking({required this.responseText});
   
 
  final  String responseText;
-/// Contact name to call after playback ends (null = no call).
-@JsonKey() final  String? pendingCallName;
-/// True if the current audio is a disambiguation question.
-@JsonKey() final  bool awaitingDisambiguation;
-/// Candidates to disambiguate (null when not in disambiguation).
- final  List<PhoneCandidate>? _pendingCandidates;
-/// Candidates to disambiguate (null when not in disambiguation).
-@JsonKey() List<PhoneCandidate>? get pendingCandidates {
-  final value = _pendingCandidates;
-  if (value == null) return null;
-  if (_pendingCandidates is EqualUnmodifiableListView) return _pendingCandidates;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(value);
-}
-
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
@@ -405,16 +378,16 @@ $SpeakingCopyWith<Speaking> get copyWith => _$SpeakingCopyWithImpl<Speaking>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Speaking&&(identical(other.responseText, responseText) || other.responseText == responseText)&&(identical(other.pendingCallName, pendingCallName) || other.pendingCallName == pendingCallName)&&(identical(other.awaitingDisambiguation, awaitingDisambiguation) || other.awaitingDisambiguation == awaitingDisambiguation)&&const DeepCollectionEquality().equals(other._pendingCandidates, _pendingCandidates));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Speaking&&(identical(other.responseText, responseText) || other.responseText == responseText));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,responseText,pendingCallName,awaitingDisambiguation,const DeepCollectionEquality().hash(_pendingCandidates));
+int get hashCode => Object.hash(runtimeType,responseText);
 
 @override
 String toString() {
-  return 'AssistantState.speaking(responseText: $responseText, pendingCallName: $pendingCallName, awaitingDisambiguation: $awaitingDisambiguation, pendingCandidates: $pendingCandidates)';
+  return 'AssistantState.speaking(responseText: $responseText)';
 }
 
 
@@ -425,7 +398,7 @@ abstract mixin class $SpeakingCopyWith<$Res> implements $AssistantStateCopyWith<
   factory $SpeakingCopyWith(Speaking value, $Res Function(Speaking) _then) = _$SpeakingCopyWithImpl;
 @useResult
 $Res call({
- String responseText, String? pendingCallName, bool awaitingDisambiguation, List<PhoneCandidate>? pendingCandidates
+ String responseText
 });
 
 
@@ -442,13 +415,10 @@ class _$SpeakingCopyWithImpl<$Res>
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? responseText = null,Object? pendingCallName = freezed,Object? awaitingDisambiguation = null,Object? pendingCandidates = freezed,}) {
+@pragma('vm:prefer-inline') $Res call({Object? responseText = null,}) {
   return _then(Speaking(
 responseText: null == responseText ? _self.responseText : responseText // ignore: cast_nullable_to_non_nullable
-as String,pendingCallName: freezed == pendingCallName ? _self.pendingCallName : pendingCallName // ignore: cast_nullable_to_non_nullable
-as String?,awaitingDisambiguation: null == awaitingDisambiguation ? _self.awaitingDisambiguation : awaitingDisambiguation // ignore: cast_nullable_to_non_nullable
-as bool,pendingCandidates: freezed == pendingCandidates ? _self._pendingCandidates : pendingCandidates // ignore: cast_nullable_to_non_nullable
-as List<PhoneCandidate>?,
+as String,
   ));
 }
 

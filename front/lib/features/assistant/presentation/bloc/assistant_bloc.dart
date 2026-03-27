@@ -23,7 +23,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     on<SpeakResponse>(_onSpeakResponse);
     on<AudioFinished>(_onAudioFinished);
     on<ErrorOccurred>(_onErrorOccurred);
-    on<DisambiguateCall>(_onDisambiguateCall);
+    on<AppResumed>(_onAppResumed);
   }
 
   final AssistantRepository _repository;
@@ -35,24 +35,22 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     StartListening event,
     Emitter<AssistantState> emit,
   ) async {
-    // If in error state, reset to idle on first tap
     if (state is AssistantError) {
       emit(const AssistantState.idle());
       return;
     }
+    if (state is Speaking) {
+      await _ttsService.stop();
+      emit(const AssistantState.idle());
+      return;
+    }
+    if (state is Listening) {
+      await _speechService.stopListening();
+      emit(const AssistantState.idle());
+      return;
+    }
 
-    emit(const AssistantState.listening());
-
-    await _speechService.startListening(
-      onInterim: (text) => add(AssistantEvent.interimTranscript(text)),
-      onFinal: (text) {
-        if (text.isNotEmpty) {
-          add(AssistantEvent.sendMessage(text));
-        } else {
-          add(const AssistantEvent.errorOccurred("Je n'ai rien entendu, réessayez."));
-        }
-      },
-    );
+    await _startListening(emit);
   }
 
   void _onInterimTranscript(
@@ -70,11 +68,23 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
     try {
       final response = await _repository.ask(event.text);
-      add(AssistantEvent.speakResponse(
-        text: response.text,
-        audioBytes: response.audioBytes,
-        callPhoneName: response.callPhoneName,
-      ));
+
+      if (response.callPhoneName != null) {
+        // The agent wants to call a contact — resolve immediately and relay
+        // the phone result back to the agent as a [téléphone] system message.
+        final result = await _phoneCallService.callByName(
+          response.callPhoneName!,
+          exactMatch: response.callPhoneExactMatch,
+        );
+        add(AssistantEvent.sendMessage(
+          _phoneResultMessage(result, response.callPhoneName!),
+        ));
+      } else {
+        add(AssistantEvent.speakResponse(
+          text: response.text,
+          audioBytes: response.audioBytes,
+        ));
+      }
     } catch (e) {
       add(const AssistantEvent.errorOccurred('Désolé, une erreur est survenue.'));
     }
@@ -84,12 +94,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     SpeakResponse event,
     Emitter<AssistantState> emit,
   ) async {
-    emit(AssistantState.speaking(
-      responseText: event.text,
-      pendingCallName: event.callPhoneName,
-      awaitingDisambiguation: event.awaitingDisambiguation,
-      pendingCandidates: event.pendingCandidates,
-    ));
+    emit(AssistantState.speaking(responseText: event.text));
 
     await _ttsService.play(
       event.audioBytes,
@@ -101,111 +106,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     AudioFinished event,
     Emitter<AssistantState> emit,
   ) async {
-    final currentState = state;
-    if (currentState is! Speaking) return;
-
-    // After the disambiguation question → listen for the user's answer
-    if (currentState.awaitingDisambiguation) {
-      final candidates = currentState.pendingCandidates;
-      emit(AssistantState.listening(pendingCandidates: candidates));
-      await _speechService.startListening(
-        onInterim: (text) => add(AssistantEvent.interimTranscript(text)),
-        onFinal: (text) {
-          if (text.isNotEmpty) {
-            add(AssistantEvent.disambiguateCall(text));
-          } else {
-            add(const AssistantEvent.errorOccurred("Je n'ai rien entendu, réessayez."));
-          }
-        },
-      );
-      return;
-    }
-
-    final callName = currentState.pendingCallName;
+    if (state is! Speaking) return;
     emit(const AssistantState.idle());
-
-    if (callName == null) return;
-
-    final result = await _phoneCallService.callByName(callName);
-    await _handlePhoneCallResult(result, displayName: callName);
-  }
-
-  Future<void> _onDisambiguateCall(
-    DisambiguateCall event,
-    Emitter<AssistantState> emit,
-  ) async {
-    final currentState = state;
-    final candidates = currentState is Listening ? currentState.pendingCandidates : null;
-
-    if (candidates == null) return;
-
-    final spokenLower = event.spokenText.toLowerCase();
-    final match = candidates.firstWhere(
-      (c) => c.displayName
-          .toLowerCase()
-          .split(' ')
-          .any((part) => part.length > 2 && spokenLower.contains(part)),
-      orElse: () => (displayName: '', number: ''),
-    );
-
-    if (match.number.isEmpty) {
-      const msg = "Je n'ai pas compris. Voulez-vous réessayer ?";
-      await _synthesizeAndSpeak(msg);
-      return;
-    }
-
-    emit(const AssistantState.idle());
-    final result = await _phoneCallService.callByNumber(
-      match.number,
-      displayName: match.displayName,
-    );
-    await _handlePhoneCallResult(result, displayName: match.displayName);
-  }
-
-  Future<void> _handlePhoneCallResult(
-    PhoneCallResult result, {
-    String? displayName,
-  }) async {
-    switch (result) {
-      case PhoneCallSuccess():
-        final name = displayName ?? 'votre contact';
-        await _synthesizeAndSpeak("J'appelle $name. Bonne conversation !");
-      case PhoneCallError(:final message):
-        await _synthesizeAndSpeak(message);
-      case PhoneCallAmbiguous(:final candidates):
-        final names = _formatNames(candidates.map((c) => c.displayName).toList());
-        final msg = "J'ai trouvé plusieurs contacts : $names. Lequel voulez-vous appeler ?";
-        await _synthesizeAndSpeak(
-          msg,
-          awaitingDisambiguation: true,
-          pendingCandidates: candidates,
-        );
-    }
-  }
-
-  /// Synthesises [msg] and emits a [SpeakResponse]. On network error,
-  /// emits [ErrorOccurred] directly with the message text.
-  Future<void> _synthesizeAndSpeak(
-    String msg, {
-    bool awaitingDisambiguation = false,
-    List<PhoneCandidate>? pendingCandidates,
-  }) async {
-    try {
-      final audioBytes = await _repository.synthesize(msg);
-      add(AssistantEvent.speakResponse(
-        text: msg,
-        audioBytes: audioBytes,
-        awaitingDisambiguation: awaitingDisambiguation,
-        pendingCandidates: pendingCandidates,
-      ));
-    } catch (_) {
-      add(AssistantEvent.errorOccurred(msg));
-    }
-  }
-
-  String _formatNames(List<String> names) {
-    if (names.length == 1) return names.first;
-    return '${names.sublist(0, names.length - 1).join(', ')} et ${names.last}';
   }
 
   void _onErrorOccurred(
@@ -213,6 +115,50 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     Emitter<AssistantState> emit,
   ) {
     emit(AssistantState.error(message: event.message));
+  }
+
+  /// Resets to Idle when the app returns to the foreground while audio is
+  /// playing. On Android, the dialer backgrounds the app and interrupts
+  /// [AudioPlayer], which never fires onPlayerComplete, leaving the bloc
+  /// stuck in [Speaking].
+  Future<void> _onAppResumed(
+    AppResumed event,
+    Emitter<AssistantState> emit,
+  ) async {
+    if (state is! Speaking) return;
+    await _ttsService.stop();
+    emit(const AssistantState.idle());
+  }
+
+  Future<void> _startListening(Emitter<AssistantState> emit) async {
+    emit(const AssistantState.listening());
+    await _speechService.startListening(
+      onInterim: (text) => add(AssistantEvent.interimTranscript(text)),
+      onFinal: (text) {
+        if (text.isNotEmpty) {
+          add(AssistantEvent.sendMessage(text));
+        } else {
+          add(const AssistantEvent.errorOccurred("Je n'ai rien entendu, réessayez."));
+        }
+      },
+      onTimeout: () => add(const AssistantEvent.startListening()),
+    );
+  }
+
+  /// Formats the phone call result as a [phone] system message to be
+  /// sent back to the agent so it can respond naturally to the outcome.
+  String _phoneResultMessage(PhoneCallResult result, String requestedName) =>
+      switch (result) {
+        PhoneCallSuccess() => '[phone] $requestedName appelé.',
+        PhoneCallError(:final message) => '[phone] $message',
+        PhoneCallAmbiguous(:final candidates) =>
+          '[phone] plusieurs contacts correspondent à "$requestedName" : '
+          '${_formatNames(candidates.map((c) => c.displayName).toList())}.',
+      };
+
+  String _formatNames(List<String> names) {
+    if (names.length == 1) return names.first;
+    return '${names.sublist(0, names.length - 1).join(', ')} et ${names.last}';
   }
 
   @override
