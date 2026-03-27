@@ -25,10 +25,6 @@ Conversational agent based on Google ADK, deployed on Cloud Run.
 ### `infra/`
 Infrastructure as Code (Terraform / GCP).
 
-## CI/CD
+## Contributing
 
-| Workflow | Trigger | Description |
-|----------|---------|-------------|
-| `front-ci` | push/PR on `front/**` | Tests, analysis, Android & iOS build |
-| `front-e2e` | push/PR on `front/**` | E2E tests on iOS simulator |
-| `front-update-goldens` | Manual | Regenerates golden screenshots |
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).

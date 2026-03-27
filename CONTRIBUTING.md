@@ -31,6 +31,38 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run --dart-define-from-file=secrets.json
 ```
 
+## Run locally
+
+### Install Android Studio & all
+
+### Local secrets setup
+
+Secrets are injected at build/run time via `--dart-define-from-file=secrets.json`. The file is gitignored — never commit it.
+
+```bash
+cp front/secrets.json.example front/secrets.json
+# then fill in the values
+```
+
+```json
+{
+  "ADK_BASE_URL": "https://your-cloud-run-url.run.app",
+  "ELEVENLABS_API_KEY": "sk_your_api_key_here",
+  "ELEVENLABS_VOICE_ID": "your_voice_id_here"
+}
+```
+
+
+| Key | Where to get it |
+|-----|----------------|
+| `ADK_BASE_URL` | Cloud Run service URL (once `agent/` is deployed) |
+| `ELEVENLABS_API_KEY` | [elevenlabs.io](https://elevenlabs.io) → Profile → API Keys |
+| `ELEVENLABS_VOICE_ID` | ElevenLabs voice library — copy the ID of the chosen voice |
+
+### use provided intellij runner `App` 
+
+---
+
 ## Conventional Commits
 
 All PR titles **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
