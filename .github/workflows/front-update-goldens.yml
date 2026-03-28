@@ -56,9 +56,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add front/test/golden/goldens/
 
           if git diff --staged --quiet; then
@@ -67,18 +64,36 @@ jobs:
             CHANGED=$(git diff --staged --name-only | wc -l | tr -d ' ')
             ORIGIN="${{ github.ref_name }}"
             BRANCH="chore/update-goldens-${ORIGIN//\//-}-$(date +%Y%m%d-%H%M%S)"
-            git checkout -b "$BRANCH"
-            git commit -m "chore: update ${CHANGED} golden screenshot(s) [skip ci]
+            FLUTTER_VERSION=$(flutter --version | head -1)
+            COMMIT_MSG="chore: update ${CHANGED} golden screenshot(s) [skip ci]
 
           Generated on macOS by github-actions[bot]
-          Flutter $(flutter --version | head -1)"
-            git push origin "$BRANCH"
+          ${FLUTTER_VERSION}"
+
+            # Create the branch ref on the remote pointing to current HEAD
+            PARENT=$(git rev-parse HEAD)
+            TREE=$(git write-tree)
+
+            # Create a verified commit via the GitHub API (signed by GitHub natively)
+            COMMIT_SHA=$(gh api repos/${{ github.repository }}/git/commits \
+              --method POST \
+              -f "message=${COMMIT_MSG}" \
+              -f "tree=${TREE}" \
+              -f "parents[]=${PARENT}" \
+              --jq '.sha')
+
+            # Push the new branch pointing to the API-created commit
+            gh api repos/${{ github.repository }}/git/refs \
+              --method POST \
+              -f "ref=refs/heads/${BRANCH}" \
+              -f "sha=${COMMIT_SHA}"
+
             gh pr create \
               --title "chore: update ${CHANGED} golden screenshot(s)" \
               --body "Automated golden screenshot update triggered by workflow_dispatch.
 
-          Generated on macOS · Flutter $(flutter --version | head -1)" \
+          Generated on macOS · ${FLUTTER_VERSION}" \
               --base "${{ github.ref_name }}" \
               --head "$BRANCH"
-            echo "✅ ${CHANGED} golden(s) committed and PR opened."
+            echo "✅ ${CHANGED} golden(s) committed (verified) and PR opened."
           fi

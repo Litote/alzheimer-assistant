@@ -92,6 +92,13 @@ make dev-setup   # re-applies local dev signing
 
 ---
 
+## Commit signing
+
+All commits merged into `main` **must be signed**. The repository enforces this via branch protection rules.
+
+See [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
+---
+
 ## Conventional Commits
 
 All PR titles **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
@@ -198,7 +205,7 @@ Go to **Actions → Front — Update Golden Screenshots → Run workflow**.
 
 Select the branch to target (e.g. `main` or your feature branch) in the **Branch** dropdown, then click **Run workflow**.
 
-The workflow runs on macOS, regenerates all goldens, pushes them to a new `chore/update-goldens-<origin-branch>-<timestamp>` branch, and opens a PR targeting the branch you selected. Review and merge the PR normally — it goes through the standard branch protection rules.
+The workflow runs on macOS, regenerates all goldens, then creates a verified commit via the GitHub API (required because direct pushes must be signed and the repo enforces branch protection). The commit lands on a new `chore/update-goldens-<origin-branch>-<timestamp>` branch, and a PR is opened targeting the branch you selected. Review and merge the PR normally.
 
 **Option 2 — locally (macOS required):**
 
