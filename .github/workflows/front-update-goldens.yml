@@ -61,29 +61,50 @@ jobs:
           if git diff --staged --quiet; then
             echo "✅ No changes in goldens."
           else
-            CHANGED=$(git diff --staged --name-only | wc -l | tr -d ' ')
+            CHANGED_FILES=$(git diff --staged --name-only)
+            CHANGED=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
             ORIGIN="${{ github.ref_name }}"
             BRANCH="chore/update-goldens-${ORIGIN//\//-}-$(date +%Y%m%d-%H%M%S)"
             FLUTTER_VERSION=$(flutter --version | head -1)
+            REPO="${{ github.repository }}"
+            PARENT=$(git rev-parse HEAD)
+            BASE_TREE=$(git rev-parse HEAD^{tree})
             COMMIT_MSG="chore: update ${CHANGED} golden screenshot(s) [skip ci]
 
           Generated on macOS by github-actions[bot]
           ${FLUTTER_VERSION}"
 
-            # Create the branch ref on the remote pointing to current HEAD
-            PARENT=$(git rev-parse HEAD)
-            TREE=$(git write-tree)
+            # Upload each changed file as a blob to GitHub and collect tree entries.
+            # The GitHub API requires blobs to exist on its servers before creating a tree.
+            TREE_ENTRIES_JSON="[]"
+            while IFS= read -r file; do
+              BLOB_SHA=$(gh api "repos/${REPO}/git/blobs" \
+                --method POST \
+                -f "content=$(base64 < "$file" | tr -d '\n')" \
+                -f "encoding=base64" \
+                --jq '.sha')
+              TREE_ENTRIES_JSON=$(echo "$TREE_ENTRIES_JSON" | jq \
+                --arg path "$file" --arg sha "$BLOB_SHA" \
+                '. + [{"path": $path, "mode": "100644", "type": "blob", "sha": $sha}]')
+            done <<< "$CHANGED_FILES"
+
+            # Create the tree on GitHub, inheriting unchanged files from the base tree
+            TREE_SHA=$(jq -n \
+              --arg base_tree "$BASE_TREE" \
+              --argjson tree "$TREE_ENTRIES_JSON" \
+              '{"base_tree": $base_tree, "tree": $tree}' | \
+              gh api "repos/${REPO}/git/trees" --method POST --input - --jq '.sha')
 
             # Create a verified commit via the GitHub API (signed by GitHub natively)
-            COMMIT_SHA=$(gh api repos/${{ github.repository }}/git/commits \
+            COMMIT_SHA=$(gh api "repos/${REPO}/git/commits" \
               --method POST \
               -f "message=${COMMIT_MSG}" \
-              -f "tree=${TREE}" \
+              -f "tree=${TREE_SHA}" \
               -f "parents[]=${PARENT}" \
               --jq '.sha')
 
-            # Push the new branch pointing to the API-created commit
-            gh api repos/${{ github.repository }}/git/refs \
+            # Create the branch ref pointing to the new signed commit
+            gh api "repos/${REPO}/git/refs" \
               --method POST \
               -f "ref=refs/heads/${BRANCH}" \
               -f "sha=${COMMIT_SHA}"
