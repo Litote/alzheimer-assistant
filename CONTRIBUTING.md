@@ -207,6 +207,8 @@ Select the branch to target (e.g. `main` or your feature branch) in the **Branch
 
 The workflow runs on macOS, regenerates all goldens, then creates a verified commit via the GitHub API (required because direct pushes must be signed and the repo enforces branch protection). The commit lands on a new `chore/update-goldens-<origin-branch>-<timestamp>` branch, and a PR is opened targeting the branch you selected. Review and merge the PR normally.
 
+> **Required secret:** The workflow uses `GH_PAT` (a Personal Access Token with `repo` + `workflow` scopes) instead of `GITHUB_TOKEN`. This is necessary because PRs created with `GITHUB_TOKEN` do not trigger other workflows — so CI would never run on the golden update PR. Add the PAT under **Settings → Secrets and variables → Actions → New repository secret**, name it `GH_PAT`.
+
 **Option 2 — locally (macOS required):**
 
 ```bash

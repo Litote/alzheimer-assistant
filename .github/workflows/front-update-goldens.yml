@@ -27,7 +27,8 @@ jobs:
           # Check out the current branch (not the detached SHA)
           # so we can commit the generated goldens to it
           ref: ${{ github.head_ref || github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT so that the PR created later triggers other workflows (GITHUB_TOKEN does not).
+          token: ${{ secrets.GH_PAT }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -54,7 +55,7 @@ jobs:
       - name: Commit & open PR with goldens
         working-directory: .
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           git add front/test/golden/goldens/
 
