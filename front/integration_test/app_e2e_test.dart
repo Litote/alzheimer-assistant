@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alzheimer_assistant/app/app.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/assistant_repository_impl.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
@@ -80,6 +81,11 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('Assistant App — E2E', () {
+    setUp(() async {
+      // Mark onboarding as done so the router goes directly to HomeScreen.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_done', true);
+    });
     // ── Scenario 1: nominal flow ───────────────────────────────────────────
 
     testWidgets(

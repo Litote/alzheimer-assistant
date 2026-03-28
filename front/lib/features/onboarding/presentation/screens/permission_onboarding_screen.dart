@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:alzheimer_assistant/shared/services/permission_service.dart';
@@ -42,11 +43,18 @@ class PermissionOnboardingScreen extends StatelessWidget {
                 description: 'Pour passer des appels téléphoniques',
               ),
               const SizedBox(height: 24),
-              _PermissionItem(
-                icon: Icons.phone,
-                title: 'Téléphone',
-                description: 'Pour composer les numéros automatiquement',
-              ),
+              if (Platform.isIOS)
+                _PermissionItem(
+                  icon: Icons.record_voice_over,
+                  title: 'Reconnaissance vocale',
+                  description: 'Pour transcrire ce que vous dites',
+                )
+              else
+                _PermissionItem(
+                  icon: Icons.phone,
+                  title: 'Téléphone',
+                  description: 'Pour composer les numéros automatiquement',
+                ),
               const Spacer(),
               ElevatedButton(
                 onPressed: () => _authorize(context),
