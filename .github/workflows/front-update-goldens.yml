@@ -5,9 +5,10 @@ name: Front — Update Golden Screenshots
 on:
   workflow_dispatch:
 
-# Permission to write to the repository to commit the goldens
+# Permission to write to the repository and open PRs
 permissions:
   contents: write
+  pull-requests: write
 
 defaults:
   run:
@@ -50,11 +51,13 @@ jobs:
       - name: Generate golden files
         run: flutter test test/golden/ --update-goldens --tags golden
 
-      - name: Commit & push goldens
+      - name: Commit & open PR with goldens
         working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add front/test/golden/goldens/
 
@@ -62,10 +65,20 @@ jobs:
             echo "✅ No changes in goldens."
           else
             CHANGED=$(git diff --staged --name-only | wc -l | tr -d ' ')
+            ORIGIN="${{ github.ref_name }}"
+            BRANCH="chore/update-goldens-${ORIGIN//\//-}-$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$BRANCH"
             git commit -m "chore: update ${CHANGED} golden screenshot(s) [skip ci]
 
           Generated on macOS by github-actions[bot]
           Flutter $(flutter --version | head -1)"
-            git push
-            echo "✅ ${CHANGED} golden(s) committed and pushed."
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore: update ${CHANGED} golden screenshot(s)" \
+              --body "Automated golden screenshot update triggered by workflow_dispatch.
+
+          Generated on macOS · Flutter $(flutter --version | head -1)" \
+              --base "${{ github.ref_name }}" \
+              --head "$BRANCH"
+            echo "✅ ${CHANGED} golden(s) committed and PR opened."
           fi

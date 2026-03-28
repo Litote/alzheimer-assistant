@@ -196,7 +196,9 @@ Golden tests are screenshot regression tests for the Flutter UI. They run on **m
 
 Go to **Actions → Front — Update Golden Screenshots → Run workflow**.
 
-The workflow runs on macOS, regenerates all goldens, and commits them back to the current branch with the message `chore: update N golden screenshot(s) [skip ci]`.
+Select the branch to target (e.g. `main` or your feature branch) in the **Branch** dropdown, then click **Run workflow**.
+
+The workflow runs on macOS, regenerates all goldens, pushes them to a new `chore/update-goldens-<origin-branch>-<timestamp>` branch, and opens a PR targeting the branch you selected. Review and merge the PR normally — it goes through the standard branch protection rules.
 
 **Option 2 — locally (macOS required):**
 
