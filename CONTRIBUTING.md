@@ -30,6 +30,26 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run --dart-define-from-file=secrets.json
 ```
 
+## SonarCloud (local)
+
+Run SonarCloud analysis locally **after every change** before opening a PR. This is the authoritative quality gate (coverage ≥ 80%, 0 bugs, 0 vulnerabilities, 0 hotspots).
+
+**One-time setup** — add your token to `~/.gradle/gradle.properties`:
+
+```properties
+systemProp.sonar.token=<your-sonarcloud-token>
+```
+
+Get your token at [sonarcloud.io](https://sonarcloud.io) → My Account → Security → Generate Token.
+
+**Run analysis** (from the repo root):
+
+```bash
+./gradlew frontSonar
+```
+
+This runs Flutter tests with coverage first, then uploads results to SonarCloud.
+
 ## Run locally
 
 ### Install Android Studio & all

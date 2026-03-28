@@ -42,6 +42,9 @@ dependencies:
   flutter_contacts: ^2.0.1
   flutter_phone_direct_caller: ^2.1.1
 
+  # Permissions
+  permission_handler: ^11.3.1
+
   # Utilities
   logger: ^2.6.1
   shared_preferences: ^2.3.2

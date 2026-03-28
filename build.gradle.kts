@@ -58,11 +58,18 @@ val frontBuildIos by tasks.registering(Exec::class) {
 }
 
 // ── SonarQube ──────────────────────────────────────────────────────────────
-// Pass the token via:
-//   ./gradlew sonar -Dsonar.token=$SONAR_TOKEN
-// or set SONAR_TOKEN in the environment.
+// Token resolution order (first non-empty value wins):
+//   1. System property  — set systemProp.sonar.token=<token> in ~/.gradle/gradle.properties
+//   2. Env variable     — SONAR_TOKEN (used by CI)
 sonar {
     properties {
+        val sonarToken = providers.systemProperty("sonar.token")
+            .orElse(providers.environmentVariable("SONAR_TOKEN"))
+            .orNull
+        if (sonarToken != null) {
+            property("sonar.token", sonarToken)
+        }
+
         property(
             "sonar.projectKey",
             providers.gradleProperty("sonar.projectKey").orElse("alzheimer-assistant").get(),
