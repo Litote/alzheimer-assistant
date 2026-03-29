@@ -96,12 +96,18 @@ jobs:
               '{"base_tree": $base_tree, "tree": $tree}' | \
               gh api "repos/${REPO}/git/trees" --method POST --input - --jq '.sha')
 
-            # Create a verified commit via the GitHub API (signed by GitHub natively)
+            # Create a verified commit via the GitHub API (signed by GitHub natively).
+            # Author/committer are set explicitly so the commit shows as
+            # github-actions[bot] regardless of which token authenticates the call.
             COMMIT_SHA=$(gh api "repos/${REPO}/git/commits" \
               --method POST \
               -f "message=${COMMIT_MSG}" \
               -f "tree=${TREE_SHA}" \
               -f "parents[]=${PARENT}" \
+              -f "author[name]=github-actions[bot]" \
+              -f "author[email]=41898282+github-actions[bot]@users.noreply.github.com" \
+              -f "committer[name]=github-actions[bot]" \
+              -f "committer[email]=41898282+github-actions[bot]@users.noreply.github.com" \
               --jq '.sha')
 
             # Create the branch ref pointing to the new signed commit
