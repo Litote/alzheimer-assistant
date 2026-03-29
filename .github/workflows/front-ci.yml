@@ -11,6 +11,10 @@ on:
     paths:
       - 'front/**'
       - '.github/workflows/front-ci.yml'
+  # Allows triggering CI manually on a branch (used by front-update-goldens.yml
+  # to run checks on the golden PR branch, which was created with GITHUB_TOKEN
+  # and therefore would not auto-trigger pull_request events).
+  workflow_dispatch:
 
 concurrency:
   group: front-ci-${{ github.ref }}

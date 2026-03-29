@@ -27,8 +27,6 @@ jobs:
           # Check out the current branch (not the detached SHA)
           # so we can commit the generated goldens to it
           ref: ${{ github.head_ref || github.ref_name }}
-          # Use PAT so that the PR created later triggers other workflows (GITHUB_TOKEN does not).
-          token: ${{ secrets.GH_PAT }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -55,7 +53,12 @@ jobs:
       - name: Commit & open PR with goldens
         working-directory: .
         env:
+          # PAT: used to trigger CI via gh workflow run (GITHUB_TOKEN cannot
+          # trigger other workflow runs — GitHub restriction).
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          # GITHUB_TOKEN: used for commit creation (GitHub auto-signs → Verified)
+          # and PR creation (author = github-actions[bot], not zigzago).
+          GH_TOKEN_GITHUB: ${{ github.token }}
         run: |
           git add front/test/golden/goldens/
 
@@ -70,7 +73,7 @@ jobs:
             REPO="${{ github.repository }}"
             PARENT=$(git rev-parse HEAD)
             BASE_TREE=$(git rev-parse HEAD^{tree})
-            COMMIT_MSG="chore: update ${CHANGED} golden screenshot(s) [skip ci]
+            COMMIT_MSG="chore: update ${CHANGED} golden screenshot(s)
 
           Generated on macOS by github-actions[bot]
           ${FLUTTER_VERSION}"
@@ -79,7 +82,7 @@ jobs:
             # The GitHub API requires blobs to exist on its servers before creating a tree.
             TREE_ENTRIES_JSON="[]"
             while IFS= read -r file; do
-              BLOB_SHA=$(gh api "repos/${REPO}/git/blobs" \
+              BLOB_SHA=$(GH_TOKEN="$GH_TOKEN_GITHUB" gh api "repos/${REPO}/git/blobs" \
                 --method POST \
                 -f "content=$(base64 < "$file" | tr -d '\n')" \
                 -f "encoding=base64" \
@@ -94,34 +97,38 @@ jobs:
               --arg base_tree "$BASE_TREE" \
               --argjson tree "$TREE_ENTRIES_JSON" \
               '{"base_tree": $base_tree, "tree": $tree}' | \
-              gh api "repos/${REPO}/git/trees" --method POST --input - --jq '.sha')
+              GH_TOKEN="$GH_TOKEN_GITHUB" gh api "repos/${REPO}/git/trees" --method POST --input - --jq '.sha')
 
-            # Create a verified commit via the GitHub API (signed by GitHub natively).
-            # Author/committer are set explicitly so the commit shows as
-            # github-actions[bot] regardless of which token authenticates the call.
-            COMMIT_SHA=$(gh api "repos/${REPO}/git/commits" \
+            # Create a verified commit using GITHUB_TOKEN: GitHub auto-signs commits
+            # created via its API when authenticated with the built-in token.
+            # The PR author becomes github-actions[bot], so the human can approve.
+            COMMIT_SHA=$(GH_TOKEN="$GH_TOKEN_GITHUB" gh api "repos/${REPO}/git/commits" \
               --method POST \
               -f "message=${COMMIT_MSG}" \
               -f "tree=${TREE_SHA}" \
               -f "parents[]=${PARENT}" \
-              -f "author[name]=github-actions[bot]" \
-              -f "author[email]=41898282+github-actions[bot]@users.noreply.github.com" \
-              -f "committer[name]=github-actions[bot]" \
-              -f "committer[email]=41898282+github-actions[bot]@users.noreply.github.com" \
               --jq '.sha')
 
-            # Create the branch ref pointing to the new signed commit
-            gh api "repos/${REPO}/git/refs" \
+            # Create the branch ref (PAT or GITHUB_TOKEN — attribution doesn't matter here)
+            GH_TOKEN="$GH_TOKEN_GITHUB" gh api "repos/${REPO}/git/refs" \
               --method POST \
               -f "ref=refs/heads/${BRANCH}" \
               -f "sha=${COMMIT_SHA}"
 
-            gh pr create \
+            # Open the PR as github-actions[bot] so the human reviewer can approve it.
+            GH_TOKEN="$GH_TOKEN_GITHUB" gh pr create \
               --title "chore: update ${CHANGED} golden screenshot(s)" \
               --body "Automated golden screenshot update triggered by workflow_dispatch.
 
           Generated on macOS · ${FLUTTER_VERSION}" \
               --base "${{ github.ref_name }}" \
               --head "$BRANCH"
-            echo "✅ ${CHANGED} golden(s) committed (verified) and PR opened."
+
+            # Trigger CI on the new branch using the PAT.
+            # GITHUB_TOKEN cannot trigger other workflow runs (GitHub restriction),
+            # so CI would not run automatically on the PR created above.
+            # front-ci.yml has workflow_dispatch for exactly this purpose.
+            gh workflow run front-ci.yml --ref "$BRANCH"
+
+            echo "✅ ${CHANGED} golden(s) committed (verified), PR opened, CI triggered."
           fi
