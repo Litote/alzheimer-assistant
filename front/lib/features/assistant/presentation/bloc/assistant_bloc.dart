@@ -70,12 +70,18 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       final response = await _repository.ask(event.text);
 
       if (response.callPhoneName != null) {
-        // The agent wants to call a contact — resolve immediately and relay
-        // the phone result back to the agent as a [téléphone] system message.
+        // The agent wants to call a contact — resolve and initiate the call.
+        // On success, return to Idle immediately: playing TTS while the phone
+        // is dialling would be disruptive and confusing for the user.
+        // Only errors and ambiguity require a follow-up message to the agent.
         final result = await _phoneCallService.callByName(
           response.callPhoneName!,
           exactMatch: response.callPhoneExactMatch,
         );
+        if (result is PhoneCallSuccess) {
+          emit(const AssistantState.idle());
+          return;
+        }
         add(AssistantEvent.sendMessage(
           _phoneResultMessage(result, response.callPhoneName!),
         ));

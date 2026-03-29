@@ -200,15 +200,18 @@ void main() {
     ],
   );
 
-  // ── SendMessage with call_phone → phone called → [phone] feedback ─────
+  // ── SendMessage with call_phone → phone called → Idle ────────────────────
   //
   // When the agent returns a call_phone action, the BLoC:
   //   1. calls callByName() immediately (no TTS for the agent's initial text)
-  //   2. sends a [phone] result message back to the agent
-  //   3. plays the agent's spoken confirmation
+  //   2. on success: emits Idle immediately — no follow-up TTS to avoid
+  //      speaking over the phone call (audible on iOS where the dialler
+  //      starts in the same process).
+  //   3. on error or ambiguity: sends a [phone] result message back to the
+  //      agent so it can explain the situation to the user.
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage with call_phone (success) → calls phone → [phone] feedback → Speaking',
+    'SendMessage with call_phone (success) → calls phone → Idle (no TTS)',
     build: () {
       final phoneService = MockPhoneCallService();
       when(() => repository.ask('Appelle Maman')).thenAnswer(
@@ -220,11 +223,6 @@ void main() {
       );
       when(() => phoneService.callByName('Maman', exactMatch: any(named: 'exactMatch')))
           .thenAnswer((_) async => PhoneCallSuccess());
-      when(() => repository.ask('[phone] Maman appelé.'))
-          .thenAnswer((_) async => _kResponse);
-      when(
-        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
-      ).thenAnswer((_) async {});
       return AssistantBloc(
         repository: repository,
         speechService: speechService,
@@ -235,12 +233,12 @@ void main() {
     act: (bloc) => bloc.add(const AssistantEvent.sendMessage('Appelle Maman')),
     expect: () => [
       const AssistantState.processing(userMessage: 'Appelle Maman'),
-      const AssistantState.processing(userMessage: '[phone] Maman appelé.'),
-      const AssistantState.speaking(responseText: _kAnswer),
+      const AssistantState.idle(),
     ],
     verify: (_) {
       verify(() => repository.ask('Appelle Maman')).called(1);
-      verify(() => repository.ask('[phone] Maman appelé.')).called(1);
+      verifyNever(() => repository.ask(any()));
+      verifyNever(() => ttsService.play(any(), onComplete: any(named: 'onComplete')));
     },
   );
 
@@ -327,7 +325,7 @@ void main() {
   );
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage with call_phone (exactMatch=true) → passes exactMatch to callByName',
+    'SendMessage with call_phone (exactMatch=true) → passes exactMatch to callByName → Idle',
     build: () {
       final phoneService = MockPhoneCallService();
       when(() => repository.ask('Fred')).thenAnswer(
@@ -340,11 +338,6 @@ void main() {
       );
       when(() => phoneService.callByName('Fred', exactMatch: true))
           .thenAnswer((_) async => PhoneCallSuccess());
-      when(() => repository.ask('[phone] Fred appelé.'))
-          .thenAnswer((_) async => _kResponse);
-      when(
-        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
-      ).thenAnswer((_) async {});
       return AssistantBloc(
         repository: repository,
         speechService: speechService,
@@ -355,8 +348,7 @@ void main() {
     act: (bloc) => bloc.add(const AssistantEvent.sendMessage('Fred')),
     expect: () => [
       const AssistantState.processing(userMessage: 'Fred'),
-      const AssistantState.processing(userMessage: '[phone] Fred appelé.'),
-      const AssistantState.speaking(responseText: _kAnswer),
+      const AssistantState.idle(),
     ],
     verify: (_) {
       // exactMatch=true must be forwarded to callByName — verified by the stub

@@ -57,6 +57,10 @@ class PermissionOnboardingScreen extends StatelessWidget {
                 ),
               const Spacer(),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  shape: const StadiumBorder(),
+                  minimumSize: const Size.fromHeight(56),
+                ),
                 onPressed: () => _authorize(context),
                 child: const Text('Autoriser les permissions'),
               ),
