@@ -29,7 +29,7 @@ lib/generated_plugin_registrant.dart
 
 # Secrets — ne jamais commiter ce fichier (copier secrets.json.example → secrets.json)
 secrets.json
-secrets.localhost.json
+secrets.localhost*.json
 
 # Local dev config — ne jamais commiter (copier dev.env.example → dev.env)
 dev.env

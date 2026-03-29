@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
@@ -35,23 +36,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Center(
-            child: Column(
-              children: [
-                const SizedBox(height: 48),
-                _Header(),
-                const Spacer(),
-                const ResponseBubble(),
-                const Spacer(),
-                const MicButton(),
-                const SizedBox(height: 48),
-              ],
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Center(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 48),
+                    _Header(),
+                    const Spacer(),
+                    const ResponseBubble(),
+                    const Spacer(),
+                    const MicButton(),
+                    const SizedBox(height: 48),
+                  ],
+                ),
+              ),
             ),
-          ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: Icon(
+                  Icons.settings,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                ),
+                tooltip: 'Paramètres avancés',
+                onPressed: () => context.push('/settings'),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -68,10 +87,9 @@ class _Header extends StatelessWidget {
         final subtitle = switch (state) {
           Idle() || AssistantError() =>
             'Appuyez sur le bouton pour me parler.',
+          Connecting() => 'Connexion…',
           Listening() => 'Je vous écoute…',
-          Processing() => 'Je réfléchis…',
           Speaking() => 'Je vous réponds.',
-          _ => '',
         };
 
         return Column(

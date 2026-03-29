@@ -211,6 +211,33 @@ void main() {
     expect(result, isA<PhoneCallError>());
   });
 
+  // ── callByName: exactMatch trims whitespace ────────────────────────────────
+
+  test('callByName exactMatch: agent name with trailing space still matches', () async {
+    final service = _makeService(
+      requestPermission: _granted,
+      getContacts: () async => [_contact('Fred', '+33611111111')],
+      callNumber: _callSuccess,
+    );
+
+    // Agent may send a name with a leading/trailing space
+    final result = await service.callByName(' Fred ', exactMatch: true);
+
+    expect(result, isA<PhoneCallSuccess>());
+  });
+
+  test('callByName exactMatch: contact displayName with trailing space still matches', () async {
+    final service = _makeService(
+      requestPermission: _granted,
+      getContacts: () async => [_contact('Fred ', '+33611111111')],
+      callNumber: _callSuccess,
+    );
+
+    final result = await service.callByName('Fred', exactMatch: true);
+
+    expect(result, isA<PhoneCallSuccess>());
+  });
+
   // ── callByNumber: success ─────────────────────────────────────────────────
 
   test('callByNumber: called returns true → PhoneCallSuccess', () async {
