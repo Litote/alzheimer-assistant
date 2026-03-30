@@ -37,6 +37,7 @@ jobs:
           flutter-version-file: front/.flutter-version
           cache: true
           architecture: ARM64
+          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -144,6 +145,7 @@ jobs:
         with:
           flutter-version-file: front/.flutter-version
           cache: true
+          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -210,6 +212,7 @@ jobs:
         with:
           flutter-version-file: front/.flutter-version
           cache: true
+          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
