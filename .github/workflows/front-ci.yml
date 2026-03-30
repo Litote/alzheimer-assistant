@@ -37,7 +37,6 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version-file: front/.flutter-version
-          channel: 'stable'
           cache: true
 
       - name: Install dependencies
@@ -77,7 +76,6 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version-file: front/.flutter-version
-          channel: 'stable'
           cache: true
 
       - name: Cache Gradle
@@ -131,7 +129,6 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version-file: front/.flutter-version
-          channel: 'stable'
           cache: true
 
       - name: Cache CocoaPods
