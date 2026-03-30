@@ -129,7 +129,7 @@ jobs:
 
       - name: Read Flutter version
         id: flutter-version
-        run: echo "version=$(cat front/.flutter-version)" >> $GITHUB_OUTPUT
+        run: echo "version=$(cat .flutter-version)" >> $GITHUB_OUTPUT
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
