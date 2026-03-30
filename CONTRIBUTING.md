@@ -2,9 +2,22 @@
 
 ## Prerequisites
 
-- Flutter SDK
+- Flutter SDK — exact version in `.flutter-version` at repo root
 - Xcode (macOS, for iOS builds)
 - Android Studio / Java 17 (for Android builds)
+
+## Upgrading Flutter
+
+The required Flutter version is defined in a single place: **`front/.flutter-version`**.
+All CI workflows read from this file via `flutter-version-file: front/.flutter-version`.
+
+To upgrade:
+1. Update `.flutter-version` with the new version (e.g. `3.42.0`)
+2. Run `flutter upgrade` locally and verify `flutter --version` matches
+3. Regenerate golden screenshots (rendering may change between Flutter versions):
+   - either locally: `flutter test test/golden/ --update-goldens --tags golden` in `front/`
+   - or via the "Update Golden Screenshots" GitHub Actions workflow
+4. Open a PR — CI will use the new version automatically
 
 ## Quick Reference
 
