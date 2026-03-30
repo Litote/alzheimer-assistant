@@ -24,7 +24,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:alzheimer_assistant/app/theme.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
@@ -100,28 +99,24 @@ void _resetDevice(WidgetTester tester) {
   tester.view.resetDevicePixelRatio();
 }
 
+Future<void> _loadFonts() async {
+  final fontLoader = FontLoader('Inter')
+    ..addFont(rootBundle.load('assets/fonts/Inter-Regular.ttf'))
+    ..addFont(rootBundle.load('assets/fonts/Inter-Medium.ttf'))
+    ..addFont(rootBundle.load('assets/fonts/Inter-SemiBold.ttf'))
+    ..addFont(rootBundle.load('assets/fonts/Inter-Bold.ttf'));
+  await fontLoader.load();
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 void main() {
   setUpAll(() async {
-    // Inter fonts are bundled in assets/fonts/ (pubspec.yaml).
-    // Disabling runtime fetching guarantees deterministic rendering
-    // without network requests in CI.
-    GoogleFonts.config.allowRuntimeFetching = false;
-
-    // MaterialIcons font is not loaded automatically in the Flutter
-    // test framework: without this, icons (mic, volume_up…)
-    // are rendered as squares (□) in the goldens.
-    final fontLoader = FontLoader('MaterialIcons')
-      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-    await fontLoader.load();
+    await _loadFonts();
   });
 
   // ── Idle state ──────────────────────────────────────────────────────────
-  //
-  // Verifies: neutral background, blue mic button centered, invitation text,
-  // no bubble visible.
-
+  
   group('HomeScreen — idle', () {
     for (final device in _devices) {
       testWidgets(device.id, (tester) async {
@@ -143,9 +138,6 @@ void main() {
   });
 
   // ── Speaking state ──────────────────────────────────────────────────────
-  //
-  // Verifies: response bubble visible with text, cyan button,
-  // subtitle "En train de répondre…", volume_up icon.
 
   group('HomeScreen — speaking', () {
     for (final device in _devices) {

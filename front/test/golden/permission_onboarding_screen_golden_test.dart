@@ -22,7 +22,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alzheimer_assistant/app/theme.dart';
@@ -78,15 +77,20 @@ void _resetDevice(WidgetTester tester) {
   tester.view.resetDevicePixelRatio();
 }
 
+Future<void> _loadFonts() async {
+  final fontLoader = FontLoader('Inter')
+    ..addFont(rootBundle.load('assets/fonts/Inter-Regular.ttf'))
+    ..addFont(rootBundle.load('assets/fonts/Inter-Medium.ttf'))
+    ..addFont(rootBundle.load('assets/fonts/Inter-SemiBold.ttf'))
+    ..addFont(rootBundle.load('assets/fonts/Inter-Bold.ttf'));
+  await fontLoader.load();
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 void main() {
   setUpAll(() async {
-    GoogleFonts.config.allowRuntimeFetching = false;
-
-    final fontLoader = FontLoader('MaterialIcons')
-      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-    await fontLoader.load();
+    await _loadFonts();
   });
 
   setUp(() {

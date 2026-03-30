@@ -181,7 +181,7 @@ jobs:
             echo "⚠️  No golden files found — skipping."
             echo "   → Run the 'Update Golden Screenshots' workflow to generate them."
           else
-            flutter test test/golden/ --tags golden --reporter=github --dart-define=GOLDEN_PIXEL_TOLERANCE=3
+            flutter test test/golden/ --tags golden --reporter=github
           fi
 
       # On failure, upload generated goldens for inspection
