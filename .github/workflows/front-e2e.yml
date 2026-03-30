@@ -32,12 +32,9 @@ jobs:
 
       # ── Flutter ──────────────────────────────────────────────────────────
       - name: Setup Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        uses: ./.github/actions/setup-flutter
         with:
-          flutter-version-file: front/.flutter-version
-          cache: true
-          architecture: ARM64
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
+          working-directory: front
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -141,11 +138,9 @@ jobs:
           java-version: '17'
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        uses: ./.github/actions/setup-flutter
         with:
-          flutter-version-file: front/.flutter-version
-          cache: true
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
+          working-directory: front
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -208,11 +203,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        uses: ./.github/actions/setup-flutter
         with:
-          flutter-version-file: front/.flutter-version
-          cache: true
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
+          working-directory: front
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile

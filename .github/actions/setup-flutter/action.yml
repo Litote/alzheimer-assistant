@@ -1,0 +1,35 @@
+name: 'Setup Flutter (Pinned)'
+description: 'Setups Flutter and pins it to the exact version in .flutter-version'
+inputs:
+  working-directory:
+    description: 'The directory containing .flutter-version'
+    required: false
+    default: 'front'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Read Flutter version
+      id: flutter-version
+      shell: bash
+      run: echo "version=$(cat ${{ inputs.working-directory }}/.flutter-version)" >> $GITHUB_OUTPUT
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      with:
+        flutter-version: ${{ steps.flutter-version.outputs.version }}
+        channel: any
+        cache: true
+        cache-key: flutter-${{ runner.os }}-${{ steps.flutter-version.outputs.version }}
+
+    # force EXACT git tag
+    - name: Pin exact Flutter version
+      shell: bash
+      run: |
+        cd $FLUTTER_ROOT
+        git fetch --tags
+        git checkout ${{ steps.flutter-version.outputs.version }}
+
+    - name: Verify Flutter version
+      shell: bash
+      run: flutter --version
