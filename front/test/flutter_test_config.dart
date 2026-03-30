@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,8 +12,9 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     // We wrap the comparator to allow a small pixel difference (0.5%) 
     // to account for subpixel rendering variations between different 
     // ARM64 environments (e.g., Local M4 vs CI M1/M2).
-    // We use resolve('config.dart') to ensure the basedir remains the same 
-    // as the original one (LocalFileComparator uses the parent dir of the URI).
+    // We use resolve('flutter_test_config.dart') to ensure the basedir remains 
+    // the same as the original one (LocalFileComparator uses the parent dir 
+    // of the URI).
     goldenFileComparator = _TolerantGoldenFileComparator(
       defaultComparator.basedir.resolve('flutter_test_config.dart'),
       tolerance: 0.005,
