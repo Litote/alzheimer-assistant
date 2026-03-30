@@ -36,7 +36,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version-file: .flutter-version
+          flutter-version-file: front/.flutter-version
           cache: true
           cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
 
@@ -76,9 +76,9 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version-file: .flutter-version
+          flutter-version-file: front/.flutter-version
           cache: true
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('.flutter-version') }}
+          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
 
       - name: Cache Gradle
         uses: actions/cache@v5
@@ -86,7 +86,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: gradle-${{ hashFiles('front/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
       - name: Install dependencies
@@ -115,7 +115,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: front/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
   # ── Build iOS ─────────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ jobs:
 
       - name: Read Flutter version
         id: flutter-version
-        run: echo "version=$(cat .flutter-version)" >> $GITHUB_OUTPUT
+        run: echo "version=$(cat front/.flutter-version)" >> $GITHUB_OUTPUT
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -152,8 +152,8 @@ jobs:
       - name: Cache CocoaPods
         uses: actions/cache@v5
         with:
-          path: ios/Pods
-          key: pods-${{ hashFiles('ios/Podfile.lock') }}
+          path: front/ios/Pods
+          key: pods-${{ hashFiles('front/ios/Podfile.lock') }}
           restore-keys: pods-
 
       - name: Install dependencies
@@ -187,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ios-simulator-app
-          path: build/ios/iphonesimulator/AlzheimerAssistant-simulator.zip
+          path: front/build/ios/iphonesimulator/AlzheimerAssistant-simulator.zip
           retention-days: 14
 
       # ── Golden tests ───────────────────────────────────────────────────────
@@ -212,5 +212,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: golden-failures
-          path: test/golden/failures/
+          path: front/test/golden/failures/
           retention-days: 7
