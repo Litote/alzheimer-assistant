@@ -127,12 +127,27 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Read Flutter version
+        id: flutter-version
+        run: echo "version=$(cat front/.flutter-version)" >> $GITHUB_OUTPUT
+
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version-file: front/.flutter-version
+          flutter-version: ${{ steps.flutter-version.outputs.version }}
+          channel: any
           cache: true
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('front/.flutter-version') }}
+          cache-key: flutter-${{ runner.os }}-${{ steps.flutter-version.outputs.version }}
+
+      # force EXACT git tag
+      - name: Pin exact Flutter version
+        run: |
+          cd $FLUTTER_ROOT
+          git fetch --tags
+          git checkout ${{ steps.flutter-version.outputs.version }}
+
+      - name: Verify Flutter version
+        run: flutter --version
 
       - name: Cache CocoaPods
         uses: actions/cache@v5
