@@ -96,15 +96,16 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pumpAndSettle();
 
-        expect(find.text('Écoute en cours…'), findsOneWidget);
-        expect(find.text('Je vous écoute…'), findsOneWidget);
+        // "Je vous écoute…" appears in both the header and the mic button
+        expect(find.text('Je vous écoute…'), findsNWidgets(2));
 
         // ── 3. Fake stream emits events → Speaking ─────────────────────────
         await _waitForSpeaking(tester);
 
         expect(find.text(kAgentResponse), findsOneWidget,
             reason: 'Agent text delta must appear in the bubble');
-        expect(find.text('En train de répondre…'), findsOneWidget);
+        expect(find.text('Paul répond…'), findsOneWidget);
+        expect(find.text('Je vous réponds.'), findsOneWidget);
         expect(find.text('Appuyez pour réessayer'), findsNothing);
 
         // ── 4. Audio playback ends → Idle ──────────────────────────────────
@@ -132,7 +133,7 @@ void main() {
         await _tapMic(tester);
         await _waitForSpeaking(tester);
 
-        expect(find.text('En train de répondre…'), findsOneWidget);
+        expect(find.text('Paul répond…'), findsOneWidget);
 
         // Tap while Speaking → interrupt
         await _tapMic(tester);
@@ -173,7 +174,7 @@ void main() {
 
         expect(find.text(kDisambiguationAgentQuestion), findsOneWidget,
             reason: 'Agent disambiguation question must appear in the bubble');
-        expect(find.text('En train de répondre…'), findsOneWidget);
+        expect(find.text('Paul répond…'), findsOneWidget);
 
         audio.completePlayback();
         await tester.pump();
