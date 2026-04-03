@@ -259,6 +259,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   Future<void> _handleTurnComplete(Emitter<AssistantState> emit) async {
     if (state is Speaking) {
+      _responseText = '';
       emit(AssistantState.listening(welcomeText: _welcomeText));
     }
   }

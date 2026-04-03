@@ -4,6 +4,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alzheimer_assistant/app/app.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 
@@ -58,6 +59,26 @@ Future<void> _tapMic(WidgetTester tester) async {
   await tester.pump();
 }
 
+/// Pumps [step] at a time until [condition] returns true or [timeout] elapses.
+///
+/// Unlike [WidgetTester.pumpAndSettle], this helper works even when the widget
+/// tree contains infinite animations (e.g. the pulsing MicButton in
+/// Listening/Speaking states).
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration step = const Duration(milliseconds: 50),
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  final end = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(end)) {
+      throw StateError('_pumpUntil timed out after $timeout');
+    }
+    await tester.pump(step);
+  }
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 void main() {
@@ -87,13 +108,17 @@ void main() {
 
         // ── 2. Tap → Connecting → Listening ───────────────────────────────
         await _tapMic(tester);
-        // Give the async _connect() time to establish the session and emit Listening.
-        // Fake events start at t=10 ms — pump(50ms) puts us after audioChunk
-        // (t=10ms) and outputTranscription (t=20ms) but before turnComplete
-        // (t=30ms), so the Speaking state is visible.
+
+        // ── 3. Speaking: wait until agent text arrives ────────────────────
+        // The MicButton has an infinite repeat animation while Speaking/Listening
+        // so we must NOT use pumpAndSettle here — use _pumpUntil instead.
+        await _pumpUntil(tester, () => switch (bloc.state) {
+              Speaking(:final responseText) => responseText == kAgentResponse,
+              _ => false,
+            });
+        // One extra pump so the widget tree renders the new state.
         await tester.pump(const Duration(milliseconds: 50));
 
-        // ── 3. Speaking: agent text and UI labels are visible ──────────────
         expect(find.text(kAgentResponse), findsOneWidget,
             reason: 'outputTranscription must appear in the response bubble');
         expect(find.text('Paul répond…'), findsOneWidget);
@@ -101,12 +126,20 @@ void main() {
         expect(find.text('Appuyez pour réessayer'), findsNothing);
 
         // ── 4. turnComplete → Listening (bidi: mic stays active) ──────────
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
+        await _pumpUntil(tester, () => bloc.state is Listening);
+        // Extra pump so AnimatedSwitcher renders the new label in both
+        // Header and MicButton (both transitions start immediately but
+        // the widget is created on the first frame after state change).
+        await tester.pump(const Duration(milliseconds: 50));
+
         expect(find.text('Je vous écoute…'), findsNWidgets(2));
 
         // ── 5. Tap → cancel → Idle ─────────────────────────────────────────
         await _tapMic(tester);
+        await _pumpUntil(tester, () => bloc.state is Idle);
+        // Idle state: _controller.stop() is called so the infinite animation
+        // ends; pumpAndSettle is safe here to let AnimatedContainer /
+        // AnimatedSwitcher finish their finite transitions.
         await tester.pumpAndSettle();
         expect(find.text('Appuyez pour parler'), findsOneWidget,
             reason: 'Cancelling while Listening must return to Idle');
@@ -127,16 +160,17 @@ void main() {
         await tester.pumpWidget(App.forTesting(bloc: bloc));
         await tester.pumpAndSettle();
 
-        // Tap → Speaking (audioChunk fires at t≈10ms, no turnComplete)
+        // Tap → Speaking (audioChunk fires, no turnComplete)
         await _tapMic(tester);
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
+        await _pumpUntil(tester, () => bloc.state is Speaking);
+        await tester.pump(const Duration(milliseconds: 50));
 
         expect(find.text('Paul répond…'), findsOneWidget);
         expect(find.text('Je vous réponds.'), findsOneWidget);
 
         // Tap while Speaking → interrupt → Idle
         await _tapMic(tester);
+        await _pumpUntil(tester, () => bloc.state is Idle);
         await tester.pumpAndSettle();
 
         expect(find.text('Appuyez pour parler'), findsOneWidget,
@@ -172,36 +206,44 @@ void main() {
         // ── Single tap: one connection handles BOTH turns ──────────────────
         await _tapMic(tester);
 
-        // ── Turn 1 ─────────────────────────────────────────────────────────
-        // Events: callPhone(10ms) + audioChunk(20ms) + outputTranscription(30ms)
-        // + turnComplete(40ms). Pump 35ms → Speaking with disambiguation text.
-        await tester.pump(const Duration(milliseconds: 35));
+        // ── Turn 1: wait for Speaking with disambiguation text ─────────────
+        await _pumpUntil(tester, () => switch (bloc.state) {
+              Speaking(:final responseText) =>
+                responseText == kDisambiguationAgentQuestion,
+              _ => false,
+            });
+        await tester.pump(const Duration(milliseconds: 50));
 
         expect(find.text(kDisambiguationAgentQuestion), findsOneWidget,
             reason: 'Agent disambiguation question must appear in the bubble');
         expect(find.text('Paul répond…'), findsOneWidget);
 
-        // Let turnComplete process → Listening
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
+        // ── Turn 1 → turnComplete → Listening ─────────────────────────────
+        await _pumpUntil(tester, () => bloc.state is Listening);
+        await tester.pump(const Duration(milliseconds: 50));
         expect(find.text('Je vous écoute…'), findsNWidgets(2));
 
-        // ── Turn 2 ─────────────────────────────────────────────────────────
-        // After 50ms inter-turn pause, turn 2 events arrive on the same connection.
-        // Pump 200ms to pass the pause + get audioChunk + outputTranscription.
-        await tester.pump(const Duration(milliseconds: 200));
+        // ── Turn 2: arrives on the same connection after the inter-turn pause.
+        // Wait for Speaking with the call-confirmation text.
+        await _pumpUntil(tester, () => switch (bloc.state) {
+              Speaking(:final responseText) =>
+                responseText == kCallConfirmationAgentText,
+              _ => false,
+            });
+        await tester.pump(const Duration(milliseconds: 50));
 
         expect(find.text(kCallConfirmationAgentText), findsOneWidget,
             reason: 'Confirmation text must appear after successful call');
         expect(find.text('Paul répond…'), findsOneWidget);
 
-        // Let turnComplete process → Listening
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
+        // ── Turn 2 → turnComplete → Listening ─────────────────────────────
+        await _pumpUntil(tester, () => bloc.state is Listening);
+        await tester.pump(const Duration(milliseconds: 50));
         expect(find.text('Je vous écoute…'), findsNWidgets(2));
 
         // ── Tap → cancel → Idle ────────────────────────────────────────────
         await _tapMic(tester);
+        await _pumpUntil(tester, () => bloc.state is Idle);
         await tester.pumpAndSettle();
         expect(find.text('Appuyez pour parler'), findsOneWidget);
 

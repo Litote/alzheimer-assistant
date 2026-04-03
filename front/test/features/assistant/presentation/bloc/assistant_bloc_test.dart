@@ -398,6 +398,56 @@ void main() {
     expect: () => [const AssistantState.listening()],
   );
 
+  // ── LiveEvent: turnComplete resets responseText ────────────────────────────
+
+  test('turnComplete resets responseText so next turn starts with empty bubble', () async {
+    final live = _ControllableLiveRepository();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      liveRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      showTranscription: true,
+      settingsService: _FakeSettingsService(),
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Turn 1
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.outputTranscription(_kText));
+    live.emit(const LiveEvent.turnComplete());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Turn 2 — responseText must start fresh
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.outputTranscription('Turn 2 text'));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, containsAllInOrder([
+      // Turn 1
+      const AssistantState.speaking(),
+      const AssistantState.speaking(responseText: _kText),
+      const AssistantState.listening(), // turnComplete resets _responseText
+      // Turn 2 — Speaking emits '' (reset), then accumulates only turn 2 text
+      const AssistantState.speaking(),
+      const AssistantState.speaking(responseText: 'Turn 2 text'),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
   // ── LiveEvent: turnComplete not in Speaking ───────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
