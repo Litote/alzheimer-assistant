@@ -31,11 +31,10 @@ class _FakePhoneCallService extends PhoneCallService {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /// Creates a bloc wired with controllable fakes.
-/// Returns the bloc AND the audio player so the test can manually trigger
-/// the end of audio playback.
 ({AssistantBloc bloc, ManualFakeStreamingAudioPlayerService audio}) _makeBloc({
   FakeLiveRepository? liveRepository,
   PhoneCallService? phoneCallService,
+  bool showTranscription = false,
 }) {
   final audio = ManualFakeStreamingAudioPlayerService();
   final bloc = AssistantBloc(
@@ -43,6 +42,7 @@ class _FakePhoneCallService extends PhoneCallService {
     micService: FakeMicrophoneStreamService(),
     audioPlayer: audio,
     phoneCallService: phoneCallService,
+    showTranscription: showTranscription,
   );
   return (bloc: bloc, audio: audio);
 }
@@ -58,13 +58,6 @@ Future<void> _tapMic(WidgetTester tester) async {
   await tester.pump();
 }
 
-/// Waits for the fake live stream events and the BLoC async chain to resolve
-/// into a Speaking state.
-Future<void> _waitForSpeaking(WidgetTester tester, {int extraMs = 0}) async {
-  await tester.pump(Duration(milliseconds: 150 + extraMs));
-  await tester.pumpAndSettle();
-}
-
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 void main() {
@@ -76,12 +69,14 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_done', true);
     });
-    // ── Scenario 1: nominal flow ───────────────────────────────────────────
+
+    // ── Scenario 1: nominal bidi round-trip ───────────────────────────────
 
     testWidgets(
-      'Scenario 1: tap → listening → agent responds → back to Idle',
+      'Scenario 1: tap → Listening → Speaking (text visible) → Listening → Idle',
       (tester) async {
-        final (:bloc, :audio) = _makeBloc();
+        // showTranscription: true so outputTranscription populates the bubble.
+        final (:bloc, :audio) = _makeBloc(showTranscription: true);
 
         await tester.pumpWidget(App.forTesting(bloc: bloc));
         await tester.pumpAndSettle();
@@ -92,50 +87,55 @@ void main() {
 
         // ── 2. Tap → Connecting → Listening ───────────────────────────────
         await _tapMic(tester);
-        // Give the async _connect() time to transition past Connecting
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
+        // Give the async _connect() time to establish the session and emit Listening.
+        // Fake events start at t=10 ms — pump(50ms) puts us after audioChunk
+        // (t=10ms) and outputTranscription (t=20ms) but before turnComplete
+        // (t=30ms), so the Speaking state is visible.
+        await tester.pump(const Duration(milliseconds: 50));
 
-        // "Je vous écoute…" appears in both the header and the mic button
-        expect(find.text('Je vous écoute…'), findsNWidgets(2));
-
-        // ── 3. Fake stream emits events → Speaking ─────────────────────────
-        await _waitForSpeaking(tester);
-
+        // ── 3. Speaking: agent text and UI labels are visible ──────────────
         expect(find.text(kAgentResponse), findsOneWidget,
-            reason: 'Agent text delta must appear in the bubble');
+            reason: 'outputTranscription must appear in the response bubble');
         expect(find.text('Paul répond…'), findsOneWidget);
         expect(find.text('Je vous réponds.'), findsOneWidget);
         expect(find.text('Appuyez pour réessayer'), findsNothing);
 
-        // ── 4. Audio playback ends → Idle ──────────────────────────────────
-        audio.completePlayback();
-        await tester.pump();
+        // ── 4. turnComplete → Listening (bidi: mic stays active) ──────────
+        await tester.pump(const Duration(milliseconds: 100));
         await tester.pumpAndSettle();
+        expect(find.text('Je vous écoute…'), findsNWidgets(2));
 
+        // ── 5. Tap → cancel → Idle ─────────────────────────────────────────
+        await _tapMic(tester);
+        await tester.pumpAndSettle();
         expect(find.text('Appuyez pour parler'), findsOneWidget,
-            reason: 'Must return to Idle after playback completes');
+            reason: 'Cancelling while Listening must return to Idle');
 
         await bloc.close();
       },
     );
 
-    // ── Scenario 2: interrupt ─────────────────────────────────────────────
+    // ── Scenario 2: interrupt while Speaking ──────────────────────────────
 
     testWidgets(
       'Scenario 2: tap while agent is speaking → stops and returns to Idle',
       (tester) async {
-        final (:bloc, :audio) = _makeBloc();
+        // Use a fake with no turnComplete so state stays in Speaking.
+        final (:bloc, :audio) =
+            _makeBloc(liveRepository: makeFakeLiveRepositoryForInterrupt());
 
         await tester.pumpWidget(App.forTesting(bloc: bloc));
         await tester.pumpAndSettle();
 
+        // Tap → Speaking (audioChunk fires at t≈10ms, no turnComplete)
         await _tapMic(tester);
-        await _waitForSpeaking(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pumpAndSettle();
 
         expect(find.text('Paul répond…'), findsOneWidget);
+        expect(find.text('Je vous réponds.'), findsOneWidget);
 
-        // Tap while Speaking → interrupt
+        // Tap while Speaking → interrupt → Idle
         await _tapMic(tester);
         await tester.pumpAndSettle();
 
@@ -146,10 +146,10 @@ void main() {
       },
     );
 
-    // ── Scenario 3: ambiguous call → tool response → disambiguation ────────
+    // ── Scenario 3: ambiguous call → disambiguation → call confirmed ───────
 
     testWidgets(
-      'Scenario 3: ambiguous call → tool response → agent asks → user answers → call initiated',
+      'Scenario 3: ambiguous call → agent asks → second turn on same connection → call confirmed',
       (tester) async {
         final (:bloc, :audio) = _makeBloc(
           liveRepository: makeFakeLiveRepositoryForDisambiguation(),
@@ -162,34 +162,46 @@ void main() {
               PhoneCallSuccess(),
             ],
           ),
+          showTranscription: true,
         );
 
         await tester.pumpWidget(App.forTesting(bloc: bloc));
         await tester.pumpAndSettle();
         expect(find.text('Appuyez pour parler'), findsOneWidget);
 
-        // ── Turn 1 ─────────────────────────────────────────────────────────
+        // ── Single tap: one connection handles BOTH turns ──────────────────
         await _tapMic(tester);
-        await _waitForSpeaking(tester, extraMs: 100);
+
+        // ── Turn 1 ─────────────────────────────────────────────────────────
+        // Events: callPhone(10ms) + audioChunk(20ms) + outputTranscription(30ms)
+        // + turnComplete(40ms). Pump 35ms → Speaking with disambiguation text.
+        await tester.pump(const Duration(milliseconds: 35));
 
         expect(find.text(kDisambiguationAgentQuestion), findsOneWidget,
             reason: 'Agent disambiguation question must appear in the bubble');
         expect(find.text('Paul répond…'), findsOneWidget);
 
-        audio.completePlayback();
-        await tester.pump();
+        // Let turnComplete process → Listening
+        await tester.pump(const Duration(milliseconds: 100));
         await tester.pumpAndSettle();
-        expect(find.text('Appuyez pour parler'), findsOneWidget);
+        expect(find.text('Je vous écoute…'), findsNWidgets(2));
 
         // ── Turn 2 ─────────────────────────────────────────────────────────
-        await _tapMic(tester);
-        await _waitForSpeaking(tester, extraMs: 100);
+        // After 50ms inter-turn pause, turn 2 events arrive on the same connection.
+        // Pump 200ms to pass the pause + get audioChunk + outputTranscription.
+        await tester.pump(const Duration(milliseconds: 200));
 
         expect(find.text(kCallConfirmationAgentText), findsOneWidget,
             reason: 'Confirmation text must appear after successful call');
+        expect(find.text('Paul répond…'), findsOneWidget);
 
-        audio.completePlayback();
-        await tester.pump();
+        // Let turnComplete process → Listening
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pumpAndSettle();
+        expect(find.text('Je vous écoute…'), findsNWidgets(2));
+
+        // ── Tap → cancel → Idle ────────────────────────────────────────────
+        await _tapMic(tester);
         await tester.pumpAndSettle();
         expect(find.text('Appuyez pour parler'), findsOneWidget);
 

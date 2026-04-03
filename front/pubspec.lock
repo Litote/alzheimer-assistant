@@ -335,7 +335,7 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "feat/android-audio-usage"
+      ref: "85eb9c78ec3940c74579b430ef19a0dd678c539c"
       resolved-ref: "85eb9c78ec3940c74579b430ef19a0dd678c539c"
       url: "https://github.com/zigzago/flutter_pcm_sound.git"
     source: git

@@ -41,7 +41,7 @@ dependencies:
   flutter_pcm_sound:
     git:
       url: https://github.com/zigzago/flutter_pcm_sound.git
-      ref: feat/android-audio-usage
+      ref: 85eb9c78ec3940c74579b430ef19a0dd678c539c
 
   # File system utilities (WAV temp file for BufferedAudioPlayerService)
   path_provider: ^2.1.5

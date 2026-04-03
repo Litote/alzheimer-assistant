@@ -16,16 +16,18 @@ const String kCallConfirmationAgentText =
 
 /// In-memory [LiveRepository] for E2E tests.
 ///
-/// Each call to [connect()] yields the next sequence of events from the
-/// [_sequences] list. When the list is exhausted, the last sequence is
-/// repeated. This allows simulating multi-turn conversations.
+/// A single persistent connection is simulated: [connect()] returns one stream
+/// that emits all [sequences] in order (with a 50 ms gap between turns) and
+/// then stays open until [disconnect()] is called. This mirrors the bidi
+/// streaming model where [turnComplete] transitions to Listening without
+/// closing the connection.
 class FakeLiveRepository implements LiveRepository {
   FakeLiveRepository({required List<List<LiveEvent>> sequences})
       : _sequences = sequences;
 
   final List<List<LiveEvent>> _sequences;
-  int _callCount = 0;
   bool _disconnected = false;
+  Completer<void>? _disconnectCompleter;
 
   final List<String> sentTexts = [];
   final List<String> sentToolResponses = [];
@@ -33,16 +35,28 @@ class FakeLiveRepository implements LiveRepository {
   @override
   Stream<LiveEvent> connect({bool useElevenLabs = false}) async* {
     _disconnected = false;
-    final sequence = _callCount < _sequences.length
-        ? _sequences[_callCount]
-        : _sequences.last;
-    _callCount++;
+    _disconnectCompleter = Completer<void>();
 
-    for (final event in sequence) {
-      if (_disconnected) return;
-      // Small delay so the BLoC has time to process each event
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      yield event;
+    for (var i = 0; i < _sequences.length; i++) {
+      for (final event in _sequences[i]) {
+        if (_disconnected) return;
+        // Small delay so the BLoC has time to process each event
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        yield event;
+      }
+
+      // Pause between turns to simulate the user speaking before the next
+      // server response, without closing the connection.
+      final isLast = i == _sequences.length - 1;
+      if (!isLast && !_disconnected) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    // Keep stream alive until disconnect() is called. In bidi streaming the
+    // connection persists across turns — only torn down by the client.
+    if (!_disconnected) {
+      await _disconnectCompleter!.future;
     }
   }
 
@@ -66,25 +80,41 @@ class FakeLiveRepository implements LiveRepository {
   @override
   Future<void> disconnect() async {
     _disconnected = true;
+    if (_disconnectCompleter != null && !_disconnectCompleter!.isCompleted) {
+      _disconnectCompleter!.complete();
+    }
   }
 }
 
 // ── Factory helpers ────────────────────────────────────────────────────────
 
-/// Simple nominal scenario: agent responds with text + audio, then done.
+/// Simple nominal scenario: agent sends audio + transcription then completes.
 FakeLiveRepository makeFakeLiveRepository() => FakeLiveRepository(
       sequences: [
         [
-          const LiveEvent.textDelta(kAgentResponse),
+          // audioChunk first → triggers Speaking state
           LiveEvent.audioChunk(Uint8List(128)),
+          // outputTranscription → populates responseText while Speaking
+          const LiveEvent.outputTranscription(kAgentResponse),
           const LiveEvent.turnComplete(),
         ],
       ],
     );
 
-/// Disambiguation scenario (4 turns):
-/// 1. call_phone("Marie")   → sends tool response → agent asks disambiguation
-/// 2. call_phone("Marie Dupont") → sends tool response → agent confirms
+/// Single-turn fake with no turnComplete: state stays Speaking until the test
+/// interrupts by tapping the mic button.
+FakeLiveRepository makeFakeLiveRepositoryForInterrupt() => FakeLiveRepository(
+      sequences: [
+        [
+          LiveEvent.audioChunk(Uint8List(128)),
+          // No turnComplete — stream stays alive, state remains Speaking
+        ],
+      ],
+    );
+
+/// Disambiguation scenario (2 turns on the same persistent connection):
+/// 1. call_phone("Marie")        → ambiguous → agent asks which one
+/// 2. call_phone("Marie Dupont") → success   → agent confirms
 FakeLiveRepository makeFakeLiveRepositoryForDisambiguation() =>
     FakeLiveRepository(
       sequences: [
@@ -95,19 +125,19 @@ FakeLiveRepository makeFakeLiveRepositoryForDisambiguation() =>
             contactName: 'Marie',
             exactMatch: false,
           ),
-          const LiveEvent.textDelta(kDisambiguationAgentQuestion),
           LiveEvent.audioChunk(Uint8List(128)),
+          const LiveEvent.outputTranscription(kDisambiguationAgentQuestion),
           const LiveEvent.turnComplete(),
         ],
-        // Turn 2: user says "Marie Dupont"
+        // Turn 2: arrives on the same connection after the 50 ms inter-turn pause
         [
           const LiveEvent.callPhone(
             callId: 'call-2',
             contactName: 'Marie Dupont',
             exactMatch: false,
           ),
-          const LiveEvent.textDelta(kCallConfirmationAgentText),
           LiveEvent.audioChunk(Uint8List(128)),
+          const LiveEvent.outputTranscription(kCallConfirmationAgentText),
           const LiveEvent.turnComplete(),
         ],
       ],
