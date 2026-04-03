@@ -34,9 +34,9 @@ void main() {
 
   // ── useTextMode ────────────────────────────────────────────────────────────
 
-  test('getUseTextMode returns false by default', () async {
+  test('getUseTextMode returns true by default', () async {
     final service = SettingsService();
-    expect(await service.getUseTextMode(), isFalse);
+    expect(await service.getUseTextMode(), isTrue);
   });
 
   test('setUseTextMode(true) is persisted', () async {
