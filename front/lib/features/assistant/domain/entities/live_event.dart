@@ -40,4 +40,9 @@ sealed class LiveEvent with _$LiveEvent {
   /// Session-level information sent once after connection setup.
   /// [welcome] is a multi-line capabilities summary shown to the user.
   const factory LiveEvent.sessionInfo(String welcome) = LiveSessionInfo;
+
+  /// Session identifier returned by the server on first connection.
+  /// Must be forwarded in subsequent connections to resume the same session.
+  const factory LiveEvent.sessionEstablished(String sessionId) =
+      LiveSessionEstablished;
 }

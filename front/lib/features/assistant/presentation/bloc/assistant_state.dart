@@ -18,8 +18,10 @@ sealed class AssistantState with _$AssistantState {
   }) = Listening;
 
   /// Agent is responding — audio buffer is filling, text is streaming in.
+  /// [userTranscript] holds what the user said; shown until [responseText] arrives.
   const factory AssistantState.speaking({
     @Default('') String responseText,
+    @Default('') String userTranscript,
   }) = Speaking;
 
   /// Error — displays a message and returns to Idle on next tap.

@@ -4,14 +4,26 @@ import 'package:alzheimer_assistant/features/settings/presentation/screens/setti
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
 
 class _FakeSettingsService implements SettingsService {
-  bool value;
-  _FakeSettingsService({bool initial = false}) : value = initial;
+  bool elevenLabs;
+  bool textMode;
+
+  _FakeSettingsService({
+    bool initial = false,
+    bool textModeInitial = false,
+  })  : elevenLabs = initial,
+        textMode = textModeInitial;
 
   @override
-  Future<bool> getUseElevenLabs() async => value;
+  Future<bool> getUseElevenLabs() async => elevenLabs;
 
   @override
-  Future<void> setUseElevenLabs(bool newValue) async => value = newValue;
+  Future<void> setUseElevenLabs(bool newValue) async => elevenLabs = newValue;
+
+  @override
+  Future<bool> getUseTextMode() async => textMode;
+
+  @override
+  Future<void> setUseTextMode(bool newValue) async => textMode = newValue;
 }
 
 void main() {
@@ -23,78 +35,131 @@ void main() {
       home: SettingsScreen(settingsService: service),
     ));
 
-    // Do NOT pump again — the Future has not resolved yet.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.byType(SwitchListTile), findsNothing);
   });
 
   // ── Loaded state ───────────────────────────────────────────────────────────
 
-  testWidgets('shows ElevenLabs toggle after settings load', (tester) async {
+  testWidgets('shows two toggles after settings load', (tester) async {
     final service = _FakeSettingsService();
     await tester.pumpWidget(MaterialApp(
       home: SettingsScreen(settingsService: service),
     ));
-    await tester.pump(); // let getUseElevenLabs() Future resolve
+    await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.byType(SwitchListTile), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsNWidgets(2));
     expect(find.text('Synthèse vocale ElevenLabs'), findsOneWidget);
+    expect(find.text('Mode texte'), findsOneWidget);
   });
 
   // ── Initial value reflected ────────────────────────────────────────────────
 
-  testWidgets('toggle starts off when initial value is false', (tester) async {
+  testWidgets('ElevenLabs toggle starts off when initial value is false',
+      (tester) async {
     final service = _FakeSettingsService(initial: false);
     await tester.pumpWidget(MaterialApp(
       home: SettingsScreen(settingsService: service),
     ));
     await tester.pump();
 
-    final toggle = tester.widget<Switch>(find.byType(Switch));
-    expect(toggle.value, isFalse);
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches[0].value, isFalse);
   });
 
-  testWidgets('toggle starts on when initial value is true', (tester) async {
+  testWidgets('ElevenLabs toggle starts on when initial value is true',
+      (tester) async {
     final service = _FakeSettingsService(initial: true);
     await tester.pumpWidget(MaterialApp(
       home: SettingsScreen(settingsService: service),
     ));
     await tester.pump();
 
-    final toggle = tester.widget<Switch>(find.byType(Switch));
-    expect(toggle.value, isTrue);
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches[0].value, isTrue);
   });
 
-  // ── Toggle interaction ─────────────────────────────────────────────────────
+  // ── ElevenLabs toggle interaction ──────────────────────────────────────────
 
-  testWidgets('tapping toggle enables ElevenLabs and persists the change', (tester) async {
+  testWidgets('tapping ElevenLabs toggle enables it and persists the change',
+      (tester) async {
     final service = _FakeSettingsService(initial: false);
     await tester.pumpWidget(MaterialApp(
       home: SettingsScreen(settingsService: service),
     ));
     await tester.pump();
 
-    await tester.tap(find.byType(Switch));
+    final elevenLabsTile = find.ancestor(
+      of: find.text('Synthèse vocale ElevenLabs'),
+      matching: find.byType(SwitchListTile),
+    );
+    await tester.tap(
+        find.descendant(of: elevenLabsTile, matching: find.byType(Switch)));
     await tester.pump();
 
-    expect(service.value, isTrue);
-    final toggle = tester.widget<Switch>(find.byType(Switch));
-    expect(toggle.value, isTrue);
+    expect(service.elevenLabs, isTrue);
   });
 
-  testWidgets('tapping toggle disables ElevenLabs when previously enabled', (tester) async {
+  testWidgets('tapping ElevenLabs toggle disables it when previously enabled',
+      (tester) async {
     final service = _FakeSettingsService(initial: true);
     await tester.pumpWidget(MaterialApp(
       home: SettingsScreen(settingsService: service),
     ));
     await tester.pump();
 
-    await tester.tap(find.byType(Switch));
+    final elevenLabsTile = find.ancestor(
+      of: find.text('Synthèse vocale ElevenLabs'),
+      matching: find.byType(SwitchListTile),
+    );
+    await tester.tap(
+        find.descendant(of: elevenLabsTile, matching: find.byType(Switch)));
     await tester.pump();
 
-    expect(service.value, isFalse);
-    final toggle = tester.widget<Switch>(find.byType(Switch));
-    expect(toggle.value, isFalse);
+    expect(service.elevenLabs, isFalse);
+  });
+
+  // ── Text mode toggle ───────────────────────────────────────────────────────
+
+  testWidgets('text mode toggle starts off by default', (tester) async {
+    final service = _FakeSettingsService();
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsScreen(settingsService: service),
+    ));
+    await tester.pump();
+
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches[1].value, isFalse);
+  });
+
+  testWidgets('text mode toggle starts on when initial value is true',
+      (tester) async {
+    final service = _FakeSettingsService(textModeInitial: true);
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsScreen(settingsService: service),
+    ));
+    await tester.pump();
+
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches[1].value, isTrue);
+  });
+
+  testWidgets('tapping text mode toggle enables it and persists', (tester) async {
+    final service = _FakeSettingsService();
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsScreen(settingsService: service),
+    ));
+    await tester.pump();
+
+    final textModeTile = find.ancestor(
+      of: find.text('Mode texte'),
+      matching: find.byType(SwitchListTile),
+    );
+    await tester.tap(
+        find.descendant(of: textModeTile, matching: find.byType(Switch)));
+    await tester.pump();
+
+    expect(service.textMode, isTrue);
   });
 }

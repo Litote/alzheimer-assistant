@@ -142,7 +142,7 @@ class _MicButtonState extends State<MicButton> with SingleTickerProviderStateMix
         Speaking() => const _ButtonConfig(
             icon: Icons.record_voice_over,
             backgroundColor: Color(0xFF2196F3), // Bleu vif (l'assistant parle)
-            label: 'Paul répond…',
+            label: 'Réponse…',
             semanticLabel: 'L\'assistant répond. Vous pouvez lui couper la parole.',
             enabled: true,
           ),

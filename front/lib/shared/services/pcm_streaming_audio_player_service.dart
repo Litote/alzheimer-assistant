@@ -62,9 +62,13 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
 
   @override
   void addChunk(Uint8List bytes) {
-    if (!_isInitialized) return;
+    if (!_isInitialized) {
+      _logger.w('[PcmPlayer] addChunk called but not initialized — dropped ${bytes.length} bytes');
+      return;
+    }
     try {
       final amplified = _applyGain(bytes, _outputGain);
+      _logger.d('[PcmPlayer] feeding ${bytes.length} bytes to FlutterPcmSound');
       FlutterPcmSound.feed(
         PcmArrayInt16(
           bytes: amplified.buffer.asByteData(amplified.offsetInBytes, amplified.length),

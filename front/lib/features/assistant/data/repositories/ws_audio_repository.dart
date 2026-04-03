@@ -6,55 +6,37 @@ import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:alzheimer_assistant/core/constants/app_constants.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
-import 'package:alzheimer_assistant/features/assistant/domain/repositories/live_repository.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
 
-/// ADK Live bidi-streaming transport over WebSocket.
+/// Audio-to-audio bidi transport over WebSocket (`/run_live`).
+///
+/// Streams raw PCM from the mic upstream; receives PCM audio chunks and
+/// transcriptions downstream. Server-side VAD and TTS are handled by the ADK
+/// agent.
 ///
 /// ## Protocol (Google GenAI Live API format)
 ///
-/// ### Connection
-/// After the WebSocket handshake, the client sends a `setup` message:
+/// ### Connection setup (client → server)
 /// ```json
-/// {"setup": {"app_name": "…", "user_id": "…"}}
+/// {"setup": {"app_name": "…", "user_id": "…", "use_elevenlabs": false}}
 /// ```
 ///
-/// ### Upstream (client → server)
-/// Audio chunk:
+/// ### Audio chunk (client → server)
 /// ```json
 /// {"realtime_input": {"media_chunks": [{"mime_type": "audio/pcm;rate=16000", "data": "<b64>"}]}}
 /// ```
-/// Text message (phone-call result relay):
-/// ```json
-/// {"client_content": {"turns": [{"role": "user", "parts": [{"text": "…"}]}], "turn_complete": true}}
-/// ```
-/// Interruption:
+///
+/// ### Interruption (client → server)
 /// ```json
 /// {"client_content": {"interrupted": true}}
 /// ```
-/// Tool response:
+///
+/// ### Tool response (client → server)
 /// ```json
 /// {"tool_response": {"function_responses": [{"id": "…", "name": "…", "response": {"status": "…"}}]}}
 /// ```
-///
-/// ### Downstream (server → client)
-/// Text delta:
-/// ```json
-/// {"server_content": {"model_turn": {"parts": [{"text": "…"}]}, "turn_complete": false}}
-/// ```
-/// Audio chunk (PCM 24 kHz):
-/// ```json
-/// {"server_content": {"model_turn": {"parts": [{"inline_data": {"mime_type": "audio/pcm;rate=24000", "data": "<b64>"}}]}}}
-/// ```
-/// Turn complete:
-/// ```json
-/// {"server_content": {"turn_complete": true}}
-/// ```
-/// Tool call (call_phone):
-/// ```json
-/// {"tool_call": {"function_calls": [{"id": "…", "name": "call_phone", "args": {"contact_name": "…", "exact_match": false}}]}}
-/// ```
-class LiveRepositoryImpl implements LiveRepository {
-  LiveRepositoryImpl({
+class WsAudioRepository implements AudioRepository {
+  WsAudioRepository({
     WebSocketChannel Function(Uri)? channelFactory,
   }) : _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
@@ -67,21 +49,24 @@ class LiveRepositoryImpl implements LiveRepository {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   @override
-  Stream<LiveEvent> connect({bool useElevenLabs = false}) {
+  Stream<LiveEvent> connect({
+    bool useElevenLabs = false,
+    String? sessionId,
+  }) {
     final uri = _buildWsUri();
-    _logger.i('[Live] Connecting → $uri (useElevenLabs: $useElevenLabs)');
+    _logger.i('[WsAudio] Connecting → $uri (useElevenLabs: $useElevenLabs)');
     _firstChunkSent = false;
     _firstEventReceived = false;
 
     _channel = _channelFactory(uri);
 
-    _sendJson({
-      'setup': {
-        'app_name': AppConstants.adkAppName,
-        'user_id': AppConstants.adkUserId,
-        'use_elevenlabs': useElevenLabs,
-      },
-    });
+    final setup = <String, dynamic>{
+      'app_name': AppConstants.adkAppName,
+      'user_id': AppConstants.adkUserId,
+      'use_elevenlabs': useElevenLabs,
+    };
+    _logger.i('[WsAudio] → setup: use_elevenlabs=$useElevenLabs app_name=${AppConstants.adkAppName}');
+    _sendJson({'setup': setup});
 
     return _channel!.stream
         .where((msg) => msg is String)
@@ -95,7 +80,7 @@ class LiveRepositoryImpl implements LiveRepository {
   void sendAudio(Uint8List pcmBytes) {
     if (!_firstChunkSent) {
       _firstChunkSent = true;
-      _logger.i('[Live] → first audio chunk sent (${pcmBytes.length} bytes)');
+      _logger.i('[WsAudio] → first audio chunk sent (${pcmBytes.length} bytes)');
     }
     _sendJson({
       'realtime_input': {
@@ -110,25 +95,8 @@ class LiveRepositoryImpl implements LiveRepository {
   }
 
   @override
-  void sendText(String text) {
-    _sendJson({
-      'client_content': {
-        'turns': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': text}
-            ],
-          }
-        ],
-        'turn_complete': true,
-      },
-    });
-  }
-
-  @override
   void sendInterruption() {
-    _logger.i('[Live] → sending interruption signal');
+    _logger.i('[WsAudio] → sending interruption signal');
     _sendJson({
       'client_content': {
         'interrupted': true,
@@ -159,7 +127,7 @@ class LiveRepositoryImpl implements LiveRepository {
   Future<void> disconnect() async {
     await _channel?.sink.close();
     _channel = null;
-    _logger.i('[Live] Disconnected');
+    _logger.i('[WsAudio] Disconnected');
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
@@ -180,14 +148,14 @@ class LiveRepositoryImpl implements LiveRepository {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       if (!_firstEventReceived) {
         _firstEventReceived = true;
-        _logger.i('[Live] ← first server event received — keys: ${json.keys.toList()}');
+        _logger.i('[WsAudio] ← first server event — keys: ${json.keys.toList()}');
       }
 
       // ── server_content ───────────────────────────────────────────────────
       final serverContent = json['server_content'];
       if (serverContent is Map<String, dynamic>) {
         if (serverContent['turn_complete'] == true) {
-          _logger.i('[Live] ← turn_complete');
+          _logger.i('[WsAudio] ← turn_complete');
           return const LiveEvent.turnComplete();
         }
 
@@ -196,14 +164,14 @@ class LiveRepositoryImpl implements LiveRepository {
           final parts = modelTurn['parts'];
           if (parts is List && parts.isNotEmpty) {
             final part = parts.first as Map<String, dynamic>?;
-
-            // Text deltas are ignored — transcriptions are used for display instead.
             final inlineData = part?['inline_data'] as Map<String, dynamic>?;
             final b64 = inlineData?['data'] as String?;
             if (b64 != null) {
-              _logger.i('[Live] ← audioChunk (${b64.length} b64 chars)');
-              return LiveEvent.audioChunk(base64.decode(b64));
+              final decodedBytes = base64.decode(b64);
+              _logger.i('[WsAudio] ← audioChunk (${b64.length} b64 chars → ${decodedBytes.length} bytes)');
+              return LiveEvent.audioChunk(decodedBytes);
             }
+            _logger.w('[WsAudio] ← model_turn part has no inline_data.data — part keys: ${part?.keys.toList()}, inlineData keys: ${inlineData?.keys.toList()}');
           }
         }
       }
@@ -213,7 +181,7 @@ class LiveRepositoryImpl implements LiveRepository {
       if (inputTranscription is Map<String, dynamic>) {
         final text = inputTranscription['text'] as String?;
         if (text != null && text.isNotEmpty) {
-          _logger.i('[Live] ← input_transcription: "$text"');
+          _logger.i('[WsAudio] ← input_transcription: "$text"');
           return LiveEvent.inputTranscription(text);
         }
       }
@@ -223,7 +191,7 @@ class LiveRepositoryImpl implements LiveRepository {
       if (outputTranscription is Map<String, dynamic>) {
         final text = outputTranscription['text'] as String?;
         if (text != null && text.isNotEmpty) {
-          _logger.i('[Live] ← output_transcription: "$text"');
+          _logger.i('[WsAudio] ← output_transcription: "$text"');
           return LiveEvent.outputTranscription(text);
         }
       }
@@ -235,12 +203,10 @@ class LiveRepositoryImpl implements LiveRepository {
         if (calls is List && calls.isNotEmpty) {
           final call = calls.first as Map<String, dynamic>?;
           final name = call?['name'] as String?;
-          _logger.i('[Live] ← tool_call: name="$name" args=${call?['args']}');
+          _logger.i('[WsAudio] ← tool_call: name="$name" args=${call?['args']}');
           if (name == 'call_phone') {
             final callId = call!['id'] as String? ?? '';
             final args = call['args'] as Map<String, dynamic>?;
-            // Server sends "name" / "exactMatch" (camelCase).
-            // AI_CONTEXT.md contract uses "contact_name" / "exact_match" — update the contract.
             final contactName =
                 (args?['contact_name'] ?? args?['name']) as String?;
             final exactMatch =
@@ -252,7 +218,7 @@ class LiveRepositoryImpl implements LiveRepository {
                 exactMatch: exactMatch,
               );
             }
-            _logger.w('[Live] ← call_phone with null contactName — full args: $args');
+            _logger.w('[WsAudio] ← call_phone with null contactName — args: $args');
           }
         }
         return null;
@@ -261,9 +227,14 @@ class LiveRepositoryImpl implements LiveRepository {
       // ── session_info ─────────────────────────────────────────────────────
       final sessionInfo = json['session_info'];
       if (sessionInfo is Map<String, dynamic>) {
+        final sessionId = sessionInfo['session_id'] as String?;
+        if (sessionId != null && sessionId.isNotEmpty) {
+          _logger.i('[WsAudio] ← session_established: $sessionId');
+          return LiveEvent.sessionEstablished(sessionId);
+        }
         final welcome = sessionInfo['welcome'] as String?;
         if (welcome != null && welcome.isNotEmpty) {
-          _logger.i('[Live] ← session_info welcome received');
+          _logger.i('[WsAudio] ← session_info welcome received');
           return LiveEvent.sessionInfo(welcome);
         }
       }
@@ -273,15 +244,15 @@ class LiveRepositoryImpl implements LiveRepository {
       if (toolStatus is Map<String, dynamic>) {
         final label = toolStatus['label'] as String?;
         if (label != null && label.isNotEmpty) {
-          _logger.i('[Live] ← tool_status: label="$label"');
+          _logger.i('[WsAudio] ← tool_status: label="$label"');
           return LiveEvent.toolStatus(label);
         }
       }
 
-      _logger.w('[Live] ← unrecognized message (ignored) — keys: ${json.keys.toList()}');
+      _logger.w('[WsAudio] ← unrecognized message — keys: ${json.keys.toList()}');
       return null;
     } catch (e) {
-      _logger.w('[Live] Parse error (skipped): $e\n  raw: $raw');
+      _logger.w('[WsAudio] Parse error (skipped): $e\n  raw: $raw');
       return null;
     }
   }

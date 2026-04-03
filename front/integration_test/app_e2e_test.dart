@@ -38,8 +38,10 @@ class _FakePhoneCallService extends PhoneCallService {
   bool showTranscription = false,
 }) {
   final audio = ManualFakeStreamingAudioPlayerService();
+  final repo = liveRepository ?? makeFakeLiveRepository();
   final bloc = AssistantBloc(
-    liveRepository: liveRepository ?? makeFakeLiveRepository(),
+    audioRepository: repo,
+    textRepository: repo,
     micService: FakeMicrophoneStreamService(),
     audioPlayer: audio,
     phoneCallService: phoneCallService,
@@ -121,7 +123,7 @@ void main() {
 
         expect(find.text(kAgentResponse), findsOneWidget,
             reason: 'outputTranscription must appear in the response bubble');
-        expect(find.text('Paul répond…'), findsOneWidget);
+        expect(find.text('Réponse…'), findsOneWidget);
         expect(find.text('Je vous réponds.'), findsOneWidget);
         expect(find.text('Appuyez pour réessayer'), findsNothing);
 
@@ -165,7 +167,7 @@ void main() {
         await _pumpUntil(tester, () => bloc.state is Speaking);
         await tester.pump(const Duration(milliseconds: 50));
 
-        expect(find.text('Paul répond…'), findsOneWidget);
+        expect(find.text('Réponse…'), findsOneWidget);
         expect(find.text('Je vous réponds.'), findsOneWidget);
 
         // Tap while Speaking → interrupt → Idle
@@ -216,7 +218,7 @@ void main() {
 
         expect(find.text(kDisambiguationAgentQuestion), findsOneWidget,
             reason: 'Agent disambiguation question must appear in the bubble');
-        expect(find.text('Paul répond…'), findsOneWidget);
+        expect(find.text('Réponse…'), findsOneWidget);
 
         // ── Turn 1 → turnComplete → Listening ─────────────────────────────
         await _pumpUntil(tester, () => bloc.state is Listening);
@@ -234,7 +236,7 @@ void main() {
 
         expect(find.text(kCallConfirmationAgentText), findsOneWidget,
             reason: 'Confirmation text must appear after successful call');
-        expect(find.text('Paul répond…'), findsOneWidget);
+        expect(find.text('Réponse…'), findsOneWidget);
 
         // ── Turn 2 → turnComplete → Listening ─────────────────────────────
         await _pumpUntil(tester, () => bloc.state is Listening);

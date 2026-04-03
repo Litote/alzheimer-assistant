@@ -97,7 +97,7 @@ void main() {
     await _pump(tester, mockBloc);
 
     expect(find.byIcon(Icons.record_voice_over), findsOneWidget);
-    expect(find.text('Paul répond…'), findsOneWidget);
+    expect(find.text('Réponse…'), findsOneWidget);
   });
 
   testWidgets(

@@ -58,6 +58,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult Function(LiveOutputTranscription value)? outputTranscription,
     TResult Function(LiveToolStatus value)? toolStatus,
     TResult Function(LiveSessionInfo value)? sessionInfo,
+    TResult Function(LiveSessionEstablished value)? sessionEstablished,
     required TResult orElse(),
   }) {
     final _that = this;
@@ -78,6 +79,8 @@ extension LiveEventPatterns on LiveEvent {
         return toolStatus(_that);
       case LiveSessionInfo() when sessionInfo != null:
         return sessionInfo(_that);
+      case LiveSessionEstablished() when sessionEstablished != null:
+        return sessionEstablished(_that);
       case _:
         return orElse();
     }
@@ -107,6 +110,7 @@ extension LiveEventPatterns on LiveEvent {
         outputTranscription,
     required TResult Function(LiveToolStatus value) toolStatus,
     required TResult Function(LiveSessionInfo value) sessionInfo,
+    required TResult Function(LiveSessionEstablished value) sessionEstablished,
   }) {
     final _that = this;
     switch (_that) {
@@ -126,6 +130,8 @@ extension LiveEventPatterns on LiveEvent {
         return toolStatus(_that);
       case LiveSessionInfo():
         return sessionInfo(_that);
+      case LiveSessionEstablished():
+        return sessionEstablished(_that);
     }
   }
 
@@ -151,6 +157,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult? Function(LiveOutputTranscription value)? outputTranscription,
     TResult? Function(LiveToolStatus value)? toolStatus,
     TResult? Function(LiveSessionInfo value)? sessionInfo,
+    TResult? Function(LiveSessionEstablished value)? sessionEstablished,
   }) {
     final _that = this;
     switch (_that) {
@@ -170,6 +177,8 @@ extension LiveEventPatterns on LiveEvent {
         return toolStatus(_that);
       case LiveSessionInfo() when sessionInfo != null:
         return sessionInfo(_that);
+      case LiveSessionEstablished() when sessionEstablished != null:
+        return sessionEstablished(_that);
       case _:
         return null;
     }
@@ -198,6 +207,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult Function(String text)? outputTranscription,
     TResult Function(String label)? toolStatus,
     TResult Function(String welcome)? sessionInfo,
+    TResult Function(String sessionId)? sessionEstablished,
     required TResult orElse(),
   }) {
     final _that = this;
@@ -218,6 +228,8 @@ extension LiveEventPatterns on LiveEvent {
         return toolStatus(_that.label);
       case LiveSessionInfo() when sessionInfo != null:
         return sessionInfo(_that.welcome);
+      case LiveSessionEstablished() when sessionEstablished != null:
+        return sessionEstablished(_that.sessionId);
       case _:
         return orElse();
     }
@@ -248,6 +260,7 @@ extension LiveEventPatterns on LiveEvent {
     required TResult Function(String text) outputTranscription,
     required TResult Function(String label) toolStatus,
     required TResult Function(String welcome) sessionInfo,
+    required TResult Function(String sessionId) sessionEstablished,
   }) {
     final _that = this;
     switch (_that) {
@@ -267,6 +280,8 @@ extension LiveEventPatterns on LiveEvent {
         return toolStatus(_that.label);
       case LiveSessionInfo():
         return sessionInfo(_that.welcome);
+      case LiveSessionEstablished():
+        return sessionEstablished(_that.sessionId);
     }
   }
 
@@ -293,6 +308,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult? Function(String text)? outputTranscription,
     TResult? Function(String label)? toolStatus,
     TResult? Function(String welcome)? sessionInfo,
+    TResult? Function(String sessionId)? sessionEstablished,
   }) {
     final _that = this;
     switch (_that) {
@@ -312,6 +328,8 @@ extension LiveEventPatterns on LiveEvent {
         return toolStatus(_that.label);
       case LiveSessionInfo() when sessionInfo != null:
         return sessionInfo(_that.welcome);
+      case LiveSessionEstablished() when sessionEstablished != null:
+        return sessionEstablished(_that.sessionId);
       case _:
         return null;
     }
@@ -803,6 +821,72 @@ class _$LiveSessionInfoCopyWithImpl<$Res>
       null == welcome
           ? _self.welcome
           : welcome // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class LiveSessionEstablished implements LiveEvent {
+  const LiveSessionEstablished(this.sessionId);
+
+  final String sessionId;
+
+  /// Create a copy of LiveEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $LiveSessionEstablishedCopyWith<LiveSessionEstablished> get copyWith =>
+      _$LiveSessionEstablishedCopyWithImpl<LiveSessionEstablished>(
+          this, _$identity);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is LiveSessionEstablished &&
+            (identical(other.sessionId, sessionId) ||
+                other.sessionId == sessionId));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, sessionId);
+
+  @override
+  String toString() {
+    return 'LiveEvent.sessionEstablished(sessionId: $sessionId)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $LiveSessionEstablishedCopyWith<$Res>
+    implements $LiveEventCopyWith<$Res> {
+  factory $LiveSessionEstablishedCopyWith(LiveSessionEstablished value,
+          $Res Function(LiveSessionEstablished) _then) =
+      _$LiveSessionEstablishedCopyWithImpl;
+  @useResult
+  $Res call({String sessionId});
+}
+
+/// @nodoc
+class _$LiveSessionEstablishedCopyWithImpl<$Res>
+    implements $LiveSessionEstablishedCopyWith<$Res> {
+  _$LiveSessionEstablishedCopyWithImpl(this._self, this._then);
+
+  final LiveSessionEstablished _self;
+  final $Res Function(LiveSessionEstablished) _then;
+
+  /// Create a copy of LiveEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? sessionId = null,
+  }) {
+    return _then(LiveSessionEstablished(
+      null == sessionId
+          ? _self.sessionId
+          : sessionId // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }

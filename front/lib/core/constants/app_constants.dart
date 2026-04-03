@@ -17,7 +17,11 @@ class AppConstants {
     defaultValue: 'eleven_flash_v2_5',
   );
 
-  /// WebSocket endpoint for ADK Live bidi streaming.
-  /// http(s) is converted to ws(s) in [LiveRepositoryImpl].
+  /// WebSocket endpoint for ADK audio-to-audio bidi streaming.
   static String get adkLiveUrl => '$adkBaseUrl/run_live';
+
+  /// SSE endpoint for text-to-text mode.
+  static String get adkTextUrl => '$adkBaseUrl/run_sse';
+  static String elevenLabsTtsUrl(String voiceId) =>
+      'https://api.elevenlabs.io/v1/text-to-speech/$voiceId';
 }

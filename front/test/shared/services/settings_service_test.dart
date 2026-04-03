@@ -7,9 +7,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('getUseElevenLabs returns false by default', () async {
+  // ── useElevenLabs ──────────────────────────────────────────────────────────
+
+  test('getUseElevenLabs returns true by default', () async {
     final service = SettingsService();
-    expect(await service.getUseElevenLabs(), isFalse);
+    expect(await service.getUseElevenLabs(), isTrue);
   });
 
   test('setUseElevenLabs(true) is persisted', () async {
@@ -28,5 +30,33 @@ void main() {
   test('two SettingsService instances share the same underlying store', () async {
     await SettingsService().setUseElevenLabs(true);
     expect(await SettingsService().getUseElevenLabs(), isTrue);
+  });
+
+  // ── useTextMode ────────────────────────────────────────────────────────────
+
+  test('getUseTextMode returns false by default', () async {
+    final service = SettingsService();
+    expect(await service.getUseTextMode(), isFalse);
+  });
+
+  test('setUseTextMode(true) is persisted', () async {
+    final service = SettingsService();
+    await service.setUseTextMode(true);
+    expect(await service.getUseTextMode(), isTrue);
+  });
+
+  test('setUseTextMode can be toggled back to false', () async {
+    final service = SettingsService();
+    await service.setUseTextMode(true);
+    await service.setUseTextMode(false);
+    expect(await service.getUseTextMode(), isFalse);
+  });
+
+  test('useTextMode and useElevenLabs are independent preferences', () async {
+    final service = SettingsService();
+    await service.setUseElevenLabs(true);
+    await service.setUseTextMode(false);
+    expect(await service.getUseElevenLabs(), isTrue);
+    expect(await service.getUseTextMode(), isFalse);
   });
 }

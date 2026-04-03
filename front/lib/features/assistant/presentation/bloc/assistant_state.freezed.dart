@@ -166,7 +166,7 @@ extension AssistantStatePatterns on AssistantState {
     TResult Function(
             String interimTranscript, String statusLabel, String welcomeText)?
         listening,
-    TResult Function(String responseText)? speaking,
+    TResult Function(String responseText, String userTranscript)? speaking,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -180,7 +180,7 @@ extension AssistantStatePatterns on AssistantState {
         return listening(
             _that.interimTranscript, _that.statusLabel, _that.welcomeText);
       case Speaking() when speaking != null:
-        return speaking(_that.responseText);
+        return speaking(_that.responseText, _that.userTranscript);
       case AssistantError() when error != null:
         return error(_that.message);
       case _:
@@ -208,7 +208,8 @@ extension AssistantStatePatterns on AssistantState {
     required TResult Function(
             String interimTranscript, String statusLabel, String welcomeText)
         listening,
-    required TResult Function(String responseText) speaking,
+    required TResult Function(String responseText, String userTranscript)
+        speaking,
     required TResult Function(String message) error,
   }) {
     final _that = this;
@@ -221,7 +222,7 @@ extension AssistantStatePatterns on AssistantState {
         return listening(
             _that.interimTranscript, _that.statusLabel, _that.welcomeText);
       case Speaking():
-        return speaking(_that.responseText);
+        return speaking(_that.responseText, _that.userTranscript);
       case AssistantError():
         return error(_that.message);
     }
@@ -246,7 +247,7 @@ extension AssistantStatePatterns on AssistantState {
     TResult? Function(
             String interimTranscript, String statusLabel, String welcomeText)?
         listening,
-    TResult? Function(String responseText)? speaking,
+    TResult? Function(String responseText, String userTranscript)? speaking,
     TResult? Function(String message)? error,
   }) {
     final _that = this;
@@ -259,7 +260,7 @@ extension AssistantStatePatterns on AssistantState {
         return listening(
             _that.interimTranscript, _that.statusLabel, _that.welcomeText);
       case Speaking() when speaking != null:
-        return speaking(_that.responseText);
+        return speaking(_that.responseText, _that.userTranscript);
       case AssistantError() when error != null:
         return error(_that.message);
       case _:
@@ -397,10 +398,12 @@ class _$ListeningCopyWithImpl<$Res> implements $ListeningCopyWith<$Res> {
 /// @nodoc
 
 class Speaking implements AssistantState {
-  const Speaking({this.responseText = ''});
+  const Speaking({this.responseText = '', this.userTranscript = ''});
 
   @JsonKey()
   final String responseText;
+  @JsonKey()
+  final String userTranscript;
 
   /// Create a copy of AssistantState
   /// with the given fields replaced by the non-null parameter values.
@@ -415,15 +418,17 @@ class Speaking implements AssistantState {
         (other.runtimeType == runtimeType &&
             other is Speaking &&
             (identical(other.responseText, responseText) ||
-                other.responseText == responseText));
+                other.responseText == responseText) &&
+            (identical(other.userTranscript, userTranscript) ||
+                other.userTranscript == userTranscript));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, responseText);
+  int get hashCode => Object.hash(runtimeType, responseText, userTranscript);
 
   @override
   String toString() {
-    return 'AssistantState.speaking(responseText: $responseText)';
+    return 'AssistantState.speaking(responseText: $responseText, userTranscript: $userTranscript)';
   }
 }
 
@@ -433,7 +438,7 @@ abstract mixin class $SpeakingCopyWith<$Res>
   factory $SpeakingCopyWith(Speaking value, $Res Function(Speaking) _then) =
       _$SpeakingCopyWithImpl;
   @useResult
-  $Res call({String responseText});
+  $Res call({String responseText, String userTranscript});
 }
 
 /// @nodoc
@@ -448,11 +453,16 @@ class _$SpeakingCopyWithImpl<$Res> implements $SpeakingCopyWith<$Res> {
   @pragma('vm:prefer-inline')
   $Res call({
     Object? responseText = null,
+    Object? userTranscript = null,
   }) {
     return _then(Speaking(
       responseText: null == responseText
           ? _self.responseText
           : responseText // ignore: cast_nullable_to_non_nullable
+              as String,
+      userTranscript: null == userTranscript
+          ? _self.userTranscript
+          : userTranscript // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }

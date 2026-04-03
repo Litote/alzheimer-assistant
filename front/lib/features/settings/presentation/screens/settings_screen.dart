@@ -12,6 +12,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _useElevenLabs = false;
+  bool _useTextMode = false;
   bool _loaded = false;
 
   @override
@@ -21,9 +22,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final value = await widget.settingsService.getUseElevenLabs();
+    final elevenLabs = await widget.settingsService.getUseElevenLabs();
+    final textMode = await widget.settingsService.getUseTextMode();
     setState(() {
-      _useElevenLabs = value;
+      _useElevenLabs = elevenLabs;
+      _useTextMode = textMode;
       _loaded = true;
     });
   }
@@ -39,13 +42,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   title: const Text('Synthèse vocale ElevenLabs'),
                   subtitle: const Text(
-                    'Utilise ElevenLabs pour la voix de Paul au lieu de la voix standard. '
+                    'Utilise ElevenLabs pour la voix de synthèse au lieu de la voix standard. '
                     'Prend effet à la prochaine conversation.',
                   ),
                   value: _useElevenLabs,
                   onChanged: (value) async {
                     await widget.settingsService.setUseElevenLabs(value);
                     setState(() => _useElevenLabs = value);
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text('Mode texte'),
+                  subtitle: const Text(
+                    'Utilise la reconnaissance vocale de l\'appareil pour transcrire '
+                    'votre message avant de l\'envoyer. '
+                    'Prend effet à la prochaine conversation.',
+                  ),
+                  value: _useTextMode,
+                  onChanged: (value) async {
+                    await widget.settingsService.setUseTextMode(value);
+                    setState(() => _useTextMode = value);
                   },
                 ),
               ],

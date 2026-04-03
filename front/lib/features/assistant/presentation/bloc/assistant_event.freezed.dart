@@ -55,6 +55,7 @@ extension AssistantEventPatterns on AssistantEvent {
     TResult Function(AppResumed value)? appResumed,
     TResult Function(LiveEventReceived value)? liveEventReceived,
     TResult Function(AudioPlaybackFinished value)? audioPlaybackFinished,
+    TResult Function(SpeechRecognized value)? speechRecognized,
     required TResult orElse(),
   }) {
     final _that = this;
@@ -69,6 +70,8 @@ extension AssistantEventPatterns on AssistantEvent {
         return liveEventReceived(_that);
       case AudioPlaybackFinished() when audioPlaybackFinished != null:
         return audioPlaybackFinished(_that);
+      case SpeechRecognized() when speechRecognized != null:
+        return speechRecognized(_that);
       case _:
         return orElse();
     }
@@ -95,6 +98,7 @@ extension AssistantEventPatterns on AssistantEvent {
     required TResult Function(LiveEventReceived value) liveEventReceived,
     required TResult Function(AudioPlaybackFinished value)
         audioPlaybackFinished,
+    required TResult Function(SpeechRecognized value) speechRecognized,
   }) {
     final _that = this;
     switch (_that) {
@@ -108,6 +112,8 @@ extension AssistantEventPatterns on AssistantEvent {
         return liveEventReceived(_that);
       case AudioPlaybackFinished():
         return audioPlaybackFinished(_that);
+      case SpeechRecognized():
+        return speechRecognized(_that);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -132,6 +138,7 @@ extension AssistantEventPatterns on AssistantEvent {
     TResult? Function(AppResumed value)? appResumed,
     TResult? Function(LiveEventReceived value)? liveEventReceived,
     TResult? Function(AudioPlaybackFinished value)? audioPlaybackFinished,
+    TResult? Function(SpeechRecognized value)? speechRecognized,
   }) {
     final _that = this;
     switch (_that) {
@@ -145,6 +152,8 @@ extension AssistantEventPatterns on AssistantEvent {
         return liveEventReceived(_that);
       case AudioPlaybackFinished() when audioPlaybackFinished != null:
         return audioPlaybackFinished(_that);
+      case SpeechRecognized() when speechRecognized != null:
+        return speechRecognized(_that);
       case _:
         return null;
     }
@@ -169,6 +178,7 @@ extension AssistantEventPatterns on AssistantEvent {
     TResult Function()? appResumed,
     TResult Function(LiveEvent event)? liveEventReceived,
     TResult Function()? audioPlaybackFinished,
+    TResult Function(String text)? speechRecognized,
     required TResult orElse(),
   }) {
     final _that = this;
@@ -183,6 +193,8 @@ extension AssistantEventPatterns on AssistantEvent {
         return liveEventReceived(_that.event);
       case AudioPlaybackFinished() when audioPlaybackFinished != null:
         return audioPlaybackFinished();
+      case SpeechRecognized() when speechRecognized != null:
+        return speechRecognized(_that.text);
       case _:
         return orElse();
     }
@@ -208,6 +220,7 @@ extension AssistantEventPatterns on AssistantEvent {
     required TResult Function() appResumed,
     required TResult Function(LiveEvent event) liveEventReceived,
     required TResult Function() audioPlaybackFinished,
+    required TResult Function(String text) speechRecognized,
   }) {
     final _that = this;
     switch (_that) {
@@ -221,6 +234,8 @@ extension AssistantEventPatterns on AssistantEvent {
         return liveEventReceived(_that.event);
       case AudioPlaybackFinished():
         return audioPlaybackFinished();
+      case SpeechRecognized():
+        return speechRecognized(_that.text);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -245,6 +260,7 @@ extension AssistantEventPatterns on AssistantEvent {
     TResult? Function()? appResumed,
     TResult? Function(LiveEvent event)? liveEventReceived,
     TResult? Function()? audioPlaybackFinished,
+    TResult? Function(String text)? speechRecognized,
   }) {
     final _that = this;
     switch (_that) {
@@ -258,6 +274,8 @@ extension AssistantEventPatterns on AssistantEvent {
         return liveEventReceived(_that.event);
       case AudioPlaybackFinished() when audioPlaybackFinished != null:
         return audioPlaybackFinished();
+      case SpeechRecognized() when speechRecognized != null:
+        return speechRecognized(_that.text);
       case _:
         return null;
     }
@@ -461,6 +479,70 @@ class AudioPlaybackFinished implements AssistantEvent {
   @override
   String toString() {
     return 'AssistantEvent.audioPlaybackFinished()';
+  }
+}
+
+/// @nodoc
+
+class SpeechRecognized implements AssistantEvent {
+  const SpeechRecognized(this.text);
+
+  final String text;
+
+  /// Create a copy of AssistantEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $SpeechRecognizedCopyWith<SpeechRecognized> get copyWith =>
+      _$SpeechRecognizedCopyWithImpl<SpeechRecognized>(this, _$identity);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is SpeechRecognized &&
+            (identical(other.text, text) || other.text == text));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, text);
+
+  @override
+  String toString() {
+    return 'AssistantEvent.speechRecognized(text: $text)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $SpeechRecognizedCopyWith<$Res>
+    implements $AssistantEventCopyWith<$Res> {
+  factory $SpeechRecognizedCopyWith(
+          SpeechRecognized value, $Res Function(SpeechRecognized) _then) =
+      _$SpeechRecognizedCopyWithImpl;
+  @useResult
+  $Res call({String text});
+}
+
+/// @nodoc
+class _$SpeechRecognizedCopyWithImpl<$Res>
+    implements $SpeechRecognizedCopyWith<$Res> {
+  _$SpeechRecognizedCopyWithImpl(this._self, this._then);
+
+  final SpeechRecognized _self;
+  final $Res Function(SpeechRecognized) _then;
+
+  /// Create a copy of AssistantEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? text = null,
+  }) {
+    return _then(SpeechRecognized(
+      null == text
+          ? _self.text
+          : text // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
   }
 }
 

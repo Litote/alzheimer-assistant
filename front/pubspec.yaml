@@ -26,6 +26,9 @@ dependencies:
   google_fonts: ^8.0.2
   cupertino_icons: ^1.0.9
 
+  # Voice input
+  speech_to_text: ^7.0.0
+
   # Microphone streaming (raw PCM 16kHz for ADK Live)
   record: ^6.0.0
 
@@ -56,6 +59,9 @@ dependencies:
   # Utilities
   logger: ^2.6.1
   shared_preferences: ^2.3.2
+
+  # Client-side TTS (text mode with reply_text)
+  flutter_tts: ^4.2.0
 
 dev_dependencies:
   flutter_test:

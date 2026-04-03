@@ -5,18 +5,21 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
-import 'package:alzheimer_assistant/features/assistant/domain/repositories/live_repository.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
+import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
+import 'package:alzheimer_assistant/shared/services/speech_recognition_service.dart';
 import 'package:alzheimer_assistant/shared/services/streaming_audio_player_service.dart';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
-class MockLiveRepository extends Mock implements LiveRepository {}
+class MockAudioRepository extends Mock implements AudioRepository {}
 
 class MockMicrophoneStreamService extends Mock
     implements MicrophoneStreamService {}
@@ -28,26 +31,39 @@ class MockPhoneCallService extends Mock implements PhoneCallService {}
 
 class MockSettingsService extends Mock implements SettingsService {}
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+class MockSpeechRecognitionService extends Mock
+    implements SpeechRecognitionService {}
 
-/// A [LiveRepository] backed by an in-memory [StreamController].
-/// The test controls exactly which events the stream emits.
-class _ControllableLiveRepository implements LiveRepository {
+class MockClientTtsService extends Mock implements ClientTtsService {}
+
+// ── Controllable repository (implements both interfaces for testing) ────────
+
+/// In-memory repository that can act as either an [AudioRepository] or a
+/// [TextRepository]. Tests control exactly which events the stream emits.
+class _ControllableRepository implements AudioRepository, TextRepository {
   final _controller = StreamController<LiveEvent>.broadcast();
 
   int sendInterruptionCount = 0;
+  String? lastConnectedSessionId;
+  final List<String> sentTexts = [];
 
   void emit(LiveEvent event) => _controller.add(event);
   void done() => _controller.close();
 
   @override
-  Stream<LiveEvent> connect({bool useElevenLabs = false}) => _controller.stream;
+  Stream<LiveEvent> connect({
+    bool useElevenLabs = false,
+    String? sessionId,
+  }) {
+    lastConnectedSessionId = sessionId;
+    return _controller.stream;
+  }
 
   @override
   void sendAudio(Uint8List pcmBytes) {}
 
   @override
-  void sendText(String text) {}
+  void sendText(String text) => sentTexts.add(text);
 
   @override
   void sendInterruption() => sendInterruptionCount++;
@@ -65,7 +81,39 @@ class _ControllableLiveRepository implements LiveRepository {
   }
 }
 
-/// Mic service whose stream is controlled by the test.
+/// No-op repository that implements both interfaces — never emits, never closes.
+class _EmptyRepository implements AudioRepository, TextRepository {
+  final _controller = StreamController<LiveEvent>();
+
+  @override
+  Stream<LiveEvent> connect({
+    bool useElevenLabs = false,
+    String? sessionId,
+  }) =>
+      _controller.stream;
+
+  @override
+  void sendAudio(Uint8List pcmBytes) {}
+
+  @override
+  void sendText(String text) {}
+
+  @override
+  void sendInterruption() {}
+
+  @override
+  void sendToolResponse({
+    required String callId,
+    required String functionName,
+    required String result,
+  }) {}
+
+  @override
+  Future<void> disconnect() async {}
+}
+
+// ── Mic service helpers ────────────────────────────────────────────────────
+
 class _ControlledMicService implements MicrophoneStreamService {
   final _controller = StreamController<Uint8List>();
 
@@ -81,7 +129,6 @@ class _ControlledMicService implements MicrophoneStreamService {
   Future<void> dispose() async {}
 }
 
-/// Mic service whose [startStreaming] always throws.
 class _ThrowingMicService implements MicrophoneStreamService {
   @override
   Future<Stream<Uint8List>> startStreaming() async =>
@@ -94,39 +141,6 @@ class _ThrowingMicService implements MicrophoneStreamService {
   Future<void> dispose() async {}
 }
 
-/// No-op [LiveRepository] for tests that don't need server interaction.
-/// The stream never emits and never closes (no onDone/error triggers).
-class _EmptyLiveRepository implements LiveRepository {
-  final _controller = StreamController<LiveEvent>();
-
-  @override
-  Stream<LiveEvent> connect({bool useElevenLabs = false}) => _controller.stream;
-  @override
-  void sendAudio(Uint8List pcmBytes) {}
-  @override
-  void sendText(String text) {}
-  @override
-  void sendInterruption() {}
-  @override
-  void sendToolResponse({
-    required String callId,
-    required String functionName,
-    required String result,
-  }) {}
-  @override
-  Future<void> disconnect() async {}
-}
-
-/// Settings service that always returns defaults — no SharedPreferences needed.
-class _FakeSettingsService implements SettingsService {
-  @override
-  Future<bool> getUseElevenLabs() async => false;
-
-  @override
-  Future<void> setUseElevenLabs(bool value) async {}
-}
-
-/// Mic service that immediately provides a stream of one silent chunk.
 class _FakeMicService implements MicrophoneStreamService {
   @override
   Future<Stream<Uint8List>> startStreaming() async =>
@@ -139,22 +153,165 @@ class _FakeMicService implements MicrophoneStreamService {
   Future<void> dispose() async {}
 }
 
+// ── Settings service helpers ───────────────────────────────────────────────
+
+class _FakeSettingsService implements SettingsService {
+  _FakeSettingsService({this.textMode = false});
+  final bool textMode;
+
+  @override
+  Future<bool> getUseElevenLabs() async => false;
+
+  @override
+  Future<void> setUseElevenLabs(bool value) async {}
+
+  @override
+  Future<bool> getUseTextMode() async => textMode;
+
+  @override
+  Future<void> setUseTextMode(bool value) async {}
+}
+
+class _MutableFakeSettingsService implements SettingsService {
+  _MutableFakeSettingsService({
+    bool textMode = false,
+    bool useElevenLabs = false,
+  })  : _textMode = textMode,
+        _useElevenLabs = useElevenLabs;
+
+  bool _textMode;
+  bool _useElevenLabs;
+
+  // ignore: avoid_setters_without_getters
+  set textMode(bool v) => _textMode = v;
+  // ignore: avoid_setters_without_getters
+  set useElevenLabs(bool v) => _useElevenLabs = v;
+
+  @override
+  Future<bool> getUseElevenLabs() async => _useElevenLabs;
+
+  @override
+  Future<void> setUseElevenLabs(bool value) async {}
+
+  @override
+  Future<bool> getUseTextMode() async => _textMode;
+
+  @override
+  Future<void> setUseTextMode(bool value) async {}
+}
+
+/// Settings: useElevenLabs=true, textMode=true.
+class _ElevenLabsTextSettingsService implements SettingsService {
+  @override
+  Future<bool> getUseElevenLabs() async => true;
+
+  @override
+  Future<void> setUseElevenLabs(bool value) async {}
+
+  @override
+  Future<bool> getUseTextMode() async => true;
+
+  @override
+  Future<void> setUseTextMode(bool value) async {}
+}
+
+// ── Speech recognition service helper ─────────────────────────────────────
+
+class _ControllableSpeechService implements SpeechRecognitionService {
+  void Function(String)? onInterim;
+  void Function(String)? onFinal;
+  void Function()? onTimeout;
+
+  bool stopCalled = false;
+  int startListeningCount = 0;
+
+  void emitInterim(String text) => onInterim?.call(text);
+  void emitFinal(String text) => onFinal?.call(text);
+  void emitTimeout() => onTimeout?.call();
+
+  @override
+  Future<bool> initialize() async => true;
+
+  @override
+  Future<void> startListening({
+    required void Function(String text) onInterim,
+    required void Function(String text) onFinal,
+    void Function()? onTimeout,
+  }) async {
+    startListeningCount++;
+    this.onInterim = onInterim;
+    this.onFinal = onFinal;
+    this.onTimeout = onTimeout;
+  }
+
+  @override
+  Future<void> stopListening() async {
+    stopCalled = true;
+  }
+
+  @override
+  bool get isListening => false;
+}
+
+// ── TTS helper ─────────────────────────────────────────────────────────────
+
+class _NoOpClientTtsService implements ClientTtsService {
+  @override
+  Future<void> speak(String text, {required void Function() onComplete}) async =>
+      onComplete();
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+// ── BLoC factory helpers ───────────────────────────────────────────────────
+
 AssistantBloc _makeBloc({
-  LiveRepository? liveRepository,
+  AudioRepository? audioRepository,
+  TextRepository? textRepository,
   MicrophoneStreamService? micService,
   StreamingAudioPlayerService? audioPlayer,
   PhoneCallService? phoneCallService,
   SettingsService? settingsService,
   bool showTranscription = false,
-}) =>
-    AssistantBloc(
-      liveRepository: liveRepository ?? _EmptyLiveRepository(),
-      micService: micService ?? _FakeMicService(),
-      audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
-      showTranscription: showTranscription,
-      phoneCallService: phoneCallService,
-      settingsService: settingsService ?? _FakeSettingsService(),
-    );
+}) {
+  final repo = _EmptyRepository();
+  return AssistantBloc(
+    audioRepository: audioRepository ?? repo,
+    textRepository: textRepository ?? repo,
+    micService: micService ?? _FakeMicService(),
+    audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
+    showTranscription: showTranscription,
+    phoneCallService: phoneCallService,
+    settingsService: settingsService ?? _FakeSettingsService(),
+    elevenLabsTtsService: _NoOpClientTtsService(),
+    nativeTtsService: _NoOpClientTtsService(),
+  );
+}
+
+AssistantBloc _makeBlocWithTimeout({
+  required Duration responseTimeout,
+  AudioRepository? audioRepository,
+  TextRepository? textRepository,
+  MicrophoneStreamService? micService,
+  StreamingAudioPlayerService? audioPlayer,
+  PhoneCallService? phoneCallService,
+  SettingsService? settingsService,
+}) {
+  final repo = _EmptyRepository();
+  return AssistantBloc(
+    audioRepository: audioRepository ?? repo,
+    textRepository: textRepository ?? repo,
+    micService: micService ?? _FakeMicService(),
+    audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
+    phoneCallService: phoneCallService,
+    settingsService: settingsService ?? _FakeSettingsService(),
+    responseTimeout: responseTimeout,
+  );
+}
 
 // ── Test data ──────────────────────────────────────────────────────────────
 
@@ -165,25 +322,8 @@ const _kTwoCandidates = <PhoneCandidate>[
   (displayName: 'Martin Paul', number: '+33622222222'),
 ];
 
-AssistantBloc _makeBlocWithTimeout({
-  required Duration responseTimeout,
-  LiveRepository? liveRepository,
-  MicrophoneStreamService? micService,
-  StreamingAudioPlayerService? audioPlayer,
-  PhoneCallService? phoneCallService,
-  SettingsService? settingsService,
-}) =>
-    AssistantBloc(
-      liveRepository: liveRepository ?? _EmptyLiveRepository(),
-      micService: micService ?? _FakeMicService(),
-      audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
-      phoneCallService: phoneCallService,
-      settingsService: settingsService ?? _FakeSettingsService(),
-      responseTimeout: responseTimeout,
-    );
-
 void main() {
-  late MockLiveRepository repository;
+  late MockAudioRepository audioRepository;
   late MockStreamingAudioPlayerService audioPlayer;
   late MockPhoneCallService phoneCallService;
   late MockSettingsService settingsService;
@@ -194,23 +334,24 @@ void main() {
   });
 
   setUp(() {
-    repository = MockLiveRepository();
+    audioRepository = MockAudioRepository();
     audioPlayer = MockStreamingAudioPlayerService();
     phoneCallService = MockPhoneCallService();
     settingsService = MockSettingsService();
 
-    // Safe defaults — never-closing stream avoids triggering the onDone error handler.
-    when(() => repository.connect(useElevenLabs: any(named: 'useElevenLabs')))
-        .thenAnswer((_) => StreamController<LiveEvent>().stream);
+    when(() => audioRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        )).thenAnswer((_) => StreamController<LiveEvent>().stream);
     when(() => settingsService.getUseElevenLabs()).thenAnswer((_) async => false);
-    when(() => repository.disconnect()).thenAnswer((_) async {});
-    when(() => repository.sendAudio(any())).thenReturn(null);
-    when(() => repository.sendText(any())).thenReturn(null);
-    when(() => repository.sendToolResponse(
-      callId: any(named: 'callId'),
-      functionName: any(named: 'functionName'),
-      result: any(named: 'result'),
-    )).thenReturn(null);
+    when(() => settingsService.getUseTextMode()).thenAnswer((_) async => false);
+    when(() => audioRepository.disconnect()).thenAnswer((_) async {});
+    when(() => audioRepository.sendAudio(any())).thenReturn(null);
+    when(() => audioRepository.sendToolResponse(
+          callId: any(named: 'callId'),
+          functionName: any(named: 'functionName'),
+          result: any(named: 'result'),
+        )).thenReturn(null);
     when(() => audioPlayer.hasChunks).thenReturn(false);
     when(() => audioPlayer.addChunk(any())).thenReturn(null);
     when(() => audioPlayer.stop()).thenAnswer((_) async {});
@@ -222,8 +363,8 @@ void main() {
   // ── Initial state ──────────────────────────────────────────────────────────
 
   test('initial state is Idle', () {
-    // Pass configured mocks so close() can call disconnect() without error.
-    final bloc = _makeBloc(liveRepository: repository, audioPlayer: audioPlayer);
+    final bloc =
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer);
     expect(bloc.state, const AssistantState.idle());
     bloc.close();
   });
@@ -233,7 +374,7 @@ void main() {
   blocTest<AssistantBloc, AssistantState>(
     'StartListening from Idle → Connecting then Listening',
     build: () => _makeBloc(
-      liveRepository: repository,
+      audioRepository: audioRepository,
       audioPlayer: audioPlayer,
     ),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
@@ -246,7 +387,7 @@ void main() {
   blocTest<AssistantBloc, AssistantState>(
     'StartListening forwards useElevenLabs=false (default) to connect()',
     build: () => _makeBloc(
-      liveRepository: repository,
+      audioRepository: audioRepository,
       audioPlayer: audioPlayer,
       settingsService: settingsService,
     ),
@@ -256,7 +397,10 @@ void main() {
       const AssistantState.listening(),
     ],
     verify: (_) {
-      verify(() => repository.connect(useElevenLabs: false)).called(1);
+      verify(() => audioRepository.connect(
+            useElevenLabs: false,
+            sessionId: any(named: 'sessionId'),
+          )).called(1);
     },
   );
 
@@ -265,7 +409,7 @@ void main() {
     build: () {
       when(() => settingsService.getUseElevenLabs()).thenAnswer((_) async => true);
       return _makeBloc(
-        liveRepository: repository,
+        audioRepository: audioRepository,
         audioPlayer: audioPlayer,
         settingsService: settingsService,
       );
@@ -276,7 +420,10 @@ void main() {
       const AssistantState.listening(),
     ],
     verify: (_) {
-      verify(() => repository.connect(useElevenLabs: true)).called(1);
+      verify(() => audioRepository.connect(
+            useElevenLabs: true,
+            sessionId: any(named: 'sessionId'),
+          )).called(1);
     },
   );
 
@@ -284,7 +431,8 @@ void main() {
 
   blocTest<AssistantBloc, AssistantState>(
     'StartListening from Error → resets to Idle',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.error(message: 'some error'),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [const AssistantState.idle()],
@@ -294,14 +442,13 @@ void main() {
 
   blocTest<AssistantBloc, AssistantState>(
     'StartListening from Listening → disconnects and returns to Idle',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.listening(),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [const AssistantState.idle()],
     verify: (_) {
-      // disconnect() is called at least once: once in _onStartListening and
-      // once more when bloc_test closes the bloc after the test.
-      verify(() => repository.disconnect()).called(greaterThan(0));
+      verify(() => audioRepository.disconnect()).called(greaterThan(0));
     },
   );
 
@@ -309,7 +456,8 @@ void main() {
 
   blocTest<AssistantBloc, AssistantState>(
     'StartListening from Speaking → stops audio and returns to Idle',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.speaking(responseText: _kText),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [const AssistantState.idle()],
@@ -321,7 +469,7 @@ void main() {
   // ── LiveEvent: textDelta (ignored) ────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'liveEventReceived(textDelta) → no state change (transcriptions used instead)',
+    'liveEventReceived(textDelta) → no state change',
     build: () => _makeBloc(audioPlayer: audioPlayer),
     seed: () => const AssistantState.listening(),
     act: (bloc) async {
@@ -352,6 +500,48 @@ void main() {
     ],
   );
 
+  test(
+    'liveEventReceived(outputTranscription) in text mode → emits Speaking with accumulated text',
+    () async {
+      final live = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        textRepository: live,
+        audioRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+        showTranscription: false,
+      );
+
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      speech.emitFinal('Bonjour');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      live.emit(const LiveEvent.outputTranscription('Vos médicaments '));
+      live.emit(const LiveEvent.outputTranscription('sont prêts.'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(states, containsAllInOrder([
+        const AssistantState.speaking(userTranscript: 'Bonjour'),
+        const AssistantState.speaking(responseText: 'Vos médicaments '),
+        const AssistantState.speaking(responseText: 'Vos médicaments sont prêts.'),
+      ]));
+
+      await sub.cancel();
+      await bloc.close();
+    },
+  );
+
   // ── LiveEvent: audioChunk ─────────────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
@@ -369,8 +559,6 @@ void main() {
     },
   );
 
-  // ── LiveEvent: audioChunk while already Speaking ──────────────────────────
-
   blocTest<AssistantBloc, AssistantState>(
     'liveEventReceived(audioChunk) while Speaking → buffers without re-emitting',
     build: () => _makeBloc(audioPlayer: audioPlayer),
@@ -384,24 +572,57 @@ void main() {
     },
   );
 
-  // ── LiveEvent: turnComplete with audio buffer ─────────────────────────────
+  // ── LiveEvent: audioChunk ignored in text mode ────────────────────────────
+
+  test('liveEventReceived(audioChunk) in text mode → ignored', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    states.clear();
+
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, isEmpty);
+    verifyNever(() => player.addChunk(any()));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  // ── LiveEvent: turnComplete (audio mode) ──────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
     'liveEventReceived(turnComplete) while Speaking → back to Listening',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.speaking(responseText: _kText),
     act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
       LiveEvent.turnComplete(),
     )),
-    // In bidi streaming, turnComplete always transitions Speaking → Listening
-    // so the mic stays active for the next user turn.
     expect: () => [const AssistantState.listening()],
   );
 
-  // ── LiveEvent: turnComplete resets responseText ────────────────────────────
-
-  test('turnComplete resets responseText so next turn starts with empty bubble', () async {
-    final live = _ControllableLiveRepository();
+  test('turnComplete resets responseText so next turn starts with empty bubble',
+      () async {
+    final live = _ControllableRepository();
     final player = MockStreamingAudioPlayerService();
     when(() => player.addChunk(any())).thenReturn(null);
     when(() => player.stop()).thenAnswer((_) async {});
@@ -410,7 +631,8 @@ void main() {
         .thenAnswer((_) async {});
 
     final bloc = AssistantBloc(
-      liveRepository: live,
+      audioRepository: live,
+      textRepository: live,
       micService: _FakeMicService(),
       audioPlayer: player,
       showTranscription: true,
@@ -435,11 +657,9 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(states, containsAllInOrder([
-      // Turn 1
       const AssistantState.speaking(),
       const AssistantState.speaking(responseText: _kText),
-      const AssistantState.listening(), // turnComplete resets _responseText
-      // Turn 2 — Speaking emits '' (reset), then accumulates only turn 2 text
+      const AssistantState.listening(),
       const AssistantState.speaking(),
       const AssistantState.speaking(responseText: 'Turn 2 text'),
     ]));
@@ -448,16 +668,132 @@ void main() {
     await bloc.close();
   });
 
-  // ── LiveEvent: turnComplete not in Speaking ───────────────────────────────
-
   blocTest<AssistantBloc, AssistantState>(
     'liveEventReceived(turnComplete) while Listening → no state change',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.listening(),
     act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
       LiveEvent.turnComplete(),
     )),
     expect: () => [],
+  );
+
+  // ── LiveEvent: turnComplete — settings drift detection ────────────────────
+
+  test(
+    'turnComplete (audio mode): useElevenLabs changed since connect → Idle',
+    () async {
+      final settings = _MutableFakeSettingsService();
+      final live = _ControllableRepository();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.addChunk(any())).thenReturn(null);
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        audioRepository: live,
+        textRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: settings,
+      );
+
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      settings.useElevenLabs = true;
+
+      live.emit(LiveEvent.audioChunk(_kAudioChunk));
+      live.emit(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(states.last, const AssistantState.idle());
+
+      await sub.cancel();
+      await bloc.close();
+    },
+  );
+
+  test(
+    'turnComplete (audio mode): useTextMode changed since connect → Idle',
+    () async {
+      final settings = _MutableFakeSettingsService();
+      final live = _ControllableRepository();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.addChunk(any())).thenReturn(null);
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        audioRepository: live,
+        textRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: settings,
+      );
+
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      settings.textMode = true;
+
+      live.emit(LiveEvent.audioChunk(_kAudioChunk));
+      live.emit(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(states.last, const AssistantState.idle());
+
+      await sub.cancel();
+      await bloc.close();
+    },
+  );
+
+  test(
+    'turnComplete (audio mode): no settings change → stays Listening',
+    () async {
+      final settings = _MutableFakeSettingsService();
+      final live = _ControllableRepository();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.addChunk(any())).thenReturn(null);
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        audioRepository: live,
+        textRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: settings,
+      );
+
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      live.emit(LiveEvent.audioChunk(_kAudioChunk));
+      live.emit(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(states.last, const AssistantState.listening());
+
+      await sub.cancel();
+      await bloc.close();
+    },
   );
 
   // ── AudioPlaybackFinished ──────────────────────────────────────────────────
@@ -466,9 +802,7 @@ void main() {
     'audioPlaybackFinished → Listening (bidi: mic stays active)',
     build: () => _makeBloc(audioPlayer: audioPlayer),
     seed: () => const AssistantState.speaking(responseText: _kText),
-    act: (bloc) =>
-        bloc.add(const AssistantEvent.audioPlaybackFinished()),
-    // In bidi mode, after playback the user can speak again immediately.
+    act: (bloc) => bloc.add(const AssistantEvent.audioPlaybackFinished()),
     expect: () => [const AssistantState.listening()],
   );
 
@@ -488,7 +822,8 @@ void main() {
 
   blocTest<AssistantBloc, AssistantState>(
     'appResumed while Speaking → stops audio and returns to Idle',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.speaking(responseText: _kText),
     act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
     expect: () => [const AssistantState.idle()],
@@ -497,10 +832,8 @@ void main() {
     },
   );
 
-  // ── AppResumed while not Speaking ─────────────────────────────────────────
-
   blocTest<AssistantBloc, AssistantState>(
-    'appResumed while Idle → no state change but audio player still stopped (restores iOS session)',
+    'appResumed while Idle → no state change but audio player stopped',
     build: () => _makeBloc(audioPlayer: audioPlayer),
     act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
     expect: () => [],
@@ -510,8 +843,9 @@ void main() {
   );
 
   blocTest<AssistantBloc, AssistantState>(
-    'appResumed while Listening → no state change but audio player stopped (restores iOS session)',
-    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    'appResumed while Listening → no state change but audio player stopped',
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.listening(),
     act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
     expect: () => [],
@@ -525,10 +859,11 @@ void main() {
   blocTest<AssistantBloc, AssistantState>(
     'liveEventReceived(callPhone) — PhoneCallSuccess → sends tool response',
     build: () {
-      when(() => phoneCallService.callByName(any(), exactMatch: any(named: 'exactMatch')))
+      when(() => phoneCallService.callByName(any(),
+              exactMatch: any(named: 'exactMatch')))
           .thenAnswer((_) async => PhoneCallSuccess());
       return _makeBloc(
-        liveRepository: repository,
+        audioRepository: audioRepository,
         audioPlayer: audioPlayer,
         phoneCallService: phoneCallService,
       );
@@ -543,21 +878,22 @@ void main() {
     )),
     expect: () => [],
     verify: (_) {
-      verify(() => repository.sendToolResponse(
-        callId: 'call-1',
-        functionName: 'call_phone',
-        result: any(named: 'result'),
-      )).called(1);
+      verify(() => audioRepository.sendToolResponse(
+            callId: 'call-1',
+            functionName: 'call_phone',
+            result: any(named: 'result'),
+          )).called(1);
     },
   );
 
   blocTest<AssistantBloc, AssistantState>(
     'liveEventReceived(callPhone) — PhoneCallAmbiguous → sends ambiguity message',
     build: () {
-      when(() => phoneCallService.callByName(any(), exactMatch: any(named: 'exactMatch')))
+      when(() => phoneCallService.callByName(any(),
+              exactMatch: any(named: 'exactMatch')))
           .thenAnswer((_) async => PhoneCallAmbiguous(_kTwoCandidates));
       return _makeBloc(
-        liveRepository: repository,
+        audioRepository: audioRepository,
         audioPlayer: audioPlayer,
         phoneCallService: phoneCallService,
       );
@@ -572,11 +908,11 @@ void main() {
     )),
     expect: () => [],
     verify: (_) {
-      verify(() => repository.sendToolResponse(
-        callId: 'call-2',
-        functionName: 'call_phone',
-        result: any(named: 'result'),
-      )).called(1);
+      verify(() => audioRepository.sendToolResponse(
+            callId: 'call-2',
+            functionName: 'call_phone',
+            result: any(named: 'result'),
+          )).called(1);
     },
   );
 
@@ -616,7 +952,7 @@ void main() {
   );
 
   blocTest<AssistantBloc, AssistantState>(
-    'liveEventReceived(sessionInfo) while not Listening → stores text, no state change',
+    'liveEventReceived(sessionInfo) while not Listening → no state change',
     build: () => _makeBloc(audioPlayer: audioPlayer),
     seed: () => const AssistantState.speaking(),
     act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
@@ -664,10 +1000,11 @@ void main() {
     expect: () => [],
   );
 
-  // ── Full round-trip via controllable stream ───────────────────────────────
+  // ── Full round-trip ───────────────────────────────────────────────────────
 
-  test('full round-trip: connect → audio + transcription → turnComplete → Listening', () async {
-    final live = _ControllableLiveRepository();
+  test('full round-trip: connect → audio + transcription → turnComplete → Listening',
+      () async {
+    final live = _ControllableRepository();
 
     final player = MockStreamingAudioPlayerService();
     when(() => player.addChunk(any())).thenReturn(null);
@@ -677,7 +1014,8 @@ void main() {
         .thenAnswer((_) async {});
 
     final bloc = AssistantBloc(
-      liveRepository: live,
+      audioRepository: live,
+      textRepository: live,
       micService: _FakeMicService(),
       audioPlayer: player,
       showTranscription: true,
@@ -702,9 +1040,8 @@ void main() {
     expect(states, containsAllInOrder([
       const AssistantState.connecting(),
       const AssistantState.listening(),
-      const AssistantState.speaking(), // audioChunk → Speaking (no text yet)
-      const AssistantState.speaking(responseText: _kText), // outputTranscription
-      // turnComplete: Speaking → Listening (bidi: mic stays active)
+      const AssistantState.speaking(),
+      const AssistantState.speaking(responseText: _kText),
       const AssistantState.listening(),
     ]));
 
@@ -715,14 +1052,15 @@ void main() {
   // ── Server closes connection without responding ───────────────────────────
 
   test('server closes stream while Listening → AssistantError', () async {
-    final live = _ControllableLiveRepository();
+    final live = _ControllableRepository();
     final player = MockStreamingAudioPlayerService();
     when(() => player.stop()).thenAnswer((_) async {});
     when(() => player.dispose()).thenAnswer((_) async {});
     when(() => player.hasChunks).thenReturn(false);
 
     final bloc = AssistantBloc(
-      liveRepository: live,
+      audioRepository: live,
+      textRepository: live,
       micService: _FakeMicService(),
       audioPlayer: player,
       settingsService: _FakeSettingsService(),
@@ -734,7 +1072,6 @@ void main() {
     bloc.add(const AssistantEvent.startListening());
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    // Server closes the connection without ever sending an event.
     live.done();
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -772,12 +1109,51 @@ void main() {
     expect: () => [],
   );
 
+  test(
+    'liveEventReceived(inputTranscription) in text mode → emits Listening with interimTranscript',
+    () async {
+      final live = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        textRepository: live,
+        audioRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+      );
+
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      states.clear();
+
+      bloc.add(const AssistantEvent.liveEventReceived(
+        LiveEvent.inputTranscription('allume la lumière'),
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(states, [
+        const AssistantState.listening(interimTranscript: 'allume la lumière'),
+      ]);
+
+      await sub.cancel();
+      await bloc.close();
+    },
+  );
+
   // ── Connection error (mic throws) ─────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
     'mic startStreaming throws → emits AssistantError',
     build: () => _makeBloc(
-      liveRepository: repository,
+      audioRepository: audioRepository,
       audioPlayer: audioPlayer,
       micService: _ThrowingMicService(),
     ),
@@ -791,7 +1167,7 @@ void main() {
   // ── Interruption detection ─────────────────────────────────────────────────
 
   test('mic chunk with high RMS while Speaking → calls sendInterruption()', () async {
-    final live = _ControllableLiveRepository();
+    final live = _ControllableRepository();
     final mic = _ControlledMicService();
     final player = MockStreamingAudioPlayerService();
     when(() => player.addChunk(any())).thenReturn(null);
@@ -801,7 +1177,8 @@ void main() {
         .thenAnswer((_) async {});
 
     final bloc = AssistantBloc(
-      liveRepository: live,
+      audioRepository: live,
+      textRepository: live,
       micService: mic,
       audioPlayer: player,
       settingsService: _FakeSettingsService(),
@@ -810,12 +1187,10 @@ void main() {
     bloc.add(const AssistantEvent.startListening());
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    // Transition to Speaking via audio chunk
     live.emit(LiveEvent.audioChunk(Uint8List(4)));
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(bloc.state, isA<Speaking>());
 
-    // Push a full 3200-byte buffer with max-amplitude samples (RMS >> 3500)
     final buffer = Uint8List(3200);
     final samples = Int16List.view(buffer.buffer);
     for (var i = 0; i < samples.length; i++) {
@@ -829,10 +1204,258 @@ void main() {
     await bloc.close();
   });
 
+  // ── TEXT MODE ─────────────────────────────────────────────────────────────
+
+  test('text mode: StartListening → Connecting → Listening, STT started', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, containsAllInOrder([
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+    ]));
+    expect(speech.startListeningCount, 1);
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('text mode: STT final result → sendText() called, Speaking emitted', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    speech.emitFinal('Appelle maman');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(live.sentTexts, ['Appelle maman']);
+    expect(states, containsAllInOrder([
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+      const AssistantState.speaking(userTranscript: 'Appelle maman'),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('text mode: STT interim result → Listening with interimTranscript', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+      showTranscription: true,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    speech.emitInterim('Appelle');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, containsAllInOrder([
+      const AssistantState.listening(interimTranscript: 'Appelle'),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('text mode: empty STT result → Idle, no sendText()', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    speech.emitFinal('');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(live.sentTexts, isEmpty);
+    expect(states.last, const AssistantState.idle());
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('text mode: STT timeout → returns to Idle without error', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    speech.emitTimeout();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states.last, const AssistantState.idle());
+    expect(states, isNot(contains(isA<AssistantError>())));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('text mode: turnComplete while Speaking → Idle (not Listening)', () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+
+    // No TTS services → turnComplete disconnects immediately
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    speech.emitFinal('Appelle maman');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(const LiveEvent.outputTranscription('Réponse de l\'agent.'));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    live.emit(const LiveEvent.turnComplete());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states.last, const AssistantState.idle());
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test('text mode: sessionEstablished → session_id forwarded on next connection',
+      () async {
+    final live = _ControllableRepository();
+    final speech = _ControllableSpeechService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      textRepository: live,
+      audioRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(textMode: true),
+      speechService: speech,
+    );
+
+    // Turn 1: receive session_id
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(const LiveEvent.sessionEstablished('sess-42'));
+    speech.emitFinal('Bonjour');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.turnComplete());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Turn 2: session_id should be forwarded
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(live.lastConnectedSessionId, 'sess-42');
+
+    await bloc.close();
+  });
+
   // ── No server response within timeout ─────────────────────────────────────
 
   test('no server response within timeout → AssistantError', () async {
-    final live = _ControllableLiveRepository();
+    final live = _ControllableRepository();
     final player = MockStreamingAudioPlayerService();
     when(() => player.stop()).thenAnswer((_) async {});
     when(() => player.dispose()).thenAnswer((_) async {});
@@ -840,7 +1463,8 @@ void main() {
 
     final bloc = _makeBlocWithTimeout(
       responseTimeout: const Duration(milliseconds: 100),
-      liveRepository: live,
+      audioRepository: live,
+      textRepository: live,
       audioPlayer: player,
     );
 
@@ -848,7 +1472,6 @@ void main() {
     final sub = bloc.stream.listen(states.add);
 
     bloc.add(const AssistantEvent.startListening());
-    // Wait long enough for the timeout to fire.
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     expect(states, containsAllInOrder([
@@ -860,5 +1483,216 @@ void main() {
     await sub.cancel();
     await bloc.close();
   });
-}
 
+  // ── CLIENT-SIDE TTS (text mode) ───────────────────────────────────────────
+
+  group('text mode + TTS', () {
+    late MockClientTtsService elevenLabsTts;
+    late MockClientTtsService nativeTts;
+
+    setUp(() {
+      elevenLabsTts = MockClientTtsService();
+      nativeTts = MockClientTtsService();
+      when(() => elevenLabsTts.speak(any(), onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+      when(() => elevenLabsTts.stop()).thenAnswer((_) async {});
+      when(() => elevenLabsTts.dispose()).thenAnswer((_) async {});
+      when(() => nativeTts.speak(any(), onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+      when(() => nativeTts.stop()).thenAnswer((_) async {});
+      when(() => nativeTts.dispose()).thenAnswer((_) async {});
+    });
+
+    test(
+      'turnComplete with text → ElevenLabs TTS called (useElevenLabs=true)',
+      () async {
+        final live = _ControllableRepository();
+        final speech = _ControllableSpeechService();
+        final player = MockStreamingAudioPlayerService();
+        when(() => player.stop()).thenAnswer((_) async {});
+        when(() => player.dispose()).thenAnswer((_) async {});
+
+        final bloc = AssistantBloc(
+          textRepository: live,
+          audioRepository: live,
+          micService: _FakeMicService(),
+          audioPlayer: player,
+          settingsService: _ElevenLabsTextSettingsService(),
+          speechService: speech,
+          elevenLabsTtsService: elevenLabsTts,
+          nativeTtsService: nativeTts,
+        );
+
+        final states = <AssistantState>[];
+        final sub = bloc.stream.listen(states.add);
+
+        bloc.add(const AssistantEvent.startListening());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        speech.emitFinal('Bonjour');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        live.emit(const LiveEvent.outputTranscription(_kText));
+        live.emit(const LiveEvent.turnComplete());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        verify(() =>
+                elevenLabsTts.speak(_kText, onComplete: any(named: 'onComplete')))
+            .called(1);
+        verifyNever(
+            () => nativeTts.speak(any(), onComplete: any(named: 'onComplete')));
+
+        await sub.cancel();
+        await bloc.close();
+      },
+    );
+
+    test(
+      'turnComplete with text → native TTS called (useElevenLabs=false)',
+      () async {
+        final live = _ControllableRepository();
+        final speech = _ControllableSpeechService();
+        final player = MockStreamingAudioPlayerService();
+        when(() => player.stop()).thenAnswer((_) async {});
+        when(() => player.dispose()).thenAnswer((_) async {});
+
+        final bloc = AssistantBloc(
+          textRepository: live,
+          audioRepository: live,
+          micService: _FakeMicService(),
+          audioPlayer: player,
+          settingsService: _FakeSettingsService(textMode: true),
+          speechService: speech,
+          elevenLabsTtsService: elevenLabsTts,
+          nativeTtsService: nativeTts,
+        );
+
+        final states = <AssistantState>[];
+        final sub = bloc.stream.listen(states.add);
+
+        bloc.add(const AssistantEvent.startListening());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        speech.emitFinal('Bonjour');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        live.emit(const LiveEvent.outputTranscription(_kText));
+        live.emit(const LiveEvent.turnComplete());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        verify(() =>
+                nativeTts.speak(_kText, onComplete: any(named: 'onComplete')))
+            .called(1);
+        verifyNever(() =>
+            elevenLabsTts.speak(any(), onComplete: any(named: 'onComplete')));
+
+        await sub.cancel();
+        await bloc.close();
+      },
+    );
+
+    test(
+      'TTS onComplete fires audioPlaybackFinished → disconnect → Idle',
+      () async {
+        final live = _ControllableRepository();
+        final speech = _ControllableSpeechService();
+        final player = MockStreamingAudioPlayerService();
+        when(() => player.stop()).thenAnswer((_) async {});
+        when(() => player.dispose()).thenAnswer((_) async {});
+
+        void Function()? capturedOnComplete;
+        when(() => nativeTts.speak(any(), onComplete: any(named: 'onComplete')))
+            .thenAnswer((inv) async {
+          capturedOnComplete =
+              inv.namedArguments[#onComplete] as void Function();
+        });
+
+        final bloc = AssistantBloc(
+          textRepository: live,
+          audioRepository: live,
+          micService: _FakeMicService(),
+          audioPlayer: player,
+          settingsService: _FakeSettingsService(textMode: true),
+          speechService: speech,
+          nativeTtsService: nativeTts,
+          elevenLabsTtsService: elevenLabsTts,
+        );
+
+        final states = <AssistantState>[];
+        final sub = bloc.stream.listen(states.add);
+
+        bloc.add(const AssistantEvent.startListening());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        speech.emitFinal('Bonjour');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        live.emit(const LiveEvent.outputTranscription(_kText));
+        live.emit(const LiveEvent.turnComplete());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(bloc.state, isA<Speaking>());
+
+        capturedOnComplete?.call();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(bloc.state, const AssistantState.idle());
+
+        await sub.cancel();
+        await bloc.close();
+      },
+    );
+
+    test(
+      'text mode: tool-response turn → second TTS triggered after first turnComplete',
+      () async {
+        final live = _ControllableRepository();
+        final speech = _ControllableSpeechService();
+        final player = MockStreamingAudioPlayerService();
+        when(() => player.stop()).thenAnswer((_) async {});
+        when(() => player.dispose()).thenAnswer((_) async {});
+
+        final List<String> spokenTexts = [];
+        when(() => nativeTts.speak(any(), onComplete: any(named: 'onComplete')))
+            .thenAnswer((inv) async {
+          spokenTexts.add(inv.positionalArguments.first as String);
+        });
+
+        final bloc = AssistantBloc(
+          textRepository: live,
+          audioRepository: live,
+          micService: _FakeMicService(),
+          audioPlayer: player,
+          settingsService: _FakeSettingsService(textMode: true),
+          speechService: speech,
+          nativeTtsService: nativeTts,
+          elevenLabsTtsService: elevenLabsTts,
+        );
+
+        bloc.add(const AssistantEvent.startListening());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        speech.emitFinal('Appelle Madeleine');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        // First turn: agent says something and then tool response comes back
+        const firstText = "J'appelle Madeleine, ta sœur.";
+        const secondText =
+            'Plusieurs Madeleine correspondent. Voulez-vous appeler Madeleine Test ou Madeleine Test 2 ?';
+
+        live.emit(const LiveEvent.outputTranscription(firstText));
+        live.emit(const LiveEvent.turnComplete());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        // Simulate tool-response turn arriving while first TTS is playing
+        live.emit(const LiveEvent.outputTranscription(secondText));
+        live.emit(const LiveEvent.turnComplete());
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        // Both texts must have triggered TTS
+        expect(spokenTexts, [firstText, secondText]);
+
+        await bloc.close();
+      },
+    );
+  });
+}

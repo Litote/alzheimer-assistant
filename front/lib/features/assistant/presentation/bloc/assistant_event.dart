@@ -28,4 +28,8 @@ abstract class AssistantEvent with _$AssistantEvent {
 
   /// Buffered agent audio finished playing — transition back to Idle.
   const factory AssistantEvent.audioPlaybackFinished() = AudioPlaybackFinished;
+
+  /// Device STT returned a final transcription (text mode only).
+  /// Dispatched internally by the BLoC after [SpeechRecognitionService.onFinal].
+  const factory AssistantEvent.speechRecognized(String text) = SpeechRecognized;
 }

@@ -4,20 +4,17 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:alzheimer_assistant/features/assistant/data/repositories/live_repository_impl.dart';
+import 'package:alzheimer_assistant/features/assistant/data/repositories/ws_audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 
 // ── Fake WebSocket channel ─────────────────────────────────────────────────
 
-/// In-memory WebSocketChannel that captures sent messages and lets the test
-/// push server messages via [serverSend].
 class _FakeChannel implements WebSocketChannel {
   final _inController = StreamController<dynamic>();
   final _outController = StreamController<dynamic>();
 
   final List<dynamic> sent = [];
 
-  /// Simulates a message arriving from the server.
   void serverSend(String message) => _inController.add(message);
 
   @override
@@ -50,7 +47,7 @@ class _FakeSink implements WebSocketSink {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-LiveRepositoryImpl _makeRepo(_FakeChannel channel) => LiveRepositoryImpl(
+WsAudioRepository _makeRepo(_FakeChannel channel) => WsAudioRepository(
       channelFactory: (_) => channel,
     );
 
@@ -83,6 +80,7 @@ void main() {
     expect(setup['setup'], isNotNull);
     expect(setup['setup']['app_name'], 'alzheimerassistant');
     expect(setup['setup']['use_elevenlabs'], false);
+    expect(setup['setup'].containsKey('reply_text'), isFalse);
   });
 
   test('connect(useElevenLabs: true) sets use_elevenlabs in setup message', () async {
@@ -230,22 +228,6 @@ void main() {
     expect(base64.decode(chunk['data'] as String), pcm);
   });
 
-  // ── sendText ──────────────────────────────────────────────────────────────
-
-  test('sendText() sends client_content with turn_complete', () async {
-    final channel = _FakeChannel();
-    final repo = _makeRepo(channel);
-
-    repo.connect().listen((_) {});
-    await Future<void>.delayed(Duration.zero);
-    repo.sendText('[phone] appelé.');
-
-    final msg = jsonDecode(channel.sent[1] as String) as Map;
-    expect(msg['client_content']['turn_complete'], isTrue);
-    final text = (msg['client_content']['turns'] as List).first['parts'][0]['text'];
-    expect(text, '[phone] appelé.');
-  });
-
   // ── sendToolResponse ──────────────────────────────────────────────────────
 
   test('sendToolResponse() sends tool_response with correct fields', () async {
@@ -346,7 +328,47 @@ void main() {
     expect(events, isEmpty);
   });
 
-  // ── malformed message is silently skipped ─────────────────────────────────
+  // ── sessionEstablished ────────────────────────────────────────────────────
+
+  test('server session_info with session_id → LiveSessionEstablished', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    final events = <LiveEvent>[];
+    repo.connect().listen(events.add);
+    await Future<void>.delayed(Duration.zero);
+
+    channel.serverSend(jsonEncode({
+      'session_info': {'session_id': 'sess-xyz'},
+    }));
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [const LiveEvent.sessionEstablished('sess-xyz')]);
+  });
+
+  test('session_id takes priority over welcome in the same session_info message',
+      () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    final events = <LiveEvent>[];
+    repo.connect().listen(events.add);
+    await Future<void>.delayed(Duration.zero);
+
+    channel.serverSend(jsonEncode({
+      'session_info': {
+        'session_id': 'sess-xyz',
+        'welcome': 'Je peux vous aider',
+      },
+    }));
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [const LiveEvent.sessionEstablished('sess-xyz')]);
+  });
+
+  // ── malformed message ─────────────────────────────────────────────────────
 
   test('malformed server message → no event emitted', () async {
     final channel = _FakeChannel();
