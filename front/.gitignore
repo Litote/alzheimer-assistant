@@ -26,6 +26,7 @@ ios/Flutter/Flutter.podspec
 
 # Web
 lib/generated_plugin_registrant.dart
+chromedriver/
 
 # Secrets — ne jamais commiter ce fichier (copier secrets.json.example → secrets.json)
 secrets.json

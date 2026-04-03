@@ -21,7 +21,7 @@ class SettingsService {
   /// text → client TTS). Defaults to [false] (audio-to-audio via WebSocket).
   Future<bool> getUseTextMode() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyUseTextMode) ?? false;
+    return prefs.getBool(_keyUseTextMode) ?? true;
   }
 
   /// Persists the text mode preference.

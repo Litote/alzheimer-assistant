@@ -100,12 +100,18 @@ void _resetDevice(WidgetTester tester) {
 }
 
 Future<void> _loadFonts() async {
-  final fontLoader = FontLoader('Inter')
+  final interLoader = FontLoader('Inter')
     ..addFont(rootBundle.load('assets/fonts/Inter-Regular.ttf'))
     ..addFont(rootBundle.load('assets/fonts/Inter-Medium.ttf'))
     ..addFont(rootBundle.load('assets/fonts/Inter-SemiBold.ttf'))
     ..addFont(rootBundle.load('assets/fonts/Inter-Bold.ttf'));
-  await fontLoader.load();
+  
+  await interLoader.load();
+
+  final materialIconsLoader = FontLoader('MaterialIcons')
+    ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
+
+  await materialIconsLoader.load();
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────

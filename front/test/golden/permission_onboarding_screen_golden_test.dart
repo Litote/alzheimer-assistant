@@ -78,12 +78,28 @@ void _resetDevice(WidgetTester tester) {
 }
 
 Future<void> _loadFonts() async {
-  final fontLoader = FontLoader('Inter')
+  final interLoader = FontLoader('Inter')
     ..addFont(rootBundle.load('assets/fonts/Inter-Regular.ttf'))
     ..addFont(rootBundle.load('assets/fonts/Inter-Medium.ttf'))
     ..addFont(rootBundle.load('assets/fonts/Inter-SemiBold.ttf'))
     ..addFont(rootBundle.load('assets/fonts/Inter-Bold.ttf'));
-  await fontLoader.load();
+  
+  await interLoader.load();
+
+  final materialIconsLoader = FontLoader('MaterialIcons')
+    ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
+
+  await materialIconsLoader.load();
+
+  // Pour Cupertino Icons
+  try {
+    final cupertinoData = await rootBundle.load('packages/cupertino_icons/assets/CupertinoIcons.ttf');
+    final cupertinoIconsLoader = FontLoader('CupertinoIcons')
+      ..addFont(Future.value(cupertinoData));
+    await cupertinoIconsLoader.load();
+  } catch (_) {
+    debugPrint('Warning: CupertinoIcons font could not be loaded for golden tests.');
+  }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
