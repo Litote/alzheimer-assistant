@@ -1,607 +1,864 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:alzheimer_assistant/features/assistant/domain/entities/assistant_response.dart';
-import 'package:alzheimer_assistant/features/assistant/domain/repositories/assistant_repository.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/repositories/live_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
+import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
-import 'package:alzheimer_assistant/shared/services/speech_recognition_service.dart';
-import 'package:alzheimer_assistant/shared/services/tts_service.dart';
+import 'package:alzheimer_assistant/shared/services/settings_service.dart';
+import 'package:alzheimer_assistant/shared/services/streaming_audio_player_service.dart';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
-class MockAssistantRepository extends Mock implements AssistantRepository {}
+class MockLiveRepository extends Mock implements LiveRepository {}
 
-class MockSpeechRecognitionService extends Mock
-    implements SpeechRecognitionService {}
+class MockMicrophoneStreamService extends Mock
+    implements MicrophoneStreamService {}
 
-class MockTtsService extends Mock implements TtsService {}
+class MockStreamingAudioPlayerService extends Mock
+    implements StreamingAudioPlayerService {}
 
 class MockPhoneCallService extends Mock implements PhoneCallService {}
 
+class MockSettingsService extends Mock implements SettingsService {}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/// A [LiveRepository] backed by an in-memory [StreamController].
+/// The test controls exactly which events the stream emits.
+class _ControllableLiveRepository implements LiveRepository {
+  final _controller = StreamController<LiveEvent>.broadcast();
+
+  int sendInterruptionCount = 0;
+
+  void emit(LiveEvent event) => _controller.add(event);
+  void done() => _controller.close();
+
+  @override
+  Stream<LiveEvent> connect({bool useElevenLabs = false}) => _controller.stream;
+
+  @override
+  void sendAudio(Uint8List pcmBytes) {}
+
+  @override
+  void sendText(String text) {}
+
+  @override
+  void sendInterruption() => sendInterruptionCount++;
+
+  @override
+  void sendToolResponse({
+    required String callId,
+    required String functionName,
+    required String result,
+  }) {}
+
+  @override
+  Future<void> disconnect() async {
+    if (!_controller.isClosed) await _controller.close();
+  }
+}
+
+/// Mic service whose stream is controlled by the test.
+class _ControlledMicService implements MicrophoneStreamService {
+  final _controller = StreamController<Uint8List>();
+
+  void push(Uint8List data) => _controller.add(data);
+
+  @override
+  Future<Stream<Uint8List>> startStreaming() async => _controller.stream;
+
+  @override
+  Future<void> stop() async => _controller.close();
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// Mic service whose [startStreaming] always throws.
+class _ThrowingMicService implements MicrophoneStreamService {
+  @override
+  Future<Stream<Uint8List>> startStreaming() async =>
+      throw Exception('mic hardware error');
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// No-op [LiveRepository] for tests that don't need server interaction.
+/// The stream never emits and never closes (no onDone/error triggers).
+class _EmptyLiveRepository implements LiveRepository {
+  final _controller = StreamController<LiveEvent>();
+
+  @override
+  Stream<LiveEvent> connect({bool useElevenLabs = false}) => _controller.stream;
+  @override
+  void sendAudio(Uint8List pcmBytes) {}
+  @override
+  void sendText(String text) {}
+  @override
+  void sendInterruption() {}
+  @override
+  void sendToolResponse({
+    required String callId,
+    required String functionName,
+    required String result,
+  }) {}
+  @override
+  Future<void> disconnect() async {}
+}
+
+/// Settings service that always returns defaults — no SharedPreferences needed.
+class _FakeSettingsService implements SettingsService {
+  @override
+  Future<bool> getUseElevenLabs() async => false;
+
+  @override
+  Future<void> setUseElevenLabs(bool value) async {}
+}
+
+/// Mic service that immediately provides a stream of one silent chunk.
+class _FakeMicService implements MicrophoneStreamService {
+  @override
+  Future<Stream<Uint8List>> startStreaming() async =>
+      Stream.value(Uint8List(16));
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 AssistantBloc _makeBloc({
-  required MockAssistantRepository repository,
-  required MockSpeechRecognitionService speechService,
-  required MockTtsService ttsService,
+  LiveRepository? liveRepository,
+  MicrophoneStreamService? micService,
+  StreamingAudioPlayerService? audioPlayer,
+  PhoneCallService? phoneCallService,
+  SettingsService? settingsService,
+  bool showTranscription = false,
 }) =>
     AssistantBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
+      liveRepository: liveRepository ?? _EmptyLiveRepository(),
+      micService: micService ?? _FakeMicService(),
+      audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
+      showTranscription: showTranscription,
+      phoneCallService: phoneCallService,
+      settingsService: settingsService ?? _FakeSettingsService(),
     );
 
-const _kQuestion = 'Où sont mes médicaments ?';
-const _kAnswer = 'Vos médicaments sont sur la table de nuit.';
-final _kResponse = AssistantResponse(text: _kAnswer, audioBytes: [1, 2, 3]);
+// ── Test data ──────────────────────────────────────────────────────────────
 
+const _kText = 'Vos médicaments sont sur la table de nuit.';
+final _kAudioChunk = Uint8List.fromList([1, 2, 3, 4]);
 const _kTwoCandidates = <PhoneCandidate>[
   (displayName: 'Martin Jean', number: '+33611111111'),
   (displayName: 'Martin Paul', number: '+33622222222'),
 ];
 
+AssistantBloc _makeBlocWithTimeout({
+  required Duration responseTimeout,
+  LiveRepository? liveRepository,
+  MicrophoneStreamService? micService,
+  StreamingAudioPlayerService? audioPlayer,
+  PhoneCallService? phoneCallService,
+  SettingsService? settingsService,
+}) =>
+    AssistantBloc(
+      liveRepository: liveRepository ?? _EmptyLiveRepository(),
+      micService: micService ?? _FakeMicService(),
+      audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
+      phoneCallService: phoneCallService,
+      settingsService: settingsService ?? _FakeSettingsService(),
+      responseTimeout: responseTimeout,
+    );
+
 void main() {
-  late MockAssistantRepository repository;
-  late MockSpeechRecognitionService speechService;
-  late MockTtsService ttsService;
+  late MockLiveRepository repository;
+  late MockStreamingAudioPlayerService audioPlayer;
+  late MockPhoneCallService phoneCallService;
+  late MockSettingsService settingsService;
 
-  setUp(() {
-    repository = MockAssistantRepository();
-    speechService = MockSpeechRecognitionService();
-    ttsService = MockTtsService();
-
-    // Defaults: no error on close
-    when(() => speechService.stopListening()).thenAnswer((_) async {});
-    when(() => ttsService.stop()).thenAnswer((_) async {});
-    when(() => ttsService.dispose()).thenAnswer((_) async {});
+  setUpAll(() {
+    registerFallbackValue(Uint8List(0));
+    registerFallbackValue(const LiveEvent.turnComplete());
   });
 
-  // ── Initial state ─────────────────────────────────────────────────────────
+  setUp(() {
+    repository = MockLiveRepository();
+    audioPlayer = MockStreamingAudioPlayerService();
+    phoneCallService = MockPhoneCallService();
+    settingsService = MockSettingsService();
+
+    // Safe defaults — never-closing stream avoids triggering the onDone error handler.
+    when(() => repository.connect(useElevenLabs: any(named: 'useElevenLabs')))
+        .thenAnswer((_) => StreamController<LiveEvent>().stream);
+    when(() => settingsService.getUseElevenLabs()).thenAnswer((_) async => false);
+    when(() => repository.disconnect()).thenAnswer((_) async {});
+    when(() => repository.sendAudio(any())).thenReturn(null);
+    when(() => repository.sendText(any())).thenReturn(null);
+    when(() => repository.sendToolResponse(
+      callId: any(named: 'callId'),
+      functionName: any(named: 'functionName'),
+      result: any(named: 'result'),
+    )).thenReturn(null);
+    when(() => audioPlayer.hasChunks).thenReturn(false);
+    when(() => audioPlayer.addChunk(any())).thenReturn(null);
+    when(() => audioPlayer.stop()).thenAnswer((_) async {});
+    when(() => audioPlayer.dispose()).thenAnswer((_) async {});
+    when(() => audioPlayer.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+  });
+
+  // ── Initial state ──────────────────────────────────────────────────────────
 
   test('initial state is Idle', () {
-    final bloc = _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    );
+    // Pass configured mocks so close() can call disconnect() without error.
+    final bloc = _makeBloc(liveRepository: repository, audioPlayer: audioPlayer);
     expect(bloc.state, const AssistantState.idle());
     bloc.close();
   });
 
-  // ── StartListening ────────────────────────────────────────────────────────
+  // ── StartListening from Idle ───────────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'StartListening → switches to Listening and starts STT',
-    build: () {
-      when(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      ).thenAnswer((_) async {});
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
+    'StartListening from Idle → Connecting then Listening',
+    build: () => _makeBloc(
+      liveRepository: repository,
+      audioPlayer: audioPlayer,
+    ),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
-    expect: () => [const AssistantState.listening()],
+    expect: () => [
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+    ],
+  );
+
+  blocTest<AssistantBloc, AssistantState>(
+    'StartListening forwards useElevenLabs=false (default) to connect()',
+    build: () => _makeBloc(
+      liveRepository: repository,
+      audioPlayer: audioPlayer,
+      settingsService: settingsService,
+    ),
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+    ],
     verify: (_) {
-      verify(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      ).called(1);
+      verify(() => repository.connect(useElevenLabs: false)).called(1);
     },
   );
 
-  // ── StartListening from Error ─────────────────────────────────────────────
+  blocTest<AssistantBloc, AssistantState>(
+    'StartListening forwards useElevenLabs=true to connect() when setting is enabled',
+    build: () {
+      when(() => settingsService.getUseElevenLabs()).thenAnswer((_) async => true);
+      return _makeBloc(
+        liveRepository: repository,
+        audioPlayer: audioPlayer,
+        settingsService: settingsService,
+      );
+    },
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+    ],
+    verify: (_) {
+      verify(() => repository.connect(useElevenLabs: true)).called(1);
+    },
+  );
+
+  // ── StartListening from Error → Idle ──────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'StartListening from Error → resets to Idle without starting STT',
-    build: () => _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    ),
-    seed: () => const AssistantState.error(message: 'oups'),
+    'StartListening from Error → resets to Idle',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.error(message: 'some error'),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [const AssistantState.idle()],
-    verify: (_) {
-      verifyNever(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      );
-    },
   );
 
-  // ── InterimTranscript ─────────────────────────────────────────────────────
+  // ── StartListening from Listening → Idle (cancel) ─────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'InterimTranscript → updates interimTranscript in Listening',
-    build: () => _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    ),
+    'StartListening from Listening → disconnects and returns to Idle',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
     seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [const AssistantState.idle()],
+    verify: (_) {
+      // disconnect() is called at least once: once in _onStartListening and
+      // once more when bloc_test closes the bloc after the test.
+      verify(() => repository.disconnect()).called(greaterThan(0));
+    },
+  );
+
+  // ── StartListening from Speaking → interrupts ─────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'StartListening from Speaking → stops audio and returns to Idle',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(responseText: _kText),
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [const AssistantState.idle()],
+    verify: (_) {
+      verify(() => audioPlayer.stop()).called(greaterThan(0));
+    },
+  );
+
+  // ── LiveEvent: textDelta (ignored) ────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(textDelta) → no state change (transcriptions used instead)',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) async {
+      bloc.add(const AssistantEvent.liveEventReceived(
+        LiveEvent.textDelta('Bonjour '),
+      ));
+    },
+    expect: () => [],
+  );
+
+  // ── LiveEvent: outputTranscription ────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(outputTranscription) → emits Speaking with accumulated text',
+    build: () => _makeBloc(audioPlayer: audioPlayer, showTranscription: true),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) async {
+      bloc.add(const AssistantEvent.liveEventReceived(
+        LiveEvent.outputTranscription('Bonjour '),
+      ));
+      bloc.add(const AssistantEvent.liveEventReceived(
+        LiveEvent.outputTranscription('le monde.'),
+      ));
+    },
+    expect: () => [
+      const AssistantState.speaking(responseText: 'Bonjour '),
+      const AssistantState.speaking(responseText: 'Bonjour le monde.'),
+    ],
+  );
+
+  // ── LiveEvent: audioChunk ─────────────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(audioChunk) → buffers chunk and transitions to Speaking',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(AssistantEvent.liveEventReceived(
+      LiveEvent.audioChunk(_kAudioChunk),
+    )),
+    expect: () => [
+      const AssistantState.speaking(),
+    ],
+    verify: (_) {
+      verify(() => audioPlayer.addChunk(_kAudioChunk)).called(1);
+    },
+  );
+
+  // ── LiveEvent: audioChunk while already Speaking ──────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(audioChunk) while Speaking → buffers without re-emitting',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(responseText: _kText),
+    act: (bloc) => bloc.add(AssistantEvent.liveEventReceived(
+      LiveEvent.audioChunk(_kAudioChunk),
+    )),
+    expect: () => [],
+    verify: (_) {
+      verify(() => audioPlayer.addChunk(_kAudioChunk)).called(1);
+    },
+  );
+
+  // ── LiveEvent: turnComplete with audio buffer ─────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(turnComplete) while Speaking → back to Listening',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(responseText: _kText),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.turnComplete(),
+    )),
+    // In bidi streaming, turnComplete always transitions Speaking → Listening
+    // so the mic stays active for the next user turn.
+    expect: () => [const AssistantState.listening()],
+  );
+
+  // ── LiveEvent: turnComplete resets responseText ────────────────────────────
+
+  test('turnComplete resets responseText so next turn starts with empty bubble', () async {
+    final live = _ControllableLiveRepository();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      liveRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      showTranscription: true,
+      settingsService: _FakeSettingsService(),
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Turn 1
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.outputTranscription(_kText));
+    live.emit(const LiveEvent.turnComplete());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Turn 2 — responseText must start fresh
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.outputTranscription('Turn 2 text'));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, containsAllInOrder([
+      // Turn 1
+      const AssistantState.speaking(),
+      const AssistantState.speaking(responseText: _kText),
+      const AssistantState.listening(), // turnComplete resets _responseText
+      // Turn 2 — Speaking emits '' (reset), then accumulates only turn 2 text
+      const AssistantState.speaking(),
+      const AssistantState.speaking(responseText: 'Turn 2 text'),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  // ── LiveEvent: turnComplete not in Speaking ───────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(turnComplete) while Listening → no state change',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.turnComplete(),
+    )),
+    expect: () => [],
+  );
+
+  // ── AudioPlaybackFinished ──────────────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'audioPlaybackFinished → Listening (bidi: mic stays active)',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(responseText: _kText),
     act: (bloc) =>
-        bloc.add(const AssistantEvent.interimTranscript(_kQuestion)),
+        bloc.add(const AssistantEvent.audioPlaybackFinished()),
+    // In bidi mode, after playback the user can speak again immediately.
+    expect: () => [const AssistantState.listening()],
+  );
+
+  // ── ErrorOccurred ──────────────────────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'errorOccurred → Error state',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    act: (bloc) =>
+        bloc.add(const AssistantEvent.errorOccurred('Connexion perdue.')),
     expect: () => [
-      const AssistantState.listening(interimTranscript: _kQuestion),
+      const AssistantState.error(message: 'Connexion perdue.'),
     ],
   );
 
-  // ── SendMessage (success, no phone call) ──────────────────────────────────
+  // ── AppResumed while Speaking ──────────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage success → Processing then SpeakResponse triggers Speaking',
-    build: () {
-      when(() => repository.ask(_kQuestion))
-          .thenAnswer((_) async => _kResponse);
-      when(
-        () => ttsService.play(
-          any(),
-          onComplete: any(named: 'onComplete'),
-        ),
-      ).thenAnswer((invocation) async {
-        final onComplete =
-            invocation.namedArguments[const Symbol('onComplete')] as Function;
-        onComplete();
-      });
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    act: (bloc) => bloc.add(const AssistantEvent.sendMessage(_kQuestion)),
-    expect: () => [
-      const AssistantState.processing(userMessage: _kQuestion),
-      const AssistantState.speaking(responseText: _kAnswer),
-      const AssistantState.idle(),
-    ],
+    'appResumed while Speaking → stops audio and returns to Idle',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(responseText: _kText),
+    act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
+    expect: () => [const AssistantState.idle()],
     verify: (_) {
-      verify(() => repository.ask(_kQuestion)).called(1);
-      verify(
-        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
-      ).called(1);
+      verify(() => audioPlayer.stop()).called(greaterThan(0));
     },
   );
 
-  // ── SendMessage (network error) ───────────────────────────────────────────
+  // ── AppResumed while not Speaking ─────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage failure → Processing then Error',
-    build: () {
-      when(() => repository.ask(any()))
-          .thenThrow(Exception('network error'));
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
+    'appResumed while Idle → no state change but audio player still stopped (restores iOS session)',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
+    expect: () => [],
+    verify: (_) {
+      verify(() => audioPlayer.stop()).called(greaterThan(0));
     },
-    act: (bloc) => bloc.add(const AssistantEvent.sendMessage(_kQuestion)),
-    expect: () => [
-      const AssistantState.processing(userMessage: _kQuestion),
-      const AssistantState.error(
-          message: 'Désolé, une erreur est survenue.'),
-    ],
   );
 
-  // ── SendMessage with call_phone → phone called → [phone] feedback → Speaking ──
-  //
-  // When the agent returns a call_phone action, the BLoC:
-  //   1. calls callByName() immediately (no TTS for the agent's initial text)
-  //   2. on success/error/ambiguity: sends a [phone] result message back to the
-  //      agent so it can respond naturally (confirm the call, explain an error,
-  //      or ask for disambiguation).
+  blocTest<AssistantBloc, AssistantState>(
+    'appResumed while Listening → no state change but audio player stopped (restores iOS session)',
+    build: () => _makeBloc(liveRepository: repository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
+    expect: () => [],
+    verify: (_) {
+      verify(() => audioPlayer.stop()).called(greaterThan(0));
+    },
+  );
+
+  // ── call_phone action ──────────────────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage with call_phone (success) → sends [phone] feedback → agent responds → Speaking',
+    'liveEventReceived(callPhone) — PhoneCallSuccess → sends tool response',
     build: () {
-      const kFeedback = '[phone] Maman appelé.';
-      final phoneService = MockPhoneCallService();
-      when(() => repository.ask('Appelle Maman')).thenAnswer(
-        (_) async => AssistantResponse(
-          text: 'Je vais appeler Maman.',
-          audioBytes: const [],
-          callPhoneName: 'Maman',
-        ),
-      );
-      when(() => phoneService.callByName('Maman', exactMatch: any(named: 'exactMatch')))
+      when(() => phoneCallService.callByName(any(), exactMatch: any(named: 'exactMatch')))
           .thenAnswer((_) async => PhoneCallSuccess());
-      when(() => repository.ask(kFeedback)).thenAnswer((_) async => _kResponse);
-      when(() => ttsService.play(any(), onComplete: any(named: 'onComplete')))
-          .thenAnswer((_) async {});
-      return AssistantBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-        phoneCallService: phoneService,
+      return _makeBloc(
+        liveRepository: repository,
+        audioPlayer: audioPlayer,
+        phoneCallService: phoneCallService,
       );
     },
-    act: (bloc) => bloc.add(const AssistantEvent.sendMessage('Appelle Maman')),
-    expect: () => [
-      const AssistantState.processing(userMessage: 'Appelle Maman'),
-      const AssistantState.processing(userMessage: '[phone] Maman appelé.'),
-      const AssistantState.speaking(responseText: _kAnswer),
-    ],
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.callPhone(
+        callId: 'call-1',
+        contactName: 'Jean Martin',
+        exactMatch: false,
+      ),
+    )),
+    expect: () => [],
     verify: (_) {
-      verify(() => repository.ask('Appelle Maman')).called(1);
-      verify(() => repository.ask('[phone] Maman appelé.')).called(1);
-      verify(() => ttsService.play(any(), onComplete: any(named: 'onComplete'))).called(1);
+      verify(() => repository.sendToolResponse(
+        callId: 'call-1',
+        functionName: 'call_phone',
+        result: any(named: 'result'),
+      )).called(1);
     },
   );
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage with call_phone (PhoneCallAmbiguous) → sends [phone] feedback with candidates',
+    'liveEventReceived(callPhone) — PhoneCallAmbiguous → sends ambiguity message',
     build: () {
-      const kFeedback =
-          '[phone] plusieurs contacts correspondent à "Martin" : Martin Jean et Martin Paul.';
-      final phoneService = MockPhoneCallService();
-      when(() => repository.ask('Appelle Martin')).thenAnswer(
-        (_) async => AssistantResponse(
-          text: '...',
-          audioBytes: const [],
-          callPhoneName: 'Martin',
-        ),
-      );
-      when(() => phoneService.callByName('Martin', exactMatch: any(named: 'exactMatch')))
+      when(() => phoneCallService.callByName(any(), exactMatch: any(named: 'exactMatch')))
           .thenAnswer((_) async => PhoneCallAmbiguous(_kTwoCandidates));
-      when(() => repository.ask(kFeedback))
-          .thenAnswer((_) async => _kResponse);
-      when(
-        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
-      ).thenAnswer((_) async {});
-      return AssistantBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-        phoneCallService: phoneService,
+      return _makeBloc(
+        liveRepository: repository,
+        audioPlayer: audioPlayer,
+        phoneCallService: phoneCallService,
       );
     },
-    act: (bloc) => bloc.add(const AssistantEvent.sendMessage('Appelle Martin')),
-    expect: () => [
-      const AssistantState.processing(userMessage: 'Appelle Martin'),
-      const AssistantState.processing(
-        userMessage:
-            '[phone] plusieurs contacts correspondent à "Martin" : Martin Jean et Martin Paul.',
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.callPhone(
+        callId: 'call-2',
+        contactName: 'Martin',
+        exactMatch: false,
       ),
-      const AssistantState.speaking(responseText: _kAnswer),
-    ],
+    )),
+    expect: () => [],
     verify: (_) {
-      verify(() => repository.ask(
-            '[phone] plusieurs contacts correspondent à "Martin" : Martin Jean et Martin Paul.',
-          )).called(1);
+      verify(() => repository.sendToolResponse(
+        callId: 'call-2',
+        functionName: 'call_phone',
+        result: any(named: 'result'),
+      )).called(1);
     },
   );
 
+  // ── LiveEvent: sessionInfo ────────────────────────────────────────────────
+
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage with call_phone (PhoneCallError) → sends [phone] error feedback',
-    build: () {
-      const kErrMsg = "Je n'ai pas trouvé Inconnu dans vos contacts.";
-      const kFeedback = '[phone] $kErrMsg';
-      final phoneService = MockPhoneCallService();
-      when(() => repository.ask('Appelle Inconnu')).thenAnswer(
-        (_) async => AssistantResponse(
-          text: '...',
-          audioBytes: const [],
-          callPhoneName: 'Inconnu',
-        ),
-      );
-      when(() => phoneService.callByName('Inconnu', exactMatch: any(named: 'exactMatch')))
-          .thenAnswer((_) async => PhoneCallError(kErrMsg));
-      when(() => repository.ask(kFeedback))
-          .thenAnswer((_) async => _kResponse);
-      when(
-        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
-      ).thenAnswer((_) async {});
-      return AssistantBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-        phoneCallService: phoneService,
-      );
-    },
-    act: (bloc) =>
-        bloc.add(const AssistantEvent.sendMessage('Appelle Inconnu')),
+    'liveEventReceived(sessionInfo) while Listening → emits Listening with welcomeText',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.sessionInfo('Je peux vous aider avec :\n• Famille & Appels'),
+    )),
     expect: () => [
-      const AssistantState.processing(userMessage: 'Appelle Inconnu'),
-      const AssistantState.processing(
-        userMessage:
-            "[phone] Je n'ai pas trouvé Inconnu dans vos contacts.",
+      const AssistantState.listening(
+        welcomeText: 'Je peux vous aider avec :\n• Famille & Appels',
       ),
-      const AssistantState.speaking(responseText: _kAnswer),
     ],
   );
 
   blocTest<AssistantBloc, AssistantState>(
-    'SendMessage with call_phone (exactMatch=true) → passes exactMatch to callByName → sends feedback',
-    build: () {
-      const kFeedback = '[phone] Fred appelé.';
-      final phoneService = MockPhoneCallService();
-      when(() => repository.ask('Fred')).thenAnswer(
-        (_) async => AssistantResponse(
-          text: '...',
-          audioBytes: const [],
-          callPhoneName: 'Fred',
-          callPhoneExactMatch: true,
-        ),
-      );
-      // Stub only matches exactMatch=true — proves the flag is forwarded correctly.
-      when(() => phoneService.callByName('Fred', exactMatch: true))
-          .thenAnswer((_) async => PhoneCallSuccess());
-      when(() => repository.ask(kFeedback)).thenAnswer((_) async => _kResponse);
-      when(() => ttsService.play(any(), onComplete: any(named: 'onComplete')))
-          .thenAnswer((_) async {});
-      return AssistantBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-        phoneCallService: phoneService,
-      );
-    },
-    act: (bloc) => bloc.add(const AssistantEvent.sendMessage('Fred')),
+    'liveEventReceived(sessionInfo) preserves interimTranscript and statusLabel',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(
+      interimTranscript: 'allume',
+      statusLabel: 'Maison & Cuisine',
+    ),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.sessionInfo('Je peux vous aider.'),
+    )),
     expect: () => [
-      const AssistantState.processing(userMessage: 'Fred'),
-      const AssistantState.processing(userMessage: '[phone] Fred appelé.'),
-      const AssistantState.speaking(responseText: _kAnswer),
+      const AssistantState.listening(
+        interimTranscript: 'allume',
+        statusLabel: 'Maison & Cuisine',
+        welcomeText: 'Je peux vous aider.',
+      ),
     ],
-    verify: (_) {
-      verify(() => repository.ask('[phone] Fred appelé.')).called(1);
-    },
   );
 
-  // ── AudioFinished ─────────────────────────────────────────────────────────
-
   blocTest<AssistantBloc, AssistantState>(
-    'AudioFinished → returns to Idle',
-    build: () => _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    ),
-    seed: () => const AssistantState.speaking(responseText: _kAnswer),
-    act: (bloc) => bloc.add(const AssistantEvent.audioFinished()),
-    expect: () => [const AssistantState.idle()],
-  );
-
-  // ── AudioFinished outside Speaking state → no state change ───────────────
-
-  blocTest<AssistantBloc, AssistantState>(
-    'AudioFinished outside Speaking state → ignored with no state change',
-    build: () => _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    ),
-    seed: () => const AssistantState.idle(),
-    act: (bloc) => bloc.add(const AssistantEvent.audioFinished()),
+    'liveEventReceived(sessionInfo) while not Listening → stores text, no state change',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.sessionInfo('Je peux vous aider.'),
+    )),
     expect: () => [],
   );
 
-  // ── ErrorOccurred ─────────────────────────────────────────────────────────
+  // ── LiveEvent: toolStatus ─────────────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
-    'ErrorOccurred → switches to Error with the correct message',
-    build: () => _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    ),
-    act: (bloc) =>
-        bloc.add(const AssistantEvent.errorOccurred('Rien entendu')),
+    'liveEventReceived(toolStatus) while Listening → emits Listening with statusLabel',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.toolStatus('Maison & Cuisine'),
+    )),
     expect: () => [
-      const AssistantState.error(message: 'Rien entendu'),
+      const AssistantState.listening(statusLabel: 'Maison & Cuisine'),
     ],
   );
 
-  // ── STT unavailable → Error ───────────────────────────────────────────────
-
   blocTest<AssistantBloc, AssistantState>(
-    'StartListening: STT unavailable → Error with explicit message',
-    build: () {
-      when(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      ).thenAnswer((invocation) async {
-        final onFinal = invocation.namedArguments[const Symbol('onFinal')]
-            as void Function(String);
-        onFinal('');
-      });
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    'liveEventReceived(toolStatus) preserves interimTranscript',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(interimTranscript: 'allume'),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.toolStatus('Maison & Cuisine'),
+    )),
     expect: () => [
-      const AssistantState.listening(),
-      const AssistantState.error(message: "Je n'ai rien entendu, réessayez."),
+      const AssistantState.listening(
+        interimTranscript: 'allume',
+        statusLabel: 'Maison & Cuisine',
+      ),
     ],
   );
 
-  // ── STT final result → sendMessage ────────────────────────────────────────
-
   blocTest<AssistantBloc, AssistantState>(
-    'StartListening: STT final result → triggers sendMessage flow',
-    build: () {
-      when(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      ).thenAnswer((invocation) async {
-        final onFinal = invocation.namedArguments[const Symbol('onFinal')]
-            as void Function(String);
-        onFinal(_kQuestion);
-      });
-      when(() => repository.ask(_kQuestion))
-          .thenAnswer((_) async => _kResponse);
-      when(
-        () => ttsService.play(any(), onComplete: any(named: 'onComplete')),
-      ).thenAnswer((_) async {});
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
-    expect: () => [
-      const AssistantState.listening(),
-      const AssistantState.processing(userMessage: _kQuestion),
-      const AssistantState.speaking(responseText: _kAnswer),
-    ],
-  );
-
-  // ── onInterim callback ────────────────────────────────────────────────────
-
-  blocTest<AssistantBloc, AssistantState>(
-    'StartListening: onInterim callback → emits Listening with interimTranscript',
-    build: () {
-      when(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      ).thenAnswer((invocation) async {
-        final onInterim = invocation.namedArguments[const Symbol('onInterim')]
-            as void Function(String);
-        onInterim('Bon');
-      });
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
-    expect: () => [
-      const AssistantState.listening(),
-      const AssistantState.listening(interimTranscript: 'Bon'),
-    ],
-  );
-
-  // ── StartListening while Listening → Idle ────────────────────────────────
-
-  blocTest<AssistantBloc, AssistantState>(
-    'StartListening while Listening → cancels STT and resets to Idle',
-    build: () {
-      when(() => speechService.stopListening()).thenAnswer((_) async {});
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    seed: () =>
-        const AssistantState.listening(interimTranscript: 'quelque chose'),
-    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
-    expect: () => [const AssistantState.idle()],
-    verify: (_) {
-      verify(() => speechService.stopListening())
-          .called(greaterThanOrEqualTo(1));
-      verifyNever(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      );
-    },
-  );
-
-  blocTest<AssistantBloc, AssistantState>(
-    'StartListening while Speaking → stops TTS and resets to Idle',
-    build: () {
-      when(() => ttsService.stop()).thenAnswer((_) async {});
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    seed: () => const AssistantState.speaking(responseText: _kAnswer),
-    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
-    expect: () => [const AssistantState.idle()],
-  );
-
-  // ── STT timeout → Idle ────────────────────────────────────────────────────
-
-  blocTest<AssistantBloc, AssistantState>(
-    'STT timeout (onTimeout callback) → resets to Idle',
-    build: () {
-      when(
-        () => speechService.startListening(
-          onInterim: any(named: 'onInterim'),
-          onFinal: any(named: 'onFinal'),
-          onTimeout: any(named: 'onTimeout'),
-        ),
-      ).thenAnswer((invocation) async {
-        final onTimeout = invocation.namedArguments[const Symbol('onTimeout')]
-            as void Function()?;
-        onTimeout?.call();
-      });
-      when(() => speechService.stopListening()).thenAnswer((_) async {});
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
-    expect: () => [
-      const AssistantState.listening(),
-      const AssistantState.idle(),
-    ],
-    verify: (_) => verifyNever(() => repository.ask(any())),
-  );
-
-  // ── AppResumed ────────────────────────────────────────────────────────────
-
-  blocTest<AssistantBloc, AssistantState>(
-    'AppResumed while Speaking → stops TTS and emits Idle',
-    build: () {
-      when(() => ttsService.stop()).thenAnswer((_) async {});
-      return _makeBloc(
-        repository: repository,
-        speechService: speechService,
-        ttsService: ttsService,
-      );
-    },
-    seed: () => const AssistantState.speaking(responseText: _kAnswer),
-    act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
-    expect: () => [const AssistantState.idle()],
-  );
-
-  blocTest<AssistantBloc, AssistantState>(
-    'AppResumed while not Speaking → no state change',
-    build: () => _makeBloc(
-      repository: repository,
-      speechService: speechService,
-      ttsService: ttsService,
-    ),
-    seed: () => const AssistantState.idle(),
-    act: (bloc) => bloc.add(const AssistantEvent.appResumed()),
+    'liveEventReceived(toolStatus) while not Listening → no state change',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.toolStatus('Maison & Cuisine'),
+    )),
     expect: () => [],
   );
+
+  // ── Full round-trip via controllable stream ───────────────────────────────
+
+  test('full round-trip: connect → audio + transcription → turnComplete → Listening', () async {
+    final live = _ControllableLiveRepository();
+
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      liveRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      showTranscription: true,
+      settingsService: _FakeSettingsService(),
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    live.emit(const LiveEvent.outputTranscription(_kText));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    live.emit(const LiveEvent.turnComplete());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, containsAllInOrder([
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+      const AssistantState.speaking(), // audioChunk → Speaking (no text yet)
+      const AssistantState.speaking(responseText: _kText), // outputTranscription
+      // turnComplete: Speaking → Listening (bidi: mic stays active)
+      const AssistantState.listening(),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  // ── Server closes connection without responding ───────────────────────────
+
+  test('server closes stream while Listening → AssistantError', () async {
+    final live = _ControllableLiveRepository();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.hasChunks).thenReturn(false);
+
+    final bloc = AssistantBloc(
+      liveRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(),
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Server closes the connection without ever sending an event.
+    live.done();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states, containsAllInOrder([
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+      isA<AssistantError>(),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  // ── LiveEvent: inputTranscription ─────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(inputTranscription) with showTranscription → emits Listening with interimTranscript',
+    build: () => _makeBloc(audioPlayer: audioPlayer, showTranscription: true),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.inputTranscription('allume la lumière'),
+    )),
+    expect: () => [
+      const AssistantState.listening(interimTranscript: 'allume la lumière'),
+    ],
+  );
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(inputTranscription) without showTranscription → no state change',
+    build: () => _makeBloc(audioPlayer: audioPlayer, showTranscription: false),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.inputTranscription('allume la lumière'),
+    )),
+    expect: () => [],
+  );
+
+  // ── Connection error (mic throws) ─────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'mic startStreaming throws → emits AssistantError',
+    build: () => _makeBloc(
+      liveRepository: repository,
+      audioPlayer: audioPlayer,
+      micService: _ThrowingMicService(),
+    ),
+    act: (bloc) => bloc.add(const AssistantEvent.startListening()),
+    expect: () => [
+      const AssistantState.connecting(),
+      isA<AssistantError>(),
+    ],
+  );
+
+  // ── Interruption detection ─────────────────────────────────────────────────
+
+  test('mic chunk with high RMS while Speaking → calls sendInterruption()', () async {
+    final live = _ControllableLiveRepository();
+    final mic = _ControlledMicService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      liveRepository: live,
+      micService: mic,
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(),
+    );
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Transition to Speaking via audio chunk
+    live.emit(LiveEvent.audioChunk(Uint8List(4)));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(bloc.state, isA<Speaking>());
+
+    // Push a full 3200-byte buffer with max-amplitude samples (RMS >> 3500)
+    final buffer = Uint8List(3200);
+    final samples = Int16List.view(buffer.buffer);
+    for (var i = 0; i < samples.length; i++) {
+      samples[i] = 32767;
+    }
+    mic.push(buffer);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(live.sendInterruptionCount, 1);
+
+    await bloc.close();
+  });
+
+  // ── No server response within timeout ─────────────────────────────────────
+
+  test('no server response within timeout → AssistantError', () async {
+    final live = _ControllableLiveRepository();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.hasChunks).thenReturn(false);
+
+    final bloc = _makeBlocWithTimeout(
+      responseTimeout: const Duration(milliseconds: 100),
+      liveRepository: live,
+      audioPlayer: player,
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    // Wait long enough for the timeout to fire.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    expect(states, containsAllInOrder([
+      const AssistantState.connecting(),
+      const AssistantState.listening(),
+      isA<AssistantError>(),
+    ]));
+
+    await sub.cancel();
+    await bloc.close();
+  });
 }
+

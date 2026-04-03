@@ -71,20 +71,19 @@ void main() {
     await _pump(tester, mockBloc);
 
     expect(find.byIcon(Icons.mic), findsOneWidget);
-    expect(find.text('Écoute en cours…'), findsOneWidget);
+    expect(find.text('Je vous écoute…'), findsOneWidget);
   });
 
-  // ── Processing state ───────────────────────────────────────────────────────
+  // ── Connecting state ──────────────────────────────────────────────────────
 
-  testWidgets('Processing state → shows CircularProgressIndicator',
+  testWidgets('Connecting state → shows CircularProgressIndicator and is disabled',
       (tester) async {
-    when(() => mockBloc.state).thenReturn(
-      const AssistantState.processing(userMessage: ''),
-    );
+    when(() => mockBloc.state).thenReturn(const AssistantState.connecting());
 
     await _pump(tester, mockBloc);
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Connexion…'), findsOneWidget);
   });
 
   // ── Speaking state ─────────────────────────────────────────────────────────
@@ -97,8 +96,8 @@ void main() {
 
     await _pump(tester, mockBloc);
 
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
-    expect(find.text('En train de répondre…'), findsOneWidget);
+    expect(find.byIcon(Icons.record_voice_over), findsOneWidget);
+    expect(find.text('Paul répond…'), findsOneWidget);
   });
 
   testWidgets(
@@ -128,7 +127,7 @@ void main() {
     await _pump(tester, mockBloc);
 
     expect(find.byIcon(Icons.refresh), findsOneWidget);
-    expect(find.text('Appuyez pour réessayer'), findsOneWidget);
+    expect(find.text('Erreur. Appuyez pour réessayer'), findsOneWidget);
   });
 
   // ── Listening state — tap restarts ────────────────────────────────────────

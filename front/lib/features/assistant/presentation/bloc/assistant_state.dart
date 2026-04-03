@@ -3,22 +3,23 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'assistant_state.freezed.dart';
 
 @freezed
-abstract class AssistantState with _$AssistantState {
-  /// Idle — mic button available.
+sealed class AssistantState with _$AssistantState {
+  /// Idle — mic button available, no active connection.
   const factory AssistantState.idle() = Idle;
 
-  /// Listening — displays the interim transcript.
+  /// WebSocket handshake in progress — button disabled.
+  const factory AssistantState.connecting() = Connecting;
+
+  /// Connected and streaming mic audio — waiting for the agent to respond.
   const factory AssistantState.listening({
     @Default('') String interimTranscript,
+    @Default('') String statusLabel,
+    @Default('') String welcomeText,
   }) = Listening;
 
-  /// API call in progress — button disabled, spinner shown.
-  const factory AssistantState.processing({required String userMessage}) =
-      Processing;
-
-  /// Audio playback in progress — displays the response.
+  /// Agent is responding — audio buffer is filling, text is streaming in.
   const factory AssistantState.speaking({
-    required String responseText,
+    @Default('') String responseText,
   }) = Speaking;
 
   /// Error — displays a message and returns to Idle on next tap.

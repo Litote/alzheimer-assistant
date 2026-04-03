@@ -4,12 +4,46 @@ import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assista
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 
-class MicButton extends StatelessWidget {
+class MicButton extends StatefulWidget {
   const MicButton({super.key});
 
   @override
+  State<MicButton> createState() => _MicButtonState();
+}
+
+class _MicButtonState extends State<MicButton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AssistantBloc, AssistantState>(
+    return BlocConsumer<AssistantBloc, AssistantState>(
+      listener: (context, state) {
+        if (state is Listening || state is Speaking) {
+          _controller.repeat(reverse: true);
+        } else {
+          _controller.stop();
+          _controller.reset();
+        }
+      },
       builder: (context, state) {
         final config = _configFor(state);
 
@@ -26,35 +60,41 @@ class MicButton extends StatelessWidget {
                         .read<AssistantBloc>()
                         .add(const AssistantEvent.startListening())
                     : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: config.backgroundColor,
-                    boxShadow: config.enabled
-                        ? [
-                            BoxShadow(
-                              color: config.backgroundColor.withAlpha(100),
-                              blurRadius: 24,
-                              spreadRadius: 4,
-                            )
-                          ]
-                        : [],
+                child: ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: config.backgroundColor,
+                      boxShadow: config.enabled
+                          ? [
+                              BoxShadow(
+                                color: config.backgroundColor.withAlpha(150),
+                                blurRadius: 30,
+                                spreadRadius: 6,
+                              )
+                            ]
+                          : [],
+                    ),
+                    child: Center(child: _buildIcon(state, config)),
                   ),
-                  child: Center(child: _buildIcon(state, config)),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: Text(
                 config.label,
                 key: ValueKey(config.label),
-                style: Theme.of(context).textTheme.labelLarge,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: config.backgroundColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -64,7 +104,7 @@ class MicButton extends StatelessWidget {
   }
 
   Widget _buildIcon(AssistantState state, _ButtonConfig config) {
-    if (state is Processing) {
+    if (state is Connecting) {
       return const SizedBox(
         width: 32,
         height: 32,
@@ -80,47 +120,38 @@ class MicButton extends StatelessWidget {
   _ButtonConfig _configFor(AssistantState state) => switch (state) {
         Idle() => const _ButtonConfig(
             icon: Icons.mic,
-            backgroundColor: Color(0xFF5B8DEF),
+            backgroundColor: Color(0xFF5B8DEF), // Bleu standard
             label: 'Appuyez pour parler',
             semanticLabel: 'Bouton microphone. Appuyez pour parler à l\'assistant.',
             enabled: true,
           ),
-        Listening() => const _ButtonConfig(
-            icon: Icons.mic,
-            backgroundColor: Color(0xFFEF5B5B),
-            label: 'Écoute en cours…',
-            semanticLabel:
-                'Écoute en cours. Appuyez pour recommencer.',
-            enabled: true,
-          ),
-        Processing() => const _ButtonConfig(
-            icon: Icons.mic,
-            backgroundColor: Color(0xFF9B8DEF),
-            label: 'Traitement…',
-            semanticLabel: 'Traitement en cours. Veuillez patienter.',
+        Connecting() => const _ButtonConfig(
+            icon: Icons.sync,
+            backgroundColor: Color(0xFF9E9E9E), // Gris
+            label: 'Connexion…',
+            semanticLabel: 'Connexion en cours. Veuillez patienter.',
             enabled: false,
           ),
+        Listening() => const _ButtonConfig(
+            icon: Icons.mic,
+            backgroundColor: Color(0xFF4CAF50), // Vert (priorité utilisateur)
+            label: 'Je vous écoute…',
+            semanticLabel: 'L\'assistant vous écoute.',
+            enabled: true,
+          ),
         Speaking() => const _ButtonConfig(
-            icon: Icons.volume_up,
-            backgroundColor: Color(0xFF5BCEEF),
-            label: 'En train de répondre…',
-            semanticLabel:
-                'L\'assistant répond. Appuyez pour annuler.',
+            icon: Icons.record_voice_over,
+            backgroundColor: Color(0xFF2196F3), // Bleu vif (l'assistant parle)
+            label: 'Paul répond…',
+            semanticLabel: 'L\'assistant répond. Vous pouvez lui couper la parole.',
             enabled: true,
           ),
         AssistantError() => const _ButtonConfig(
             icon: Icons.refresh,
-            backgroundColor: Color(0xFFEF8D5B),
-            label: 'Appuyez pour réessayer',
+            backgroundColor: Color(0xFFF44336), // Rouge
+            label: 'Erreur. Appuyez pour réessayer',
             semanticLabel: 'Une erreur est survenue. Appuyez pour réessayer.',
             enabled: true,
-          ),
-        _ => const _ButtonConfig(
-            icon: Icons.mic,
-            backgroundColor: Color(0xFF5B8DEF),
-            label: '',
-            semanticLabel: '',
-            enabled: false,
           ),
       };
 }

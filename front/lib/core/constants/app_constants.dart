@@ -17,9 +17,7 @@ class AppConstants {
     defaultValue: 'eleven_flash_v2_5',
   );
 
-  static String get sessionUrl =>
-      '$adkBaseUrl/apps/$adkAppName/users/$adkUserId/sessions';
-  static String get runSseUrl => '$adkBaseUrl/run_sse';
-  static String elevenLabsTtsUrl(String voiceId) =>
-      'https://api.elevenlabs.io/v1/text-to-speech/$voiceId';
+  /// WebSocket endpoint for ADK Live bidi streaming.
+  /// http(s) is converted to ws(s) in [LiveRepositoryImpl].
+  static String get adkLiveUrl => '$adkBaseUrl/run_live';
 }

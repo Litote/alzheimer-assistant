@@ -1,94 +1,41 @@
-import 'package:alzheimer_assistant/shared/services/speech_recognition_service.dart';
+import 'dart:async';
+import 'dart:typed_data';
 
-/// Replaces the real STT for multi-turn scenarios (e.g. disambiguation).
-/// Each call to [startListening] returns the next transcript in [transcripts].
-/// When the list is exhausted, the last transcript is repeated.
-class SequentialFakeSpeechRecognitionService implements SpeechRecognitionService {
-  SequentialFakeSpeechRecognitionService({
-    required this.transcripts,
-    this.interimDelay = const Duration(milliseconds: 50),
-    this.finalDelay = const Duration(milliseconds: 50),
-  }) : assert(transcripts.isNotEmpty);
+import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 
-  final List<String> transcripts;
-  final Duration interimDelay;
-  final Duration finalDelay;
+/// Fake [MicrophoneStreamService] that immediately emits a single silent PCM
+/// chunk and closes the stream, simulating a brief microphone burst without
+/// requiring a real device or permission grant.
+///
+/// The server-side VAD in the ADK Live API is responsible for detecting
+/// speech — the client just streams audio bytes.
+class FakeMicrophoneStreamService extends MicrophoneStreamService {
+  FakeMicrophoneStreamService({
+    this.chunkDelay = const Duration(milliseconds: 50),
+  }) : super(recorder: null);
 
-  int _callCount = 0;
+  final Duration chunkDelay;
   bool _stopped = false;
 
   @override
-  Future<bool> initialize() async => true;
-
-  @override
-  Future<void> startListening({
-    required void Function(String text) onInterim,
-    required void Function(String text) onFinal,
-    void Function()? onTimeout,
-  }) async {
+  Future<Stream<Uint8List>> startStreaming() async {
     _stopped = false;
-    final transcript = _callCount < transcripts.length
-        ? transcripts[_callCount]
-        : transcripts.last;
-    _callCount++;
-
-    await Future<void>.delayed(interimDelay);
-    if (_stopped) return;
-    onInterim(transcript);
-
-    await Future<void>.delayed(finalDelay);
-    if (_stopped) return;
-    onFinal(transcript);
+    final controller = StreamController<Uint8List>();
+    Future.delayed(chunkDelay, () {
+      if (!_stopped && !controller.isClosed) {
+        // Silent 16kHz PCM chunk (512 zero bytes ≈ 16 ms of audio)
+        controller.add(Uint8List(512));
+        controller.close();
+      }
+    });
+    return controller.stream;
   }
 
   @override
-  Future<void> stopListening() async => _stopped = true;
-
-  @override
-  bool get isListening => !_stopped;
-}
-
-/// Replaces the real STT (unavailable in CI without a microphone).
-/// Uses a [_stopped] flag to avoid calling [onFinal] if
-/// [stopListening] is called before completion (e.g. during bloc.close()).
-class FakeSpeechRecognitionService implements SpeechRecognitionService {
-  FakeSpeechRecognitionService({
-    required this.transcript,
-    this.interimDelay = const Duration(milliseconds: 50),
-    this.finalDelay = const Duration(milliseconds: 50),
-  });
-
-  final String transcript;
-  final Duration interimDelay;
-  final Duration finalDelay;
-
-  bool _stopped = false;
-
-  @override
-  Future<bool> initialize() async => true;
-
-  @override
-  Future<void> startListening({
-    required void Function(String text) onInterim,
-    required void Function(String text) onFinal,
-    void Function()? onTimeout,
-  }) async {
-    _stopped = false;
-
-    await Future<void>.delayed(interimDelay);
-    if (_stopped) return;
-    onInterim(transcript);
-
-    await Future<void>.delayed(finalDelay);
-    if (_stopped) return;
-    onFinal(transcript);
-  }
-
-  @override
-  Future<void> stopListening() async {
+  Future<void> stop() async {
     _stopped = true;
   }
 
   @override
-  bool get isListening => !_stopped;
+  Future<void> dispose() async {}
 }

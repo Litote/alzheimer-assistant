@@ -1,17 +1,20 @@
 import 'dart:async';
-import 'package:alzheimer_assistant/shared/services/tts_service.dart';
+import 'dart:typed_data';
 
-/// Manual TTS: only calls [onComplete] when the test explicitly calls
-/// [completePlayback()].
+import 'package:alzheimer_assistant/shared/services/streaming_audio_player_service.dart';
+
+/// Manual [StreamingAudioPlayerService] that only calls [onComplete] when the
+/// test explicitly calls [completePlayback()].
 ///
-/// This avoids any in-flight timers when the test ends:
-/// the test controls precisely when playback "finishes", which
-/// allows verifying the Speaking state before transitioning to Idle.
+/// This gives the test full control over when audio "finishes", so it can
+/// assert on the Speaking state before the transition to Idle.
 ///
-/// If [bloc.close()] is called before [completePlayback()] (e.g. teardown
-/// after an assertion failure), [dispose()] completes the completer without
-/// calling [onComplete], preventing "Cannot add events after calling close".
-class ManualFakeTtsService implements TtsService {
+/// If [dispose()] is called before [completePlayback()] (e.g. during teardown
+/// after an assertion failure), the completer is resolved silently to prevent
+/// "Cannot add events after close" errors on the bloc.
+class ManualFakeStreamingAudioPlayerService extends StreamingAudioPlayerService {
+  ManualFakeStreamingAudioPlayerService();
+
   Completer<void>? _completer;
   bool _disposed = false;
 
@@ -23,15 +26,16 @@ class ManualFakeTtsService implements TtsService {
   }
 
   @override
-  Future<void> play(
-    List<int> audioBytes, {
-    required void Function() onComplete,
-  }) async {
+  bool get hasChunks => true;
+
+  @override
+  void addChunk(Uint8List bytes) {}
+
+  @override
+  Future<void> playAndClear({required void Function() onComplete}) async {
     _disposed = false;
     _completer = Completer<void>();
     await _completer!.future;
-    // Only call onComplete if the service has not been disposed
-    // (avoids add() on a closed bloc during an early teardown)
     if (!_disposed) onComplete();
   }
 

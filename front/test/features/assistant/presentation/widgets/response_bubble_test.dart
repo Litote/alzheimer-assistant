@@ -60,16 +60,14 @@ void main() {
     expect(find.text('Bonjour'), findsOneWidget);
   });
 
-  // ── Processing state ───────────────────────────────────────────────────────
+  // ── Connecting state ──────────────────────────────────────────────────────
 
-  testWidgets('Processing state → shows user message', (tester) async {
-    when(() => mockBloc.state).thenReturn(
-      const AssistantState.processing(userMessage: 'Où sont mes clés ?'),
-    );
+  testWidgets('Connecting state → SizedBox.shrink (no bubble)', (tester) async {
+    when(() => mockBloc.state).thenReturn(const AssistantState.connecting());
 
     await _pump(tester, mockBloc);
 
-    expect(find.text('Où sont mes clés ?'), findsOneWidget);
+    expect(find.byType(Card), findsNothing);
   });
 
   // ── Speaking state ─────────────────────────────────────────────────────────

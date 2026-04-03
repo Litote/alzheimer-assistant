@@ -13,9 +13,10 @@ class ResponseBubble extends StatelessWidget {
         final (text, isError, semanticLabel) = switch (state) {
           Listening(interimTranscript: final t) when t.isNotEmpty =>
             (t, false, 'Vous dites : $t'),
-          Processing(userMessage: final m)
-              when m.isNotEmpty && !m.startsWith('[phone]') =>
-            (m, false, 'Votre message : $m'),
+          Listening(statusLabel: final l) when l.isNotEmpty =>
+            (l, false, 'En cours : $l'),
+          Listening(welcomeText: final w) when w.isNotEmpty =>
+            (w, false, 'Capacités de l\'assistant : $w'),
           Speaking(responseText: final t) =>
             (t, false, 'Réponse de l\'assistant : $t'),
           AssistantError(message: final m) =>

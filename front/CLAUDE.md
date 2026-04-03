@@ -48,23 +48,21 @@ lib/
 │   ├── router.dart            # GoRouter (single route: '/' → HomeScreen)
 │   └── theme.dart             # Material 3, accessibility-first color palette
 ├── core/
-│   ├── constants/             # API URLs, dart-define config (AppConstants)
-│   └── network/               # Dio client factory
+│   └── constants/             # API URLs, dart-define config (AppConstants)
 ├── features/assistant/
 │   ├── domain/
-│   │   ├── entities/          # AssistantResponse (text + audioBytes + callPhoneName?)
-│   │   └── repositories/      # Abstract AssistantRepository interface
+│   │   ├── entities/          # LiveEvent sealed union (audioChunk, textDelta, callPhone, turnComplete)
+│   │   └── repositories/      # Abstract LiveRepository interface
 │   ├── data/
-│   │   ├── models/            # SessionModel (JSON-serializable)
-│   │   └── repositories/      # AssistantRepositoryImpl (ADK + ElevenLabs)
+│   │   └── repositories/      # LiveRepositoryImpl — WebSocket bidi streaming
 │   └── presentation/
 │       ├── bloc/              # AssistantBloc, AssistantEvent, AssistantState
 │       ├── screens/           # HomeScreen
 │       └── widgets/           # MicButton, ResponseBubble
 └── shared/services/
-    ├── speech_recognition_service.dart   # STT (French, speech_to_text)
-    ├── tts_service.dart                  # Audio playback (audioplayers, MP3)
-    └── phone_call_service.dart           # Contact lookup + direct call
+    ├── microphone_stream_service.dart         # PCM mic capture (16kHz, record package)
+    ├── streaming_audio_player_service.dart    # PCM chunk buffer → WAV → audioplayers
+    └── phone_call_service.dart               # Contact lookup + direct call
 ```
 
 **Layer rules:**
@@ -77,15 +75,34 @@ lib/
 
 ## State Management (BLoC)
 
-**Events → States flow:**
+**States** (sealed Freezed union):
 ```
-StartListening   → Listening(interimTranscript)
-SendMessage      → Processing(userMessage) → Speaking(responseText, ...) → Idle
-AudioFinished    → Idle (or triggers phone call)
-ErrorOccurred    → Error(message)
+Idle            — waiting for user input
+Connecting      — WebSocket being established
+Listening       — mic streaming, waiting for agent response
+Speaking        — agent responding (text + audio)
+AssistantError  — unrecoverable error, shows message
 ```
 
-**Key rule:** All state is immutable (Freezed union types). No mutable fields outside services.
+**Events → States flow:**
+```
+StartListening (from Idle)      → Connecting → Listening
+StartListening (from Listening) → Idle (cancel, disconnect)
+StartListening (from Speaking)  → Idle (interrupt, stop audio)
+StartListening (from Error)     → Idle (reset)
+
+liveEventReceived(textDelta)    → Speaking(responseText accumulated)
+liveEventReceived(audioChunk)   → Speaking (chunk buffered, state emitted once)
+liveEventReceived(callPhone)    → calls PhoneCallService, sends tool response (no state change)
+liveEventReceived(turnComplete) → if hasChunks: playAndClear → AudioPlaybackFinished → Idle
+                                  else: → Idle immediately
+
+audioPlaybackFinished           → Idle
+errorOccurred                   → AssistantError
+appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)
+```
+
+**Key rule:** All state is immutable (Freezed sealed union types). No mutable fields outside services.
 
 ---
 
@@ -119,7 +136,8 @@ ErrorOccurred    → Error(message)
 - **Mocking:** use `mocktail` (not `mockito`)
 - **BLoC tests:** use `bloc_test` package (`blocTest<>` helper)
 - **Repository tests:** mock Dio with in-memory interceptors (see existing tests for pattern)
-- **E2E fake services:** `FakeSpeechRecognitionService`, `ManualFakeTtsService`, `makeMockAdkDio` — reuse, don't duplicate
+- **E2E fake services:** `FakeLiveRepository`, `FakeMicrophoneStreamService`, `ManualFakeStreamingAudioPlayerService` — reuse, don't duplicate
+- **Repository tests:** use `_FakeChannel` (implements `WebSocketChannel`) — see `live_repository_impl_test.dart`
 
 ---
 
@@ -129,11 +147,22 @@ ErrorOccurred    → Error(message)
 |---------|---------|
 | `flutter_bloc` | BLoC state management |
 | `go_router` | Declarative routing |
-| `dio` | HTTP client (ADK + ElevenLabs) |
-| `freezed` | Immutable data classes + union types |
+| `freezed` | Immutable data classes + sealed union types |
 | `json_serializable` | JSON serialization |
-| `speech_to_text` | STT (French locale) |
-| `audioplayers` | MP3 playback for TTS |
+| `web_socket_channel` | WebSocket bidi transport for Live API |
+| `record` | Microphone PCM capture (16kHz 16-bit mono) |
+| `audioplayers` | WAV playback of buffered PCM chunks |
+| `path_provider` | Temp directory for WAV files |
 | `flutter_contacts` | Contact lookup |
 | `flutter_phone_direct_caller` | Initiate phone calls |
 | `bloc_test` + `mocktail` | Testing utilities |
+
+
+## SonarCloud Workflow
+
+To check the quality gate from an agent session:
+
+1. Run `./gradlew sonar` from the repo root (triggers analysis and uploads results).
+2. Use the `sonarqube` MCP server (configured in Claude Code) to query the gate status —
+3. The gate passes when `new_coverage ≥ 80%`, `new_duplicated_lines_density ≤ 3%`, ratings all A, hotspots reviewed 100%.
+---

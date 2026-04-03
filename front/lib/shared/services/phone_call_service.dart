@@ -1,6 +1,6 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
-import 'package:logger/logger.dart';
+import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 
 typedef PhoneCandidate = ({String displayName, String number});
 
@@ -33,7 +33,7 @@ class PhoneCallService {
   static Future<List<Contact>> _defaultGetContacts() =>
       FlutterContacts.getAll(properties: {ContactProperty.phone});
 
-  final _logger = Logger();
+  final _logger = appLogger;
   final Future<PermissionStatus> Function() _requestPermission;
   final Future<List<Contact>> Function() _getContacts;
   final Future<bool?> Function(String) _callNumber;
@@ -57,10 +57,10 @@ class PhoneCallService {
     }
 
     final allContacts = await _getContacts();
-    final nameLower = name.toLowerCase();
+    final nameLower = name.trim().toLowerCase();
     final contacts = allContacts
         .where((c) {
-          final displayLower = c.displayName?.toLowerCase() ?? '';
+          final displayLower = (c.displayName ?? '').trim().toLowerCase();
           return exactMatch
               ? displayLower == nameLower
               : displayLower.contains(nameLower);

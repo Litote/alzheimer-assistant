@@ -78,18 +78,13 @@ cp front/secrets.json.example front/secrets.json
 
 ```json
 {
-  "ADK_BASE_URL": "https://your-cloud-run-url.run.app",
-  "ELEVENLABS_API_KEY": "sk_your_api_key_here",
-  "ELEVENLABS_VOICE_ID": "your_voice_id_here"
+  "ADK_BASE_URL": "https://your-cloud-run-url.run.app"
 }
 ```
-
 
 | Key | Where to get it |
 |-----|----------------|
 | `ADK_BASE_URL` | Cloud Run service URL (once `agent/` is deployed) |
-| `ELEVENLABS_API_KEY` | [elevenlabs.io](https://elevenlabs.io) → Profile → API Keys |
-| `ELEVENLABS_VOICE_ID` | ElevenLabs voice library — copy the ID of the chosen voice |
 
 ### Use provided intellij runner `App`
 
@@ -171,9 +166,7 @@ Five GitHub Actions workflows are defined under `.github/workflows/`:
 
 | Secret | Used by | Description |
 |--------|---------|-------------|
-| `ADK_BASE_URL` | front-ci, front-e2e, front-testflight | ADK agent base URL |
-| `ELEVENLABS_API_KEY` | front-ci, front-e2e, front-testflight | ElevenLabs API key |
-| `ELEVENLABS_VOICE_ID` | front-ci, front-e2e, front-testflight | ElevenLabs voice ID |
+| `ADK_BASE_URL` | front-ci, front-e2e, front-testflight | ADK agent WebSocket base URL |
 | `SONAR_TOKEN` | sonar | SonarCloud authentication |
 | `GRADLE_ENCRYPTION_KEY` | sonar | Gradle cache encryption |
 | `APPLE_CERTIFICATE_BASE64` | front-testflight | Distribution certificate (.p12, base64-encoded) |
