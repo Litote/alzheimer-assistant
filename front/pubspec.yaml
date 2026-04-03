@@ -58,7 +58,7 @@ dependencies:
 
   # Utilities
   logger: ^2.6.1
-  shared_preferences: ^2.3.2
+  shared_preferences: ^2.5.5
 
   # Client-side TTS (text mode with reply_text)
   flutter_tts: ^4.2.0
