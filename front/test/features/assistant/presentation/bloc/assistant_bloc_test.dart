@@ -542,6 +542,103 @@ void main() {
     },
   );
 
+  // ── LiveEvent: imageUrl ───────────────────────────────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(imageUrl) while Listening → transitions to Speaking with imageUrl',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.imageUrl('https://example.com/photo.jpg'),
+    )),
+    expect: () => [
+      const AssistantState.speaking(imageUrl: 'https://example.com/photo.jpg'),
+    ],
+  );
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(outputTranscription) after imageUrl → keeps image visible, no text state update',
+    build: () => _makeBloc(audioPlayer: audioPlayer, showTranscription: true),
+    seed: () => const AssistantState.speaking(imageUrl: 'https://example.com/photo.jpg'),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.outputTranscription('Voici votre photo.'),
+    )),
+    expect: () => [],
+  );
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(imageUrl) while Speaking → merges imageUrl into current Speaking state',
+    build: () => _makeBloc(audioPlayer: audioPlayer, showTranscription: true),
+    seed: () => const AssistantState.speaking(responseText: 'Voici votre photo.'),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.imageUrl('https://example.com/photo.jpg'),
+    )),
+    expect: () => [
+      const AssistantState.speaking(
+        responseText: 'Voici votre photo.',
+        imageUrl: 'https://example.com/photo.jpg',
+      ),
+    ],
+  );
+
+  test(
+    'audioPlaybackFinished from Speaking with imageUrl → Idle preserves imageUrl',
+    () async {
+      final live = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+
+      final localNativeTts = MockClientTtsService();
+      when(() => localNativeTts.dispose()).thenAnswer((_) async {});
+      when(() => localNativeTts.stop()).thenAnswer((_) async {});
+
+      void Function()? capturedOnComplete;
+      when(() => localNativeTts.speak(any(), onComplete: any(named: 'onComplete')))
+          .thenAnswer((inv) async {
+        capturedOnComplete =
+            inv.namedArguments[#onComplete] as void Function();
+      });
+
+      final bloc = AssistantBloc(
+        textRepository: live,
+        audioRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+        nativeTtsService: localNativeTts,
+      );
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      speech.emitFinal('Montre-moi une photo');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Server sends image then text (text is suppressed visually).
+      live.emit(const LiveEvent.imageUrl('https://example.com/photo.jpg'));
+      live.emit(const LiveEvent.outputTranscription('Voici votre photo.'));
+      live.emit(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state, isA<Speaking>());
+      expect((bloc.state as Speaking).imageUrl, 'https://example.com/photo.jpg');
+
+      // TTS finishes.
+      capturedOnComplete?.call();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        bloc.state,
+        const AssistantState.idle(imageUrl: 'https://example.com/photo.jpg'),
+      );
+
+      await bloc.close();
+    },
+  );
+
   // ── LiveEvent: audioChunk ─────────────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(

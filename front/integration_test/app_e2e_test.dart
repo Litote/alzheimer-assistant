@@ -6,48 +6,79 @@ import 'package:alzheimer_assistant/app/app.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
-import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
+import 'package:alzheimer_assistant/shared/services/settings_service.dart';
+import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
+import 'package:alzheimer_assistant/shared/services/speech_recognition_service.dart';
 
 import 'helpers/fake_live_repository.dart';
 import 'helpers/fake_speech_service.dart';
-import 'helpers/fake_tts_service.dart';
 
 // ── Fakes ──────────────────────────────────────────────────────────────────
 
-/// Overrides [callByName] with a preset sequence of results, bypassing the
-/// real contacts/permissions stack entirely.
-class _FakePhoneCallService extends PhoneCallService {
-  _FakePhoneCallService({required List<PhoneCallResult> results})
-      : _results = results;
-
-  final List<PhoneCallResult> _results;
-  var _index = 0;
+/// Fake for STT (Speech-To-Text) used in text mode.
+class _FakeSpeechRecognitionService extends SpeechRecognitionService {
+  _FakeSpeechRecognitionService({required this.recognizedText});
+  final String recognizedText;
 
   @override
-  Future<PhoneCallResult> callByName(String name,
-          {bool exactMatch = false}) async =>
-      _results[_index++];
+  Future<void> startListening({
+    required void Function(String text) onInterim,
+    required void Function(String text) onFinal,
+    void Function()? onTimeout,
+  }) async {
+    // Simulate a brief delay then the final result.
+    await Future.delayed(const Duration(milliseconds: 100));
+    onFinal(recognizedText);
+  }
+
+  @override
+  Future<void> stopListening() async {}
+}
+
+/// Fake for TTS (Text-To-Speech) used in text mode.
+/// Uses 'implements' because ClientTtsService is an 'interface class'.
+class _FakeClientTtsService implements ClientTtsService {
+  bool speakCalled = false;
+  String? lastSpokenText;
+  void Function()? _onComplete;
+
+  @override
+  Future<void> speak(String text, {required void Function() onComplete}) async {
+    speakCalled = true;
+    lastSpokenText = text;
+    _onComplete = onComplete;
+  }
+
+  void completePlayback() {
+    _onComplete?.call();
+    _onComplete = null;
+  }
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/// Creates a bloc wired with controllable fakes.
-({AssistantBloc bloc, ManualFakeStreamingAudioPlayerService audio}) _makeBloc({
+/// Creates a bloc wired for text-to-text mode testing.
+({AssistantBloc bloc, _FakeClientTtsService tts}) _makeTextBloc({
+  String userVoiceInput = 'Bonjour',
   FakeLiveRepository? liveRepository,
-  PhoneCallService? phoneCallService,
-  bool showTranscription = false,
 }) {
-  final audio = ManualFakeStreamingAudioPlayerService();
-  final repo = liveRepository ?? makeFakeLiveRepository();
+  final tts = _FakeClientTtsService();
   final bloc = AssistantBloc(
-    audioRepository: repo,
-    textRepository: repo,
+    textRepository: liveRepository ?? makeFakeLiveRepository(),
     micService: FakeMicrophoneStreamService(),
-    audioPlayer: audio,
-    phoneCallService: phoneCallService,
-    showTranscription: showTranscription,
+    speechService: _FakeSpeechRecognitionService(recognizedText: userVoiceInput),
+    nativeTtsService: tts,
+    elevenLabsTtsService: tts,
+    settingsService: SettingsService(),
+    showTranscription: true,
   );
-  return (bloc: bloc, audio: audio);
+  return (bloc: bloc, tts: tts);
 }
 
 /// Taps the mic button (GestureDetector child of MicButton).
@@ -62,10 +93,6 @@ Future<void> _tapMic(WidgetTester tester) async {
 }
 
 /// Pumps [step] at a time until [condition] returns true or [timeout] elapses.
-///
-/// Unlike [WidgetTester.pumpAndSettle], this helper works even when the widget
-/// tree contains infinite animations (e.g. the pulsing MicButton in
-/// Listening/Speaking states).
 Future<void> _pumpUntil(
   WidgetTester tester,
   bool Function() condition, {
@@ -86,168 +113,96 @@ Future<void> _pumpUntil(
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Assistant App — E2E', () {
+  group('Assistant App — Text to Text E2E', () {
     setUp(() async {
       // Mark onboarding as done so the router goes directly to HomeScreen.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_done', true);
+      // Force text mode for these tests.
+      await prefs.setBool('use_text_mode', true);
     });
 
-    // ── Scenario 1: nominal bidi round-trip ───────────────────────────────
+    // ── Scenario 1: Nominal text round-trip ───────────────────────────────
 
     testWidgets(
-      'Scenario 1: tap → Listening → Speaking (text visible) → Listening → Idle',
+      'Scenario 1: Voice Input → Text → Agent → TTS Output → Return to Idle',
       (tester) async {
-        // showTranscription: true so outputTranscription populates the bubble.
-        final (:bloc, :audio) = _makeBloc(showTranscription: true);
+        const kUserInput = 'Quelle heure est-il ?';
+        final (:bloc, :tts) = _makeTextBloc(userVoiceInput: kUserInput);
 
         await tester.pumpWidget(App.forTesting(bloc: bloc));
         await tester.pumpAndSettle();
 
         // ── 1. Initial state: Idle ─────────────────────────────────────────
         expect(find.text('Appuyez pour parler'), findsOneWidget);
-        expect(find.text('Appuyez sur le bouton pour me parler.'), findsOneWidget);
 
-        // ── 2. Tap → Connecting → Listening ───────────────────────────────
+        // ── 2. Tap Mic → Triggers STT → emits Speaking ─────────────────────
         await _tapMic(tester);
-
-        // ── 3. Speaking: wait until agent text arrives ────────────────────
-        // The MicButton has an infinite repeat animation while Speaking/Listening
-        // so we must NOT use pumpAndSettle here — use _pumpUntil instead.
-        await _pumpUntil(tester, () => switch (bloc.state) {
-              Speaking(:final responseText) => responseText == kAgentResponse,
-              _ => false,
-            });
-        // One extra pump so the widget tree renders the new state.
-        await tester.pump(const Duration(milliseconds: 50));
-
-        expect(find.text(kAgentResponse), findsOneWidget,
-            reason: 'outputTranscription must appear in the response bubble');
-        expect(find.text('Réponse…'), findsOneWidget);
-        expect(find.text('Je vous réponds.'), findsOneWidget);
-        expect(find.text('Appuyez pour réessayer'), findsNothing);
-
-        // ── 4. turnComplete → Listening (bidi: mic stays active) ──────────
-        await _pumpUntil(tester, () => bloc.state is Listening);
-        // Extra pump so AnimatedSwitcher renders the new label in both
-        // Header and MicButton (both transitions start immediately but
-        // the widget is created on the first frame after state change).
-        await tester.pump(const Duration(milliseconds: 50));
-
-        expect(find.text('Je vous écoute…'), findsNWidgets(2));
-
-        // ── 5. Tap → cancel → Idle ─────────────────────────────────────────
-        await _tapMic(tester);
-        await _pumpUntil(tester, () => bloc.state is Idle);
-        // Idle state: _controller.stop() is called so the infinite animation
-        // ends; pumpAndSettle is safe here to let AnimatedContainer /
-        // AnimatedSwitcher finish their finite transitions.
-        await tester.pumpAndSettle();
-        expect(find.text('Appuyez pour parler'), findsOneWidget,
-            reason: 'Cancelling while Listening must return to Idle');
-
-        await bloc.close();
-      },
-    );
-
-    // ── Scenario 2: interrupt while Speaking ──────────────────────────────
-
-    testWidgets(
-      'Scenario 2: tap while agent is speaking → stops and returns to Idle',
-      (tester) async {
-        // Use a fake with no turnComplete so state stays in Speaking.
-        final (:bloc, :audio) =
-            _makeBloc(liveRepository: makeFakeLiveRepositoryForInterrupt());
-
-        await tester.pumpWidget(App.forTesting(bloc: bloc));
-        await tester.pumpAndSettle();
-
-        // Tap → Speaking (audioChunk fires, no turnComplete)
-        await _tapMic(tester);
+        
         await _pumpUntil(tester, () => bloc.state is Speaking);
+        // User transcript or interim text might be emitted.
+
         await tester.pump(const Duration(milliseconds: 50));
+        expect(find.text(kUserInput), findsOneWidget);
+        
+        // ── 3. Wait for Agent Response ─────────────────────────────────────
+        await _pumpUntil(tester, () => switch (bloc.state) {
+              Speaking(:final responseText) => responseText == "",
+              _ => false,
+            });
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.text(kUserInput), findsOneWidget);
 
-        expect(find.text('Réponse…'), findsOneWidget);
-        expect(find.text('Je vous réponds.'), findsOneWidget);
+        // ── 4. Wait for TTS to be triggered (triggered on TurnComplete) ─────
+        await _pumpUntil(tester, () => tts.speakCalled);
+        expect(tts.lastSpokenText, kAgentResponse);
 
-        // Tap while Speaking → interrupt → Idle
-        await _tapMic(tester);
+        // ── 5. Complete TTS playback → Should return to Idle ────────────────
+        tts.completePlayback();
         await _pumpUntil(tester, () => bloc.state is Idle);
         await tester.pumpAndSettle();
-
-        expect(find.text('Appuyez pour parler'), findsOneWidget,
-            reason: 'Interrupt must return app to Idle');
+        expect(find.text('Appuyez pour parler'), findsOneWidget);
 
         await bloc.close();
       },
     );
 
-    // ── Scenario 3: ambiguous call → disambiguation → call confirmed ───────
+    // ── Scenario 2: Settings navigation & mode toggle ─────────────────────
 
     testWidgets(
-      'Scenario 3: ambiguous call → agent asks → second turn on same connection → call confirmed',
+      'Scenario 2: Navigate to settings → Toggle mode → Verify persistence',
       (tester) async {
-        final (:bloc, :audio) = _makeBloc(
-          liveRepository: makeFakeLiveRepositoryForDisambiguation(),
-          phoneCallService: _FakePhoneCallService(
-            results: [
-              PhoneCallAmbiguous([
-                (displayName: 'Marie Dupont', number: '0601020304'),
-                (displayName: 'Marie Martin', number: '0605060708'),
-              ]),
-              PhoneCallSuccess(),
-            ],
-          ),
-          showTranscription: true,
-        );
+        final (:bloc, :tts) = _makeTextBloc();
 
         await tester.pumpWidget(App.forTesting(bloc: bloc));
         await tester.pumpAndSettle();
-        expect(find.text('Appuyez pour parler'), findsOneWidget);
 
-        // ── Single tap: one connection handles BOTH turns ──────────────────
-        await _tapMic(tester);
-
-        // ── Turn 1: wait for Speaking with disambiguation text ─────────────
-        await _pumpUntil(tester, () => switch (bloc.state) {
-              Speaking(:final responseText) =>
-                responseText == kDisambiguationAgentQuestion,
-              _ => false,
-            });
-        await tester.pump(const Duration(milliseconds: 50));
-
-        expect(find.text(kDisambiguationAgentQuestion), findsOneWidget,
-            reason: 'Agent disambiguation question must appear in the bubble');
-        expect(find.text('Réponse…'), findsOneWidget);
-
-        // ── Turn 1 → turnComplete → Listening ─────────────────────────────
-        await _pumpUntil(tester, () => bloc.state is Listening);
-        await tester.pump(const Duration(milliseconds: 50));
-        expect(find.text('Je vous écoute…'), findsNWidgets(2));
-
-        // ── Turn 2: arrives on the same connection after the inter-turn pause.
-        // Wait for Speaking with the call-confirmation text.
-        await _pumpUntil(tester, () => switch (bloc.state) {
-              Speaking(:final responseText) =>
-                responseText == kCallConfirmationAgentText,
-              _ => false,
-            });
-        await tester.pump(const Duration(milliseconds: 50));
-
-        expect(find.text(kCallConfirmationAgentText), findsOneWidget,
-            reason: 'Confirmation text must appear after successful call');
-        expect(find.text('Réponse…'), findsOneWidget);
-
-        // ── Turn 2 → turnComplete → Listening ─────────────────────────────
-        await _pumpUntil(tester, () => bloc.state is Listening);
-        await tester.pump(const Duration(milliseconds: 50));
-        expect(find.text('Je vous écoute…'), findsNWidgets(2));
-
-        // ── Tap → cancel → Idle ────────────────────────────────────────────
-        await _tapMic(tester);
-        await _pumpUntil(tester, () => bloc.state is Idle);
+        // 1. Open Settings
+        final settingsButton = find.byTooltip('Paramètres avancés');
+        expect(settingsButton, findsOneWidget);
+        await tester.tap(settingsButton);
         await tester.pumpAndSettle();
-        expect(find.text('Appuyez pour parler'), findsOneWidget);
+
+        // 2. Locate and toggle the Text Mode switch.
+        // Assuming "Mode texte uniquement" is present.
+        final textModeSwitch = find.byType(Switch).last;
+        expect(textModeSwitch, findsOneWidget);
+        await tester.tap(textModeSwitch);
+        await tester.pumpAndSettle();
+
+        // 3. Go back to Home
+        final backButton = find.byType(BackButton);
+        if (backButton.evaluate().isNotEmpty) {
+          await tester.tap(backButton);
+        } else {
+          await tester.pageBack();
+        }
+        await tester.pumpAndSettle();
+
+        // 4. Verify shared preferences directly to confirm persistence.
+        final prefs = await SharedPreferences.getInstance();
+        // Since we forced 'true' in setUp, toggling it should make it 'false'.
+        expect(prefs.getBool('use_text_mode'), false);
 
         await bloc.close();
       },

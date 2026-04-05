@@ -280,6 +280,24 @@ void main() {
     ]);
   });
 
+  test('parses image_url frame', () async {
+    final repo = _makeRepo([
+      _sseLine({'image_url': 'https://example.com/photo.jpg'}),
+    ]);
+
+    final events = await _collectRaw(repo);
+    expect(events, [const LiveEvent.imageUrl('https://example.com/photo.jpg')]);
+  });
+
+  test('image_url frame with empty string is silently dropped', () async {
+    final repo = _makeRepo([
+      _sseLine({'image_url': ''}),
+    ]);
+
+    final events = await _collectRaw(repo);
+    expect(events, isEmpty);
+  });
+
   test('skips non-data lines and [DONE]', () async {
     final repo = _makeRepo([
       'event: message',

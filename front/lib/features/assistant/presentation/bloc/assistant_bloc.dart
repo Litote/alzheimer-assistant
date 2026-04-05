@@ -202,6 +202,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
             break;
           }
           _responseText += text;
+          // When an image is displayed, accumulate text for TTS but keep the
+          // image visible — skip the text state update.
+          final current = state;
+          if (current is Speaking && current.imageUrl.isNotEmpty) break;
           emit(AssistantState.speaking(responseText: _responseText));
         }
 
@@ -223,6 +227,15 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
             welcomeText: _welcomeText,
           ));
         }
+
+      case LiveImageUrl(:final url):
+        _logger.i('[Bloc] LiveImageUrl: $url');
+        final current = state;
+        if (current is Speaking) {
+          emit(current.copyWith(imageUrl: url));
+        } else {
+          emit(AssistantState.speaking(imageUrl: url));
+        }
     }
   }
 
@@ -230,10 +243,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     AudioPlaybackFinished event,
     Emitter<AssistantState> emit,
   ) async {
-    if (state is Speaking) {
+    if (state case Speaking(:final imageUrl)) {
       if (_textMode) {
         await _disconnectAll();
-        emit(const AssistantState.idle());
+        emit(AssistantState.idle(imageUrl: imageUrl));
       } else {
         emit(AssistantState.listening(welcomeText: _welcomeText));
       }
@@ -414,7 +427,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   }
 
   Future<void> _handleTurnComplete(Emitter<AssistantState> emit) async {
-    if (state is Speaking) {
+    if (state case Speaking(:final imageUrl)) {
       if (_textMode) {
         if (_ttsStarted && _responseText.isEmpty) {
           // TTS already running with no new text accumulated — AudioPlaybackFinished
@@ -440,7 +453,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         }
         // No text or no TTS service: disconnect immediately.
         await _disconnectAll();
-        emit(const AssistantState.idle());
+        emit(AssistantState.idle(imageUrl: imageUrl));
       } else {
         _responseText = '';
         final newTextMode = await _settingsService.getUseTextMode();
@@ -448,7 +461,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         if (newTextMode != _textMode || newUseElevenLabs != _useElevenLabs) {
           _logger.i('[Bloc] Settings changed after turn — reconnecting');
           await _disconnectAll();
-          emit(const AssistantState.idle());
+          emit(AssistantState.idle(imageUrl: imageUrl));
         } else {
           emit(AssistantState.listening(welcomeText: _welcomeText));
         }

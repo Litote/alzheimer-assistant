@@ -48,9 +48,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     const SizedBox(height: 48),
                     _Header(),
-                    const Spacer(),
-                    const ResponseBubble(),
-                    const Spacer(),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: ResponseBubble(),
+                      ),
+                    ),
                     const MicButton(),
                     const SizedBox(height: 48),
                   ],

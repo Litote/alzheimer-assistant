@@ -30,7 +30,7 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
   // reduces output vs the playback-only category. A 1.5× factor partially
   // compensates for that reduction. Clipping is prevented by clamping to int16
   // range. Adjust if audio is too loud or distorts on louder content.
-  static const double _outputGain = 1.5;
+  static const double _outputGain = 1.0;
 
   Future<void> _init() async {
     try {
@@ -67,7 +67,7 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
       return;
     }
     try {
-      final amplified = _applyGain(bytes, _outputGain);
+      final amplified = _outputGain == 1.0 ? bytes : _applyGain(bytes, _outputGain);
       _logger.d('[PcmPlayer] feeding ${bytes.length} bytes to FlutterPcmSound');
       FlutterPcmSound.feed(
         PcmArrayInt16(

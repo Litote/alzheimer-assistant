@@ -21,10 +21,15 @@ const String kCallConfirmationAgentText =
 /// that emits all [sequences] in order (with a 50 ms gap between turns) and
 /// then stays open until [disconnect()] is called.
 class FakeLiveRepository implements AudioRepository, TextRepository {
-  FakeLiveRepository({required List<List<LiveEvent>> sequences})
-      : _sequences = sequences;
+  FakeLiveRepository({
+    required List<List<LiveEvent>> sequences,
+    bool reactive = false,
+  })  : _sequences = sequences,
+        _reactive = reactive;
 
   final List<List<LiveEvent>> _sequences;
+  final bool _reactive;
+  final Completer<void> _inputReceived = Completer<void>();
   bool _disconnected = false;
   Completer<void>? _disconnectCompleter;
 
@@ -37,6 +42,10 @@ class FakeLiveRepository implements AudioRepository, TextRepository {
   }) async* {
     _disconnected = false;
     _disconnectCompleter = Completer<void>();
+
+    if (_reactive) {
+      await _inputReceived.future;
+    }
 
     for (var i = 0; i < _sequences.length; i++) {
       for (final event in _sequences[i]) {
@@ -57,10 +66,14 @@ class FakeLiveRepository implements AudioRepository, TextRepository {
   }
 
   @override
-  void sendAudio(Uint8List pcmBytes) {}
+  void sendAudio(Uint8List pcmBytes) {
+    if (!_inputReceived.isCompleted) _inputReceived.complete();
+  }
 
   @override
-  void sendText(String text) {}
+  void sendText(String text) {
+    if (!_inputReceived.isCompleted) _inputReceived.complete();
+  }
 
   @override
   void sendToolResponse({
@@ -88,6 +101,17 @@ FakeLiveRepository makeFakeLiveRepository() => FakeLiveRepository(
       sequences: [
         [
           LiveEvent.audioChunk(Uint8List(128)),
+          const LiveEvent.outputTranscription(kAgentResponse),
+          const LiveEvent.turnComplete(),
+        ],
+      ],
+    );
+
+/// Helper for text-mode tests: ignores audio, waits for user text input.
+FakeLiveRepository makeFakeTextLiveRepository() => FakeLiveRepository(
+      reactive: true,
+      sequences: [
+        [
           const LiveEvent.outputTranscription(kAgentResponse),
           const LiveEvent.turnComplete(),
         ],

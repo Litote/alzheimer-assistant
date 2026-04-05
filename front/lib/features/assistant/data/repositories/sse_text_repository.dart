@@ -47,6 +47,7 @@ class SseTextRepository implements TextRepository {
 
   @override
   void sendText(String text) {
+    _logger.d('[SseText] sendText: "$text"');
     _postMessage({
       'role': 'user',
       'parts': [
@@ -61,6 +62,7 @@ class SseTextRepository implements TextRepository {
     required String functionName,
     required String result,
   }) {
+    _logger.d('[SseText] sendToolResponse: $functionName ($callId) → "$result"');
     _postMessage({
       'role': 'user',
       'parts': [
@@ -108,15 +110,21 @@ class SseTextRepository implements TextRepository {
 
     try {
       _logger.i('[SseText] POST → $uri');
+      _logger.d('[SseText] body: ${jsonEncode(body)}');
       var hasTextContent = false;
       await for (final line in _fetchFn(uri, jsonEncode(body))) {
         if (ctrl.isClosed) break;
+        _logger.d('[SseText] raw line: "$line"');
         if (!line.startsWith('data: ')) continue;
         final data = line.substring(6).trim();
-        if (data.isEmpty || data == '[DONE]') continue;
+        if (data.isEmpty || data == '[DONE]') {
+          _logger.d('[SseText] skip: "${data.isEmpty ? '<empty>' : data}"');
+          continue;
+        }
         final event = _parseMessage(data);
         if (event != null) {
           if (event is LiveOutputTranscription) hasTextContent = true;
+          _logger.d('[SseText] emit: ${event.runtimeType}');
           ctrl.add(event);
         }
       }
@@ -125,6 +133,8 @@ class SseTextRepository implements TextRepository {
       if (!ctrl.isClosed && hasTextContent) {
         _logger.i('[SseText] ← stream ended → implicit turnComplete');
         ctrl.add(const LiveEvent.turnComplete());
+      } else if (!ctrl.isClosed && !hasTextContent) {
+        _logger.w('[SseText] ← stream ended with no text content — no turnComplete emitted');
       }
     } catch (e) {
       _logger.e('[SseText] Request failed: $e');
@@ -136,6 +146,13 @@ class SseTextRepository implements TextRepository {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       _logger.d('[SseText] ← ${json.keys.toList()}');
+
+      // ── image_url (custom frame) ──────────────────────────────────────────
+      final imageUrl = json['image_url'];
+      if (imageUrl is String && imageUrl.isNotEmpty) {
+        _logger.i('[SseText] ← image_url: "$imageUrl"');
+        return LiveEvent.imageUrl(imageUrl);
+      }
 
       // ── phone_event (custom frame) ────────────────────────────────────────
       final phoneEvent = json['phone_event'];

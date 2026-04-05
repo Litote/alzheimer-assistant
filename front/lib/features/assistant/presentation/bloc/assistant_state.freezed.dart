@@ -161,26 +161,29 @@ extension AssistantStatePatterns on AssistantState {
 
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
-    TResult Function()? idle,
+    TResult Function(String imageUrl)? idle,
     TResult Function()? connecting,
     TResult Function(
             String interimTranscript, String statusLabel, String welcomeText)?
         listening,
-    TResult Function(String responseText, String userTranscript)? speaking,
+    TResult Function(
+            String responseText, String userTranscript, String imageUrl)?
+        speaking,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     final _that = this;
     switch (_that) {
       case Idle() when idle != null:
-        return idle();
+        return idle(_that.imageUrl);
       case Connecting() when connecting != null:
         return connecting();
       case Listening() when listening != null:
         return listening(
             _that.interimTranscript, _that.statusLabel, _that.welcomeText);
       case Speaking() when speaking != null:
-        return speaking(_that.responseText, _that.userTranscript);
+        return speaking(
+            _that.responseText, _that.userTranscript, _that.imageUrl);
       case AssistantError() when error != null:
         return error(_that.message);
       case _:
@@ -203,26 +206,28 @@ extension AssistantStatePatterns on AssistantState {
 
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
-    required TResult Function() idle,
+    required TResult Function(String imageUrl) idle,
     required TResult Function() connecting,
     required TResult Function(
             String interimTranscript, String statusLabel, String welcomeText)
         listening,
-    required TResult Function(String responseText, String userTranscript)
+    required TResult Function(
+            String responseText, String userTranscript, String imageUrl)
         speaking,
     required TResult Function(String message) error,
   }) {
     final _that = this;
     switch (_that) {
       case Idle():
-        return idle();
+        return idle(_that.imageUrl);
       case Connecting():
         return connecting();
       case Listening():
         return listening(
             _that.interimTranscript, _that.statusLabel, _that.welcomeText);
       case Speaking():
-        return speaking(_that.responseText, _that.userTranscript);
+        return speaking(
+            _that.responseText, _that.userTranscript, _that.imageUrl);
       case AssistantError():
         return error(_that.message);
     }
@@ -242,25 +247,28 @@ extension AssistantStatePatterns on AssistantState {
 
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function()? idle,
+    TResult? Function(String imageUrl)? idle,
     TResult? Function()? connecting,
     TResult? Function(
             String interimTranscript, String statusLabel, String welcomeText)?
         listening,
-    TResult? Function(String responseText, String userTranscript)? speaking,
+    TResult? Function(
+            String responseText, String userTranscript, String imageUrl)?
+        speaking,
     TResult? Function(String message)? error,
   }) {
     final _that = this;
     switch (_that) {
       case Idle() when idle != null:
-        return idle();
+        return idle(_that.imageUrl);
       case Connecting() when connecting != null:
         return connecting();
       case Listening() when listening != null:
         return listening(
             _that.interimTranscript, _that.statusLabel, _that.welcomeText);
       case Speaking() when speaking != null:
-        return speaking(_that.responseText, _that.userTranscript);
+        return speaking(
+            _that.responseText, _that.userTranscript, _that.imageUrl);
       case AssistantError() when error != null:
         return error(_that.message);
       case _:
@@ -272,20 +280,64 @@ extension AssistantStatePatterns on AssistantState {
 /// @nodoc
 
 class Idle implements AssistantState {
-  const Idle();
+  const Idle({this.imageUrl = ''});
+
+  @JsonKey()
+  final String imageUrl;
+
+  /// Create a copy of AssistantState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $IdleCopyWith<Idle> get copyWith =>
+      _$IdleCopyWithImpl<Idle>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is Idle);
+        (other.runtimeType == runtimeType &&
+            other is Idle &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl));
   }
 
   @override
-  int get hashCode => runtimeType.hashCode;
+  int get hashCode => Object.hash(runtimeType, imageUrl);
 
   @override
   String toString() {
-    return 'AssistantState.idle()';
+    return 'AssistantState.idle(imageUrl: $imageUrl)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $IdleCopyWith<$Res>
+    implements $AssistantStateCopyWith<$Res> {
+  factory $IdleCopyWith(Idle value, $Res Function(Idle) _then) =
+      _$IdleCopyWithImpl;
+  @useResult
+  $Res call({String imageUrl});
+}
+
+/// @nodoc
+class _$IdleCopyWithImpl<$Res> implements $IdleCopyWith<$Res> {
+  _$IdleCopyWithImpl(this._self, this._then);
+
+  final Idle _self;
+  final $Res Function(Idle) _then;
+
+  /// Create a copy of AssistantState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? imageUrl = null,
+  }) {
+    return _then(Idle(
+      imageUrl: null == imageUrl
+          ? _self.imageUrl
+          : imageUrl // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
   }
 }
 
@@ -398,12 +450,15 @@ class _$ListeningCopyWithImpl<$Res> implements $ListeningCopyWith<$Res> {
 /// @nodoc
 
 class Speaking implements AssistantState {
-  const Speaking({this.responseText = '', this.userTranscript = ''});
+  const Speaking(
+      {this.responseText = '', this.userTranscript = '', this.imageUrl = ''});
 
   @JsonKey()
   final String responseText;
   @JsonKey()
   final String userTranscript;
+  @JsonKey()
+  final String imageUrl;
 
   /// Create a copy of AssistantState
   /// with the given fields replaced by the non-null parameter values.
@@ -420,15 +475,18 @@ class Speaking implements AssistantState {
             (identical(other.responseText, responseText) ||
                 other.responseText == responseText) &&
             (identical(other.userTranscript, userTranscript) ||
-                other.userTranscript == userTranscript));
+                other.userTranscript == userTranscript) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, responseText, userTranscript);
+  int get hashCode =>
+      Object.hash(runtimeType, responseText, userTranscript, imageUrl);
 
   @override
   String toString() {
-    return 'AssistantState.speaking(responseText: $responseText, userTranscript: $userTranscript)';
+    return 'AssistantState.speaking(responseText: $responseText, userTranscript: $userTranscript, imageUrl: $imageUrl)';
   }
 }
 
@@ -438,7 +496,7 @@ abstract mixin class $SpeakingCopyWith<$Res>
   factory $SpeakingCopyWith(Speaking value, $Res Function(Speaking) _then) =
       _$SpeakingCopyWithImpl;
   @useResult
-  $Res call({String responseText, String userTranscript});
+  $Res call({String responseText, String userTranscript, String imageUrl});
 }
 
 /// @nodoc
@@ -454,6 +512,7 @@ class _$SpeakingCopyWithImpl<$Res> implements $SpeakingCopyWith<$Res> {
   $Res call({
     Object? responseText = null,
     Object? userTranscript = null,
+    Object? imageUrl = null,
   }) {
     return _then(Speaking(
       responseText: null == responseText
@@ -463,6 +522,10 @@ class _$SpeakingCopyWithImpl<$Res> implements $SpeakingCopyWith<$Res> {
       userTranscript: null == userTranscript
           ? _self.userTranscript
           : userTranscript // ignore: cast_nullable_to_non_nullable
+              as String,
+      imageUrl: null == imageUrl
+          ? _self.imageUrl
+          : imageUrl // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }

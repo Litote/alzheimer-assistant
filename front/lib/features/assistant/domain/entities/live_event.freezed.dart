@@ -59,6 +59,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult Function(LiveToolStatus value)? toolStatus,
     TResult Function(LiveSessionInfo value)? sessionInfo,
     TResult Function(LiveSessionEstablished value)? sessionEstablished,
+    TResult Function(LiveImageUrl value)? imageUrl,
     required TResult orElse(),
   }) {
     final _that = this;
@@ -81,6 +82,8 @@ extension LiveEventPatterns on LiveEvent {
         return sessionInfo(_that);
       case LiveSessionEstablished() when sessionEstablished != null:
         return sessionEstablished(_that);
+      case LiveImageUrl() when imageUrl != null:
+        return imageUrl(_that);
       case _:
         return orElse();
     }
@@ -111,6 +114,7 @@ extension LiveEventPatterns on LiveEvent {
     required TResult Function(LiveToolStatus value) toolStatus,
     required TResult Function(LiveSessionInfo value) sessionInfo,
     required TResult Function(LiveSessionEstablished value) sessionEstablished,
+    required TResult Function(LiveImageUrl value) imageUrl,
   }) {
     final _that = this;
     switch (_that) {
@@ -132,6 +136,8 @@ extension LiveEventPatterns on LiveEvent {
         return sessionInfo(_that);
       case LiveSessionEstablished():
         return sessionEstablished(_that);
+      case LiveImageUrl():
+        return imageUrl(_that);
     }
   }
 
@@ -158,6 +164,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult? Function(LiveToolStatus value)? toolStatus,
     TResult? Function(LiveSessionInfo value)? sessionInfo,
     TResult? Function(LiveSessionEstablished value)? sessionEstablished,
+    TResult? Function(LiveImageUrl value)? imageUrl,
   }) {
     final _that = this;
     switch (_that) {
@@ -179,6 +186,8 @@ extension LiveEventPatterns on LiveEvent {
         return sessionInfo(_that);
       case LiveSessionEstablished() when sessionEstablished != null:
         return sessionEstablished(_that);
+      case LiveImageUrl() when imageUrl != null:
+        return imageUrl(_that);
       case _:
         return null;
     }
@@ -208,6 +217,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult Function(String label)? toolStatus,
     TResult Function(String welcome)? sessionInfo,
     TResult Function(String sessionId)? sessionEstablished,
+    TResult Function(String url)? imageUrl,
     required TResult orElse(),
   }) {
     final _that = this;
@@ -230,6 +240,8 @@ extension LiveEventPatterns on LiveEvent {
         return sessionInfo(_that.welcome);
       case LiveSessionEstablished() when sessionEstablished != null:
         return sessionEstablished(_that.sessionId);
+      case LiveImageUrl() when imageUrl != null:
+        return imageUrl(_that.url);
       case _:
         return orElse();
     }
@@ -261,6 +273,7 @@ extension LiveEventPatterns on LiveEvent {
     required TResult Function(String label) toolStatus,
     required TResult Function(String welcome) sessionInfo,
     required TResult Function(String sessionId) sessionEstablished,
+    required TResult Function(String url) imageUrl,
   }) {
     final _that = this;
     switch (_that) {
@@ -282,6 +295,8 @@ extension LiveEventPatterns on LiveEvent {
         return sessionInfo(_that.welcome);
       case LiveSessionEstablished():
         return sessionEstablished(_that.sessionId);
+      case LiveImageUrl():
+        return imageUrl(_that.url);
     }
   }
 
@@ -309,6 +324,7 @@ extension LiveEventPatterns on LiveEvent {
     TResult? Function(String label)? toolStatus,
     TResult? Function(String welcome)? sessionInfo,
     TResult? Function(String sessionId)? sessionEstablished,
+    TResult? Function(String url)? imageUrl,
   }) {
     final _that = this;
     switch (_that) {
@@ -330,6 +346,8 @@ extension LiveEventPatterns on LiveEvent {
         return sessionInfo(_that.welcome);
       case LiveSessionEstablished() when sessionEstablished != null:
         return sessionEstablished(_that.sessionId);
+      case LiveImageUrl() when imageUrl != null:
+        return imageUrl(_that.url);
       case _:
         return null;
     }
@@ -887,6 +905,69 @@ class _$LiveSessionEstablishedCopyWithImpl<$Res>
       null == sessionId
           ? _self.sessionId
           : sessionId // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class LiveImageUrl implements LiveEvent {
+  const LiveImageUrl(this.url);
+
+  final String url;
+
+  /// Create a copy of LiveEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $LiveImageUrlCopyWith<LiveImageUrl> get copyWith =>
+      _$LiveImageUrlCopyWithImpl<LiveImageUrl>(this, _$identity);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is LiveImageUrl &&
+            (identical(other.url, url) || other.url == url));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, url);
+
+  @override
+  String toString() {
+    return 'LiveEvent.imageUrl(url: $url)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $LiveImageUrlCopyWith<$Res>
+    implements $LiveEventCopyWith<$Res> {
+  factory $LiveImageUrlCopyWith(
+          LiveImageUrl value, $Res Function(LiveImageUrl) _then) =
+      _$LiveImageUrlCopyWithImpl;
+  @useResult
+  $Res call({String url});
+}
+
+/// @nodoc
+class _$LiveImageUrlCopyWithImpl<$Res> implements $LiveImageUrlCopyWith<$Res> {
+  _$LiveImageUrlCopyWithImpl(this._self, this._then);
+
+  final LiveImageUrl _self;
+  final $Res Function(LiveImageUrl) _then;
+
+  /// Create a copy of LiveEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? url = null,
+  }) {
+    return _then(LiveImageUrl(
+      null == url
+          ? _self.url
+          : url // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }
