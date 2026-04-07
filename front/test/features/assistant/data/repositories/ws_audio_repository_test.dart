@@ -368,6 +368,40 @@ void main() {
     expect(events, [const LiveEvent.sessionEstablished('sess-xyz')]);
   });
 
+  // ── imageUrl ──────────────────────────────────────────────────────────────
+
+  test('server image_url → LiveImageUrl', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    final events = <LiveEvent>[];
+    repo.connect().listen(events.add);
+    await Future<void>.delayed(Duration.zero);
+
+    channel.serverSend(jsonEncode({
+      'image_url': 'https://example.com/image.png',
+    }));
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [const LiveEvent.imageUrl('https://example.com/image.png')]);
+  });
+
+  test('server image_url with empty string → no event emitted', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    final events = <LiveEvent>[];
+    repo.connect().listen(events.add);
+    await Future<void>.delayed(Duration.zero);
+
+    channel.serverSend(jsonEncode({'image_url': ''}));
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, isEmpty);
+  });
+
   // ── malformed message ─────────────────────────────────────────────────────
 
   test('malformed server message → no event emitted', () async {

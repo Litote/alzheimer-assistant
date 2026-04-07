@@ -155,7 +155,8 @@ class WsAudioRepository implements AudioRepository {
           _parseOutputTranscription(json) ??
           _parseToolCall(json) ??
           _parseSessionInfo(json) ??
-          _parseToolStatus(json);
+          _parseToolStatus(json) ??
+          _parseImageUrl(json);
       if (event == null) {
         _logger.w('[WsAudio] ← unrecognized message — keys: ${json.keys.toList()}');
       }
@@ -259,6 +260,15 @@ class WsAudioRepository implements AudioRepository {
     if (label != null && label.isNotEmpty) {
       _logger.i('[WsAudio] ← tool_status: label="$label"');
       return LiveEvent.toolStatus(label);
+    }
+    return null;
+  }
+
+  LiveEvent? _parseImageUrl(Map<String, dynamic> json) {
+    final url = json['image_url'];
+    if (url is String && url.isNotEmpty) {
+      _logger.i('[WsAudio] ← image_url: "$url"');
+      return LiveEvent.imageUrl(url);
     }
     return null;
   }
