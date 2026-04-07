@@ -21,6 +21,9 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
 
   final _logger = appLogger;
   bool _isInitialized = false;
+  // Tracks whether setAudioModeCommunication was called so resetAudioMode is
+  // only invoked when there is actually a mode to restore.
+  bool _audioModeSet = false;
 
   static const int _sampleRate = 24000;
   static const _audioChannel = MethodChannel('alzheimer_assistant/audio');
@@ -49,6 +52,13 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
       // Override immediately after setup so the correct route is active from the first chunk.
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         await _audioChannel.invokeMethod<void>('overrideToSpeaker');
+      }
+      // Android hardware AEC requires AudioManager.MODE_IN_COMMUNICATION to be active
+      // so the audio HAL can provide the playback reference signal to the AEC algorithm.
+      // Without this mode, AEC has no reference and the mic captures speaker output as echo.
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _audioChannel.invokeMethod<void>('setAudioModeCommunication');
+        _audioModeSet = true;
       }
       _isInitialized = true;
       _logger.i('[PcmPlayer] FlutterPcmSound initialized at ${_sampleRate}Hz');
@@ -111,6 +121,10 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
     if (_isInitialized) {
       await FlutterPcmSound.release();
       _isInitialized = false;
+    }
+    if (_audioModeSet) {
+      _audioModeSet = false;
+      await _audioChannel.invokeMethod<void>('resetAudioMode');
     }
   }
 }

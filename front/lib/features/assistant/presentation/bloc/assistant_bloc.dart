@@ -320,13 +320,23 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
             if (offset == targetSize) {
               final rms = _calculateRMS(buffer);
-              if (state is Speaking && rms > 3500) {
-                _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)})');
-                _handleInterruption();
+              if (state is Speaking) {
+                if (rms > 3500) {
+                  _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)})');
+                  _handleInterruption();
+                }
+                // Do not forward mic audio to the server while the agent is
+                // speaking. On Android, hardware AEC is unreliable and the
+                // speaker output leaks into the mic signal. Sending it would
+                // cause the server to interpret the echo as user speech and
+                // trigger a new response, creating an echo loop. Interruption
+                // is still detected locally via the RMS check above.
+                offset = 0;
+              } else {
+                _applyGain(buffer, 2.0);
+                audioRepo.sendAudio(Uint8List.fromList(buffer));
+                offset = 0;
               }
-              _applyGain(buffer, 2.0);
-              audioRepo.sendAudio(Uint8List.fromList(buffer));
-              offset = 0;
             }
           }
         },

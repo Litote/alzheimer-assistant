@@ -44,6 +44,7 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   final _controller = StreamController<LiveEvent>.broadcast();
 
   int sendInterruptionCount = 0;
+  int sendAudioCount = 0;
   String? lastConnectedSessionId;
   final List<String> sentTexts = [];
 
@@ -60,7 +61,7 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   }
 
   @override
-  void sendAudio(Uint8List pcmBytes) {}
+  void sendAudio(Uint8List pcmBytes) => sendAudioCount++;
 
   @override
   void sendText(String text) => sentTexts.add(text);
@@ -1297,6 +1298,42 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(live.sendInterruptionCount, 1);
+
+    await bloc.close();
+  });
+
+  test('mic chunk with low RMS while Speaking → audio NOT forwarded to server', () async {
+    final live = _ControllableRepository();
+    final mic = _ControlledMicService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      audioRepository: live,
+      textRepository: live,
+      micService: mic,
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(),
+    );
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(LiveEvent.audioChunk(Uint8List(4)));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(bloc.state, isA<Speaking>());
+
+    final countBefore = live.sendAudioCount;
+    // Low-RMS buffer (silence) during Speaking — simulates speaker echo captured by mic
+    mic.push(Uint8List(3200));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Echo MUST NOT be forwarded to the server (fixes Android echo loop)
+    expect(live.sendAudioCount, equals(countBefore));
 
     await bloc.close();
   });

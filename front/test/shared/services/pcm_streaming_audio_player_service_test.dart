@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:alzheimer_assistant/shared/services/pcm_streaming_audio_player_service.dart';
@@ -113,6 +114,53 @@ void main() {
       final service = PcmStreamingAudioPlayerService();
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await expectLater(service.dispose(), completes);
+    });
+  });
+
+  // ── Android audio mode ─────────────────────────────────────────────────────
+
+  group('Android audio mode (MODE_IN_COMMUNICATION)', () {
+    final audioCalls = <String>[];
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      audioCalls.clear();
+      _mockPcmChannel();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('alzheimer_assistant/audio'),
+        (MethodCall call) async {
+          audioCalls.add(call.method);
+          return null;
+        },
+      );
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('flutter_pcm_sound/methods'),
+        null,
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('alzheimer_assistant/audio'),
+        null,
+      );
+    });
+
+    test('_init calls setAudioModeCommunication on Android', () async {
+      PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(audioCalls, contains('setAudioModeCommunication'));
+    });
+
+    test('dispose calls resetAudioMode on Android', () async {
+      final service = PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await service.dispose();
+      expect(audioCalls, containsAllInOrder(['setAudioModeCommunication', 'resetAudioMode']));
     });
   });
 }
