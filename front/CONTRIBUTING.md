@@ -196,23 +196,11 @@ flutter drive \
 
 ## SonarCloud (local)
 
-Run SonarCloud analysis locally **after every change** before opening a PR. This is the authoritative quality gate (coverage ≥ 80%, 0 bugs, 0 vulnerabilities, 0 hotspots).
-
-**One-time setup** — add your token to `~/.gradle/gradle.properties`:
-
-```properties
-systemProp.sonar.token=<your-sonarcloud-token>
-```
-
-Get your token at [sonarcloud.io](https://sonarcloud.io) → My Account → Security → Generate Token.
-
-**Run analysis** (from the repo root):
+To run only the front checks and sonar upload:
 
 ```bash
-./gradlew frontSonar
+./gradlew :front:frontSonar
 ```
-
-This runs Flutter tests with coverage first, then uploads results to SonarCloud.
 
 ---
 

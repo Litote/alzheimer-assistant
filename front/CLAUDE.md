@@ -162,7 +162,7 @@ appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)
 
 To check the quality gate from an agent session:
 
-1. Run `./gradlew sonar` from the repo root (triggers analysis and uploads results).
+1. Run `./gradlew allSonar` from the repo root (runs all checks with coverage then uploads results).
 2. Use the `sonarqube` MCP server (configured in Claude Code) to query the gate status —
 3. The gate passes when `new_coverage ≥ 80%`, `new_duplicated_lines_density ≤ 3%`, ratings all A, hotspots reviewed 100%.
 ---
