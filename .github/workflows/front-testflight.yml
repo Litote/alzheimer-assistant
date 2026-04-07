@@ -109,7 +109,11 @@ jobs:
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            | xcpretty
+            2>&1 | tee /tmp/xcodebuild-archive.log | xcpretty || {
+            echo "--- xcodebuild archive FAILED — error lines ---"
+            grep -E "(error:|ARCHIVE FAILED|The following|build commands failed)" /tmp/xcodebuild-archive.log || true
+            exit 1
+          }
 
       # ── Export IPA ───────────────────────────────────────────────────────────
       - name: Export IPA
