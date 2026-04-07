@@ -21,6 +21,8 @@ class ResponseBubble extends StatelessWidget {
           // (and its tap hint) appears.
           Speaking(imageUrl: final img) when img.isNotEmpty =>
             ('', false, 'Photo — appuyez pour agrandir'),
+          Idle(imageUrl: final img) when img.isNotEmpty =>
+            ('', false, 'Photo — appuyez pour agrandir'),
           Speaking(responseText: final r) when r.isNotEmpty =>
             (r, false, 'Réponse de l\'assistant : $r'),
           Speaking(userTranscript: final u) when u.isNotEmpty =>
@@ -35,11 +37,6 @@ class ResponseBubble extends StatelessWidget {
           Idle(:final imageUrl) => imageUrl,
           _ => '',
         };
-
-        // Idle with image: thumbnail centered in the available space.
-        if (state is Idle && imageUrl.isNotEmpty) {
-          return Center(child: _ImageThumbnail(imageUrl: imageUrl));
-        }
 
         if (text.isEmpty && imageUrl.isEmpty) return const SizedBox.shrink();
 
@@ -64,49 +61,6 @@ class ResponseBubble extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-// ── Persistent thumbnail shown in Idle state ──────────────────────────────
-
-class _ImageThumbnail extends StatelessWidget {
-  const _ImageThumbnail({required this.imageUrl});
-  final String imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Photo — appuyez pour agrandir',
-      button: true,
-      child: GestureDetector(
-        onTap: () => _openFullScreen(context),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.network(
-            imageUrl,
-            height: 180,
-            fit: BoxFit.cover,
-            semanticLabel: 'Photo',
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return const SizedBox(
-                height: 180,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            },
-            errorBuilder: (context, _, __) => const SizedBox.shrink(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _openFullScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _FullScreenImagePage(imageUrl: imageUrl),
-      ),
     );
   }
 }
