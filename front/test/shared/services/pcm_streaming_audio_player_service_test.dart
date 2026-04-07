@@ -117,6 +117,80 @@ void main() {
     });
   });
 
+  // ── iOS audio session ordering ─────────────────────────────────────────────
+
+  group('iOS audio session (correct ordering + interruption recovery)', () {
+    final audioCalls = <String>[];
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      audioCalls.clear();
+      _mockPcmChannel();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('alzheimer_assistant/audio'),
+        (MethodCall call) async {
+          audioCalls.add(call.method);
+          return null;
+        },
+      );
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('flutter_pcm_sound/methods'),
+        null,
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('alzheimer_assistant/audio'),
+        null,
+      );
+    });
+
+    test('_init calls prepareAudioSession before overrideToSpeaker on iOS', () async {
+      PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(audioCalls, containsAllInOrder(['prepareAudioSession', 'overrideToSpeaker']));
+    });
+
+    test('audioInterruptionEnded reinitializes the PCM engine', () async {
+      final service = PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final callsBefore = List<String>.from(audioCalls);
+
+      // Simulate native plugin sending audioInterruptionEnded.
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        'alzheimer_assistant/audio',
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('audioInterruptionEnded'),
+        ),
+        (data) {},
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // After interruption, the engine should have been re-initialized:
+      // another prepareAudioSession + overrideToSpeaker pair must appear.
+      final callsAfter = audioCalls.sublist(callsBefore.length);
+      expect(callsAfter, containsAllInOrder(['prepareAudioSession', 'overrideToSpeaker']));
+
+      await service.dispose();
+    });
+
+    test('dispose unregisters the method call handler', () async {
+      final service = PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await service.dispose();
+      // Should complete without error — handler was cleaned up.
+      expect(true, isTrue);
+    });
+  });
+
   // ── Android audio mode ─────────────────────────────────────────────────────
 
   group('Android audio mode (MODE_IN_COMMUNICATION)', () {

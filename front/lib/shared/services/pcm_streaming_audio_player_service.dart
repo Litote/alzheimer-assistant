@@ -37,6 +37,13 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
 
   Future<void> _init() async {
     try {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // Configure AVAudioSession with the correct mode BEFORE flutter_pcm_sound
+        // activates it. Apple requires: setCategory → setMode → setPreferred → setActive
+        // → start engine. This call handles the first three steps + setActive.
+        await _audioChannel.invokeMethod<void>('prepareAudioSession');
+      }
+
       await FlutterPcmSound.setup(
         sampleRate: _sampleRate,
         channelCount: 1,
@@ -47,12 +54,17 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
         // does not capture speaker output during bidi streaming.
         androidAudioUsage: AndroidAudioUsage.voiceCommunication,
       );
-      // flutter_pcm_sound sets playAndRecord without AVAudioSessionCategoryOptionDefaultToSpeaker,
-      // which causes iOS to route audio through the earpiece instead of the speaker.
-      // Override immediately after setup so the correct route is active from the first chunk.
+
       if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // flutter_pcm_sound's setup() resets the session mode to .default via its own
+        // setCategory call. Restore mode: .voiceChat without calling setActive again
+        // to avoid triggering a phantom interruption on the already-running engine.
         await _audioChannel.invokeMethod<void>('overrideToSpeaker');
+        // Register handler for native interruption-ended events so the engine can
+        // be restarted after a phone call or Siri session ends.
+        _audioChannel.setMethodCallHandler(_onNativeCall);
       }
+
       // Android hardware AEC requires AudioManager.MODE_IN_COMMUNICATION to be active
       // so the audio HAL can provide the playback reference signal to the AEC algorithm.
       // Without this mode, AEC has no reference and the mic captures speaker output as echo.
@@ -60,10 +72,20 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
         await _audioChannel.invokeMethod<void>('setAudioModeCommunication');
         _audioModeSet = true;
       }
+
       _isInitialized = true;
       _logger.i('[PcmPlayer] FlutterPcmSound initialized at ${_sampleRate}Hz');
     } catch (e) {
       _logger.e('[PcmPlayer] Initialization error: $e');
+    }
+  }
+
+  Future<dynamic> _onNativeCall(MethodCall call) async {
+    if (call.method == 'audioInterruptionEnded') {
+      _logger.i('[PcmPlayer] Audio interruption ended — restarting PCM engine');
+      _isInitialized = false;
+      await FlutterPcmSound.release();
+      await _init();
     }
   }
 
@@ -108,16 +130,15 @@ class PcmStreamingAudioPlayerService implements StreamingAudioPlayerService {
 
   @override
   Future<void> stop() async {
-    if (_isInitialized) {
-      await FlutterPcmSound.release();
-      _isInitialized = false;
-      _init();
-    }
-    _logger.i('[PcmPlayer] Playback stopped');
+    // We avoid full release() + _init() cycle on every stop to prevent
+    // AVAudioSession churn which causes interruptions on newer iOS devices.
+    // Instead, we just log and let the engine stay ready.
+    _logger.i('[PcmPlayer] Playback stop requested (keeping engine alive)');
   }
 
   @override
   Future<void> dispose() async {
+    _audioChannel.setMethodCallHandler(null);
     if (_isInitialized) {
       await FlutterPcmSound.release();
       _isInitialized = false;
