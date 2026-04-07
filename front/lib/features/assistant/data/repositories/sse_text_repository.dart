@@ -115,18 +115,7 @@ class SseTextRepository implements TextRepository {
       await for (final line in _fetchFn(uri, jsonEncode(body))) {
         if (ctrl.isClosed) break;
         _logger.d('[SseText] raw line: "$line"');
-        if (!line.startsWith('data: ')) continue;
-        final data = line.substring(6).trim();
-        if (data.isEmpty || data == '[DONE]') {
-          _logger.d('[SseText] skip: "${data.isEmpty ? '<empty>' : data}"');
-          continue;
-        }
-        final event = _parseMessage(data);
-        if (event != null) {
-          if (event is LiveOutputTranscription) hasTextContent = true;
-          _logger.d('[SseText] emit: ${event.runtimeType}');
-          ctrl.add(event);
-        }
+        if (_emitParsedEvent(line, ctrl)) hasTextContent = true;
       }
       // The server closes the stream after the last ADK event without sending
       // an explicit turnComplete frame. Emit it now so the BLoC triggers TTS.
@@ -142,83 +131,107 @@ class SseTextRepository implements TextRepository {
     }
   }
 
+  /// Returns true if the line contained output transcription content.
+  bool _emitParsedEvent(String line, StreamController<LiveEvent> ctrl) {
+    if (!line.startsWith('data: ')) return false;
+    final data = line.substring(6).trim();
+    if (data.isEmpty || data == '[DONE]') {
+      _logger.d('[SseText] skip: "${data.isEmpty ? '<empty>' : data}"');
+      return false;
+    }
+    final event = _parseMessage(data);
+    if (event == null) return false;
+    _logger.d('[SseText] emit: ${event.runtimeType}');
+    ctrl.add(event);
+    return event is LiveOutputTranscription;
+  }
+
   LiveEvent? _parseMessage(String raw) {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       _logger.d('[SseText] ← ${json.keys.toList()}');
-
-      // ── image_url (custom frame) ──────────────────────────────────────────
-      final imageUrl = json['image_url'];
-      if (imageUrl is String && imageUrl.isNotEmpty) {
-        _logger.i('[SseText] ← image_url: "$imageUrl"');
-        return LiveEvent.imageUrl(imageUrl);
-      }
-
-      // ── phone_event (custom frame) ────────────────────────────────────────
-      final phoneEvent = json['phone_event'];
-      if (phoneEvent is Map<String, dynamic>) {
-        final type = phoneEvent['type'] as String?;
-        if (type == 'tool_status') {
-          final label = phoneEvent['label'] as String?;
-          if (label != null && label.isNotEmpty) {
-            _logger.i('[SseText] ← tool_status: "$label"');
-            return LiveEvent.toolStatus(label);
-          }
-        }
-        if (type == 'phone_call') {
-          final callId = phoneEvent['call_id'] as String? ?? '';
-          final args = phoneEvent['args'] as Map<String, dynamic>?;
-          final contactName =
-              (args?['contact_name'] ?? args?['name']) as String?;
-          final exactMatch =
-              (args?['exact_match'] ?? args?['exactMatch']) as bool? ?? false;
-          if (contactName != null) {
-            _logger.i('[SseText] ← phone_call: "$contactName"');
-            return LiveEvent.callPhone(
-              callId: callId,
-              contactName: contactName,
-              exactMatch: exactMatch,
-            );
-          }
-        }
-        return null;
-      }
-
-      // ── ADK native Event (by_alias=True → camelCase) ──────────────────────
-
-      // turn_complete → "turnComplete"
-      if (json['turnComplete'] == true) {
-        _logger.i('[SseText] ← turnComplete');
-        return const LiveEvent.turnComplete();
-      }
-
-      // content.parts[].text → agent text response
-      final content = json['content'];
-      if (content is Map<String, dynamic>) {
-        final parts = content['parts'];
-        if (parts is List) {
-          final buffer = StringBuffer();
-          for (final part in parts) {
-            if (part is Map<String, dynamic>) {
-              final text = part['text'] as String?;
-              if (text != null && text.isNotEmpty) buffer.write(text);
-            }
-          }
-          final text = buffer.toString();
-          if (text.isNotEmpty) {
-            _logger.i('[SseText] ← content.text: "$text"');
-            return LiveEvent.outputTranscription(text);
-          }
-        }
-      }
-
+      return _parseImageUrl(json) ??
+          _parsePhoneEvent(json) ??
+          _parseTurnComplete(json) ??
+          _parseContent(json);
       // All other ADK events (routing, actions, metadata…) are expected and
       // silently ignored — no need to warn.
-      return null;
     } catch (e) {
       _logger.w('[SseText] Parse error (skipped): $e\n  raw: $raw');
       return null;
     }
+  }
+
+  LiveEvent? _parseImageUrl(Map<String, dynamic> json) {
+    final imageUrl = json['image_url'];
+    if (imageUrl is String && imageUrl.isNotEmpty) {
+      _logger.i('[SseText] ← image_url: "$imageUrl"');
+      return LiveEvent.imageUrl(imageUrl);
+    }
+    return null;
+  }
+
+  LiveEvent? _parsePhoneEvent(Map<String, dynamic> json) {
+    final phoneEvent = json['phone_event'];
+    if (phoneEvent is! Map<String, dynamic>) return null;
+    final type = phoneEvent['type'] as String?;
+    if (type == 'tool_status') {
+      final label = phoneEvent['label'] as String?;
+      if (label != null && label.isNotEmpty) {
+        _logger.i('[SseText] ← tool_status: "$label"');
+        return LiveEvent.toolStatus(label);
+      }
+    }
+    if (type == 'phone_call') {
+      return _parsePhoneCall(phoneEvent);
+    }
+    return null;
+  }
+
+  LiveEvent? _parsePhoneCall(Map<String, dynamic> phoneEvent) {
+    final callId = phoneEvent['call_id'] as String? ?? '';
+    final args = phoneEvent['args'] as Map<String, dynamic>?;
+    final contactName =
+        (args?['contact_name'] ?? args?['name']) as String?;
+    final exactMatch =
+        (args?['exact_match'] ?? args?['exactMatch']) as bool? ?? false;
+    if (contactName != null) {
+      _logger.i('[SseText] ← phone_call: "$contactName"');
+      return LiveEvent.callPhone(
+        callId: callId,
+        contactName: contactName,
+        exactMatch: exactMatch,
+      );
+    }
+    return null;
+  }
+
+  LiveEvent? _parseTurnComplete(Map<String, dynamic> json) {
+    if (json['turnComplete'] == true) {
+      _logger.i('[SseText] ← turnComplete');
+      return const LiveEvent.turnComplete();
+    }
+    return null;
+  }
+
+  LiveEvent? _parseContent(Map<String, dynamic> json) {
+    final content = json['content'];
+    if (content is! Map<String, dynamic>) return null;
+    final parts = content['parts'];
+    if (parts is! List) return null;
+    final buffer = StringBuffer();
+    for (final part in parts) {
+      if (part is Map<String, dynamic>) {
+        final text = part['text'] as String?;
+        if (text != null && text.isNotEmpty) buffer.write(text);
+      }
+    }
+    final text = buffer.toString();
+    if (text.isNotEmpty) {
+      _logger.i('[SseText] ← content.text: "$text"');
+      return LiveEvent.outputTranscription(text);
+    }
+    return null;
   }
 
   static String _generateSessionId() {

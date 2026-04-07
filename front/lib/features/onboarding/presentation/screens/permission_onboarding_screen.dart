@@ -31,26 +31,26 @@ class PermissionOnboardingScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              _PermissionItem(
+              const _PermissionItem(
                 icon: Icons.mic,
                 title: 'Microphone',
                 description: 'Pour vous écouter et comprendre vos demandes',
               ),
               const SizedBox(height: 24),
-              _PermissionItem(
+              const _PermissionItem(
                 icon: Icons.contacts,
                 title: 'Contacts',
                 description: 'Pour passer des appels téléphoniques',
               ),
               const SizedBox(height: 24),
               if (Platform.isIOS)
-                _PermissionItem(
+                const _PermissionItem(
                   icon: Icons.record_voice_over,
                   title: 'Reconnaissance vocale',
                   description: 'Pour transcrire ce que vous dites',
                 )
               else
-                _PermissionItem(
+                const _PermissionItem(
                   icon: Icons.phone,
                   title: 'Téléphone',
                   description: 'Pour composer les numéros automatiquement',

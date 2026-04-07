@@ -8,12 +8,14 @@ import 'package:alzheimer_assistant/shared/services/settings_service.dart';
 
 final _permissionService = PermissionService();
 
+const _onboardingPath = '/onboarding';
+
 final appRouter = GoRouter(
   initialLocation: '/',
   redirect: (context, state) async {
     final done = await _permissionService.isOnboardingDone();
-    if (!done && state.matchedLocation != '/onboarding') {
-      return '/onboarding';
+    if (!done && state.matchedLocation != _onboardingPath) {
+      return _onboardingPath;
     }
     return null;
   },
@@ -29,7 +31,7 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
-      path: '/onboarding',
+      path: _onboardingPath,
       builder: (context, state) => PermissionOnboardingScreen(
         service: _permissionService,
       ),

@@ -107,8 +107,8 @@ class BufferedAudioPlayerService implements StreamingAudioPlayerService {
 
   Uint8List _buildWav(List<int> pcm) {
     final dataSize = pcm.length;
-    final byteRate = _sampleRate * _channels * (_bitsPerSample ~/ 8);
-    final blockAlign = _channels * (_bitsPerSample ~/ 8);
+    const byteRate = _sampleRate * _channels * (_bitsPerSample ~/ 8);
+    const blockAlign = _channels * (_bitsPerSample ~/ 8);
 
     final header = ByteData(44);
     _setFourCC(header, 0, 'RIFF');

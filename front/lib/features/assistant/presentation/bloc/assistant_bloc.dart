@@ -145,25 +145,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   ) async {
     switch (event.event) {
       case LiveAudioChunk(:final bytes):
-        // Audio chunks are only relevant in audio-to-audio mode.
-        if (_textMode) {
-          _logger.w('[Bloc] LiveAudioChunk received but _textMode=true — dropped');
-          break;
-        }
-        _logger.i('[Bloc] LiveAudioChunk: ${bytes.length} bytes, state=${state.runtimeType}, player=${_audioPlayer.runtimeType}');
-        _audioPlayer!.addChunk(bytes);
-        if (state is! Speaking) {
-          _welcomeText = '';
-          _logger.i('[Bloc] → first chunk: emitting Speaking + calling playAndClear');
-          emit(AssistantState.speaking(responseText: _responseText));
-          _audioPlayer!.playAndClear(onComplete: () {
-            _logger.i('[Bloc] playAndClear onComplete fired');
-          });
-        }
-
+        _handleAudioChunk(bytes, emit);
       case LiveTextDelta():
         break;
-
       case LiveCallPhone(:final callId, :final contactName, :final exactMatch):
         await _handleCallPhone(
           callId: callId,
@@ -171,71 +155,107 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
           exactMatch: exactMatch,
           emit: emit,
         );
-
       case LiveTurnComplete():
         await _handleTurnComplete(emit);
-
       case LiveSessionEstablished(:final sessionId):
         _sessionId = sessionId;
         _logger.i('[Bloc] Session established: $sessionId');
-
       case LiveInputTranscription(:final text):
-        if (_showTranscription || _textMode) {
-          emit(AssistantState.listening(interimTranscript: text));
-        }
-
+        _handleInputTranscription(text, emit);
       case LiveOutputTranscription(:final text):
-        if (_showTranscription || _textMode) {
-          if (text == _responseText) {
-            // Final echo — start TTS immediately in text mode.
-            if (_textMode && !_ttsStarted && text.isNotEmpty) {
-              _ttsStarted = true;
-              final tts = _useElevenLabs ? _elevenLabsTtsService : _nativeTtsService;
-              if (tts != null) {
-                _responseText = '';
-                await tts.speak(
-                  text,
-                  onComplete: () => add(const AssistantEvent.audioPlaybackFinished()),
-                );
-              }
-            }
-            break;
-          }
-          _responseText += text;
-          // When an image is displayed, accumulate text for TTS but keep the
-          // image visible — skip the text state update.
-          final current = state;
-          if (current is Speaking && current.imageUrl.isNotEmpty) break;
-          emit(AssistantState.speaking(responseText: _responseText));
-        }
-
+        await _handleOutputTranscription(text, emit);
       case LiveToolStatus(:final label):
-        if (state case Listening(:final interimTranscript)) {
-          emit(AssistantState.listening(
-            interimTranscript: interimTranscript,
-            statusLabel: label,
-            welcomeText: _welcomeText,
-          ));
-        }
-
+        _handleToolStatus(label, emit);
       case LiveSessionInfo(:final welcome):
-        _welcomeText = welcome;
-        if (state case Listening(:final interimTranscript, :final statusLabel)) {
-          emit(AssistantState.listening(
-            interimTranscript: interimTranscript,
-            statusLabel: statusLabel,
-            welcomeText: _welcomeText,
-          ));
-        }
-
+        _handleSessionInfo(welcome, emit);
       case LiveImageUrl(:final url):
-        _logger.i('[Bloc] LiveImageUrl: $url');
-        final current = state;
-        if (current is Speaking) {
-          emit(current.copyWith(imageUrl: url));
-        } else {
-          emit(AssistantState.speaking(imageUrl: url));
-        }
+        _handleImageUrl(url, emit);
+    }
+  }
+
+  void _handleAudioChunk(Uint8List bytes, Emitter<AssistantState> emit) {
+    // Audio chunks are only relevant in audio-to-audio mode.
+    if (_textMode) {
+      _logger.w('[Bloc] LiveAudioChunk received but _textMode=true — dropped');
+      return;
+    }
+    _logger.i('[Bloc] LiveAudioChunk: ${bytes.length} bytes, state=${state.runtimeType}, player=${_audioPlayer.runtimeType}');
+    _audioPlayer!.addChunk(bytes);
+    if (state is! Speaking) {
+      _welcomeText = '';
+      _logger.i('[Bloc] → first chunk: emitting Speaking + calling playAndClear');
+      emit(AssistantState.speaking(responseText: _responseText));
+      _audioPlayer!.playAndClear(onComplete: () {
+        _logger.i('[Bloc] playAndClear onComplete fired');
+      });
+    }
+  }
+
+  void _handleInputTranscription(String text, Emitter<AssistantState> emit) {
+    if (_showTranscription || _textMode) {
+      emit(AssistantState.listening(interimTranscript: text));
+    }
+  }
+
+  Future<void> _handleOutputTranscription(
+    String text,
+    Emitter<AssistantState> emit,
+  ) async {
+    if (!_showTranscription && !_textMode) return;
+    if (text == _responseText) {
+      // Final echo — start TTS immediately in text mode.
+      await _tryStartTts(text);
+      return;
+    }
+    _responseText += text;
+    // When an image is displayed, accumulate text for TTS but keep the
+    // image visible — skip the text state update.
+    final current = state;
+    if (current is Speaking && current.imageUrl.isNotEmpty) return;
+    emit(AssistantState.speaking(responseText: _responseText));
+  }
+
+  Future<void> _tryStartTts(String text) async {
+    if (!_textMode || _ttsStarted || text.isEmpty) return;
+    _ttsStarted = true;
+    final tts = _useElevenLabs ? _elevenLabsTtsService : _nativeTtsService;
+    if (tts != null) {
+      _responseText = '';
+      await tts.speak(
+        text,
+        onComplete: () => add(const AssistantEvent.audioPlaybackFinished()),
+      );
+    }
+  }
+
+  void _handleToolStatus(String label, Emitter<AssistantState> emit) {
+    if (state case Listening(:final interimTranscript)) {
+      emit(AssistantState.listening(
+        interimTranscript: interimTranscript,
+        statusLabel: label,
+        welcomeText: _welcomeText,
+      ));
+    }
+  }
+
+  void _handleSessionInfo(String welcome, Emitter<AssistantState> emit) {
+    _welcomeText = welcome;
+    if (state case Listening(:final interimTranscript, :final statusLabel)) {
+      emit(AssistantState.listening(
+        interimTranscript: interimTranscript,
+        statusLabel: statusLabel,
+        welcomeText: _welcomeText,
+      ));
+    }
+  }
+
+  void _handleImageUrl(String url, Emitter<AssistantState> emit) {
+    _logger.i('[Bloc] LiveImageUrl: $url');
+    final current = state;
+    if (current is Speaking) {
+      emit(current.copyWith(imageUrl: url));
+    } else {
+      emit(AssistantState.speaking(imageUrl: url));
     }
   }
 
@@ -302,54 +322,58 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
       );
 
-      final micStream = await _micService.startStreaming();
-
-      const targetSize = 3200;
-      final buffer = Uint8List(targetSize);
-      int offset = 0;
-
-      _micSubscription = micStream.listen(
-        (chunk) {
-          int chunkOffset = 0;
-          while (chunkOffset < chunk.length) {
-            final remaining = targetSize - offset;
-            final toCopy = (chunk.length - chunkOffset).clamp(0, remaining);
-            buffer.setRange(offset, offset + toCopy, chunk, chunkOffset);
-            offset += toCopy;
-            chunkOffset += toCopy;
-
-            if (offset == targetSize) {
-              final rms = _calculateRMS(buffer);
-              if (state is Speaking) {
-                if (rms > 3500) {
-                  _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)})');
-                  _handleInterruption();
-                }
-                // Do not forward mic audio to the server while the agent is
-                // speaking. On Android, hardware AEC is unreliable and the
-                // speaker output leaks into the mic signal. Sending it would
-                // cause the server to interpret the echo as user speech and
-                // trigger a new response, creating an echo loop. Interruption
-                // is still detected locally via the RMS check above.
-                offset = 0;
-              } else {
-                _applyGain(buffer, 2.0);
-                audioRepo.sendAudio(Uint8List.fromList(buffer));
-                offset = 0;
-              }
-            }
-          }
-        },
-        onError: (Object e) => _logger.e('[Bloc] Mic stream error: $e'),
-      );
-
+      await _setupMicStreaming(audioRepo);
       emit(AssistantState.listening(welcomeText: _welcomeText));
       _startResponseTimeout();
     } catch (e) {
       _logger.e('[Bloc] Connection error: $e');
       await _disconnectAll();
-      emit(AssistantState.error(message: 'Impossible de se connecter.'));
+      emit(const AssistantState.error(message: 'Impossible de se connecter.'));
     }
+  }
+
+  Future<void> _setupMicStreaming(AudioRepository audioRepo) async {
+    final micStream = await _micService.startStreaming();
+    const targetSize = 3200;
+    final buffer = Uint8List(targetSize);
+    int offset = 0;
+
+    _micSubscription = micStream.listen(
+      (chunk) {
+        int chunkOffset = 0;
+        while (chunkOffset < chunk.length) {
+          final remaining = targetSize - offset;
+          final toCopy = (chunk.length - chunkOffset).clamp(0, remaining);
+          buffer.setRange(offset, offset + toCopy, chunk, chunkOffset);
+          offset += toCopy;
+          chunkOffset += toCopy;
+          if (offset == targetSize) {
+            offset = _processFullBuffer(buffer, audioRepo);
+          }
+        }
+      },
+      onError: (Object e) => _logger.e('[Bloc] Mic stream error: $e'),
+    );
+  }
+
+  int _processFullBuffer(Uint8List buffer, AudioRepository audioRepo) {
+    final rms = _calculateRMS(buffer);
+    if (state is Speaking) {
+      if (rms > 3500) {
+        _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)})');
+        _handleInterruption();
+      }
+      // Do not forward mic audio to the server while the agent is
+      // speaking. On Android, hardware AEC is unreliable and the
+      // speaker output leaks into the mic signal. Sending it would
+      // cause the server to interpret the echo as user speech and
+      // trigger a new response, creating an echo loop. Interruption
+      // is still detected locally via the RMS check above.
+    } else {
+      _applyGain(buffer, 2.0);
+      audioRepo.sendAudio(Uint8List.fromList(buffer));
+    }
+    return 0;
   }
 
   Future<void> _connectTextMode(Emitter<AssistantState> emit) async {
@@ -405,7 +429,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     } catch (e) {
       _logger.e('[Bloc] Text mode connection error: $e');
       await _disconnectAll();
-      emit(AssistantState.error(message: 'Impossible de se connecter.'));
+      emit(const AssistantState.error(message: 'Impossible de se connecter.'));
     }
   }
 
@@ -439,43 +463,57 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   Future<void> _handleTurnComplete(Emitter<AssistantState> emit) async {
     if (state case Speaking(:final imageUrl)) {
       if (_textMode) {
-        if (_ttsStarted && _responseText.isEmpty) {
-          // TTS already running with no new text accumulated — AudioPlaybackFinished
-          // will disconnect when playback ends.
-          return;
-        }
-        // Either first turn, or new text arrived after a previous TTS started
-        // (e.g. tool-response turn). Reset flag and speak the accumulated text.
-        _ttsStarted = false;
-        // Fallback: start TTS with accumulated text.
-        final textToSpeak = _responseText;
-        _responseText = '';
-        if (textToSpeak.isNotEmpty) {
-          _ttsStarted = true;
-          final tts = _useElevenLabs ? _elevenLabsTtsService : _nativeTtsService;
-          if (tts != null) {
-            await tts.speak(
-              textToSpeak,
-              onComplete: () => add(const AssistantEvent.audioPlaybackFinished()),
-            );
-            return;
-          }
-        }
-        // No text or no TTS service: disconnect immediately.
-        await _disconnectAll();
-        emit(AssistantState.idle(imageUrl: imageUrl));
+        await _handleTextModeTurnComplete(imageUrl, emit);
       } else {
-        _responseText = '';
-        final newTextMode = await _settingsService.getUseTextMode();
-        final newUseElevenLabs = await _settingsService.getUseElevenLabs();
-        if (newTextMode != _textMode || newUseElevenLabs != _useElevenLabs) {
-          _logger.i('[Bloc] Settings changed after turn — reconnecting');
-          await _disconnectAll();
-          emit(AssistantState.idle(imageUrl: imageUrl));
-        } else {
-          emit(AssistantState.listening(welcomeText: _welcomeText));
-        }
+        await _handleAudioModeTurnComplete(imageUrl, emit);
       }
+    }
+  }
+
+  Future<void> _handleTextModeTurnComplete(
+    String imageUrl,
+    Emitter<AssistantState> emit,
+  ) async {
+    if (_ttsStarted && _responseText.isEmpty) {
+      // TTS already running with no new text accumulated — AudioPlaybackFinished
+      // will disconnect when playback ends.
+      return;
+    }
+    // Either first turn, or new text arrived after a previous TTS started
+    // (e.g. tool-response turn). Reset flag and speak the accumulated text.
+    _ttsStarted = false;
+    // Fallback: start TTS with accumulated text.
+    final textToSpeak = _responseText;
+    _responseText = '';
+    if (textToSpeak.isNotEmpty) {
+      _ttsStarted = true;
+      final tts = _useElevenLabs ? _elevenLabsTtsService : _nativeTtsService;
+      if (tts != null) {
+        await tts.speak(
+          textToSpeak,
+          onComplete: () => add(const AssistantEvent.audioPlaybackFinished()),
+        );
+        return;
+      }
+    }
+    // No text or no TTS service: disconnect immediately.
+    await _disconnectAll();
+    emit(AssistantState.idle(imageUrl: imageUrl));
+  }
+
+  Future<void> _handleAudioModeTurnComplete(
+    String imageUrl,
+    Emitter<AssistantState> emit,
+  ) async {
+    _responseText = '';
+    final newTextMode = await _settingsService.getUseTextMode();
+    final newUseElevenLabs = await _settingsService.getUseElevenLabs();
+    if (newTextMode != _textMode || newUseElevenLabs != _useElevenLabs) {
+      _logger.i('[Bloc] Settings changed after turn — reconnecting');
+      await _disconnectAll();
+      emit(AssistantState.idle(imageUrl: imageUrl));
+    } else {
+      emit(AssistantState.listening(welcomeText: _welcomeText));
     }
   }
 
