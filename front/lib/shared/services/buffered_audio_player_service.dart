@@ -18,8 +18,8 @@ class BufferedAudioPlayerService implements StreamingAudioPlayerService {
   BufferedAudioPlayerService({
     AudioPlayer? player,
     Future<Directory> Function()? getTempDir,
-  })  : _player = player ?? _createPlayer(),
-        _getTempDir = getTempDir ?? getTemporaryDirectory;
+  }) : _player = player ?? _createPlayer(),
+       _getTempDir = getTempDir ?? getTemporaryDirectory;
 
   static AudioPlayer _createPlayer() {
     final player = AudioPlayer();
@@ -69,23 +69,48 @@ class BufferedAudioPlayerService implements StreamingAudioPlayerService {
     _pcmBuffer.clear();
 
     await _completionSub?.cancel();
+
+    // Même logique de nettoyage : fichier en cours
+    String? currentFilePath;
+
     _completionSub = _player.onPlayerComplete.listen((_) {
       _completionSub = null;
+      // on nettoie en fin de lecture
+      if (currentFilePath != null) {
+        final file = File(currentFilePath!);
+        if (await file.exists()) {
+          await file.delete();
+          _logger.d('[BufferedPlayer] Fichier WAV temporaire supprimé.');
+        }
+      }
       onComplete();
     });
 
     try {
       final wav = _buildWav(pcm);
       final dir = await _getTempDir();
-      final path = '${dir.path}/agent_${DateTime.now().millisecondsSinceEpoch}.wav';
-      await File(path).writeAsBytes(wav);
 
-      _logger.i('[BufferedPlayer] Playing ${pcm.length} PCM bytes as WAV → $path');
+      // Conservation du chemin
+      currentFilePath = '${dir.path}/agent_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final file = File(currentFilePath!);
+      await file.writeAsBytes(wav);
+
+      _logger.i(
+        '[BufferedPlayer] Playing ${pcm.length} PCM bytes as WAV → $path',
+      );
       await _player.play(DeviceFileSource(path));
     } catch (e) {
       _logger.e('[BufferedPlayer] Playback error: $e');
       await _completionSub?.cancel();
       _completionSub = null;
+      
+      // Nettoyage même en cas d'erreur de lecture
+      if (currentFilePath != null) {
+        final file = File(currentFilePath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
       onComplete();
     }
   }

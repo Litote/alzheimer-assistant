@@ -28,10 +28,17 @@ class TtsService {
     }
 
     await _completionSub?.cancel();
+    // Mon idée, tu risques de saturer le device si tu supprimes pas tes fichiers audios
+    File? tempFile;
 
     _completionSub = _player.onPlayerComplete.listen(
       (_) {
         _completionSub = null;
+        // Suppression du fichier après lecture
+        if (tempFile != null && await tempFile!.exists()) {
+          await tempFile!.delete();
+          _logger.d('Fichier audio temporaire supprimé.');
+        }
         onComplete();
       },
       // Platform errors propagate through eventStream — catch them here to
@@ -40,6 +47,10 @@ class TtsService {
       onError: (Object e) {
         _logger.e('TTS player error: $e');
         _completionSub = null;
+        // Nettoyage en cas d'erreur également
+        if (tempFile != null && await tempFile!.exists()) {
+          await tempFile!.delete();
+        }
         onComplete();
       },
     );
