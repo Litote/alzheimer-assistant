@@ -31,18 +31,18 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     ClientTtsService? nativeTtsService,
     Duration responseTimeout = const Duration(seconds: 15),
     bool showTranscription = false,
-  })  : _textRepository = textRepository,
-        _audioRepository = audioRepository,
-        _micService = micService,
-        _audioPlayer = audioPlayer,
-        _phoneCallService = phoneCallService ?? PhoneCallService(),
-        _settingsService = settingsService ?? SettingsService(),
-        _speechService = speechService ?? SpeechRecognitionService(),
-        _elevenLabsTtsService = elevenLabsTtsService,
-        _nativeTtsService = nativeTtsService,
-        _responseTimeout = responseTimeout,
-        _showTranscription = showTranscription,
-        super(const AssistantState.idle()) {
+  }) : _textRepository = textRepository,
+       _audioRepository = audioRepository,
+       _micService = micService,
+       _audioPlayer = audioPlayer,
+       _phoneCallService = phoneCallService ?? PhoneCallService(),
+       _settingsService = settingsService ?? SettingsService(),
+       _speechService = speechService ?? SpeechRecognitionService(),
+       _elevenLabsTtsService = elevenLabsTtsService,
+       _nativeTtsService = nativeTtsService,
+       _responseTimeout = responseTimeout,
+       _showTranscription = showTranscription,
+       super(const AssistantState.idle()) {
     on<StartListening>(_onStartListening);
     on<LiveEventReceived>(_onLiveEventReceived);
     on<AudioPlaybackFinished>(_onAudioPlaybackFinished);
@@ -90,6 +90,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   /// True once TTS has been started for the current turn.
   bool _ttsStarted = false;
+
+  /// Calcul du bruit de fond (au lieu du 3500 en dur)
+  double _baselineRms = 0.0;
+  int _rmsSamples = 0;
+  bool _isCalibrating = false;
 
   // ── Active repository accessor ────────────────────────────────────────────
 
@@ -179,15 +184,21 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       _logger.w('[Bloc] LiveAudioChunk received but _textMode=true — dropped');
       return;
     }
-    _logger.i('[Bloc] LiveAudioChunk: ${bytes.length} bytes, state=${state.runtimeType}, player=${_audioPlayer.runtimeType}');
+    _logger.i(
+      '[Bloc] LiveAudioChunk: ${bytes.length} bytes, state=${state.runtimeType}, player=${_audioPlayer.runtimeType}',
+    );
     _audioPlayer!.addChunk(bytes);
     if (state is! Speaking) {
       _welcomeText = '';
-      _logger.i('[Bloc] → first chunk: emitting Speaking + calling playAndClear');
+      _logger.i(
+        '[Bloc] → first chunk: emitting Speaking + calling playAndClear',
+      );
       emit(AssistantState.speaking(responseText: _responseText));
-      _audioPlayer!.playAndClear(onComplete: () {
-        _logger.i('[Bloc] playAndClear onComplete fired');
-      });
+      _audioPlayer!.playAndClear(
+        onComplete: () {
+          _logger.i('[Bloc] playAndClear onComplete fired');
+        },
+      );
     }
   }
 
@@ -230,22 +241,26 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   void _handleToolStatus(String label, Emitter<AssistantState> emit) {
     if (state case Listening(:final interimTranscript)) {
-      emit(AssistantState.listening(
-        interimTranscript: interimTranscript,
-        statusLabel: label,
-        welcomeText: _welcomeText,
-      ));
+      emit(
+        AssistantState.listening(
+          interimTranscript: interimTranscript,
+          statusLabel: label,
+          welcomeText: _welcomeText,
+        ),
+      );
     }
   }
 
   void _handleSessionInfo(String welcome, Emitter<AssistantState> emit) {
     _welcomeText = welcome;
     if (state case Listening(:final interimTranscript, :final statusLabel)) {
-      emit(AssistantState.listening(
-        interimTranscript: interimTranscript,
-        statusLabel: statusLabel,
-        welcomeText: _welcomeText,
-      ));
+      emit(
+        AssistantState.listening(
+          interimTranscript: interimTranscript,
+          statusLabel: statusLabel,
+          welcomeText: _welcomeText,
+        ),
+      );
     }
   }
 
@@ -295,6 +310,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _userTranscript = '';
     _welcomeText = '';
 
+    // reste de la calibration
+    _baselineRms = 0.0;
+    _rmsSamples = 0;
+    _isCalibrating = true;
+
     try {
       _useElevenLabs = await _settingsService.getUseElevenLabs();
 
@@ -303,24 +323,26 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       _audioPlayer ??= PcmStreamingAudioPlayerService();
 
       final audioRepo = _audioRepository!;
-      _liveSubscription = audioRepo.connect(useElevenLabs: _useElevenLabs).listen(
-        (e) {
-          _cancelResponseTimeout();
-          add(AssistantEvent.liveEventReceived(e));
-        },
-        onError: (Object e) {
-          _cancelResponseTimeout();
-          _logger.e('[Bloc] Live stream error: $e');
-          add(const AssistantEvent.errorOccurred('Connexion perdue.'));
-        },
-        onDone: () {
-          _cancelResponseTimeout();
-          if (state is! Idle && state is! AssistantError) {
-            _logger.i('[Bloc] WebSocket closed by server');
-            add(const AssistantEvent.errorOccurred('Session terminée.'));
-          }
-        },
-      );
+      _liveSubscription = audioRepo
+          .connect(useElevenLabs: _useElevenLabs)
+          .listen(
+            (e) {
+              _cancelResponseTimeout();
+              add(AssistantEvent.liveEventReceived(e));
+            },
+            onError: (Object e) {
+              _cancelResponseTimeout();
+              _logger.e('[Bloc] Live stream error: $e');
+              add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+            },
+            onDone: () {
+              _cancelResponseTimeout();
+              if (state is! Idle && state is! AssistantError) {
+                _logger.i('[Bloc] WebSocket closed by server');
+                add(const AssistantEvent.errorOccurred('Session terminée.'));
+              }
+            },
+          );
 
       await _setupMicStreaming(audioRepo);
       emit(AssistantState.listening(welcomeText: _welcomeText));
@@ -338,37 +360,42 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     final buffer = Uint8List(targetSize);
     int offset = 0;
 
-    _micSubscription = micStream.listen(
-      (chunk) {
-        int chunkOffset = 0;
-        while (chunkOffset < chunk.length) {
-          final remaining = targetSize - offset;
-          final toCopy = (chunk.length - chunkOffset).clamp(0, remaining);
-          buffer.setRange(offset, offset + toCopy, chunk, chunkOffset);
-          offset += toCopy;
-          chunkOffset += toCopy;
-          if (offset == targetSize) {
-            offset = _processFullBuffer(buffer, audioRepo);
-          }
+    _micSubscription = micStream.listen((chunk) {
+      int chunkOffset = 0;
+      while (chunkOffset < chunk.length) {
+        final remaining = targetSize - offset;
+        final toCopy = (chunk.length - chunkOffset).clamp(0, remaining);
+        buffer.setRange(offset, offset + toCopy, chunk, chunkOffset);
+        offset += toCopy;
+        chunkOffset += toCopy;
+        if (offset == targetSize) {
+          offset = _processFullBuffer(buffer, audioRepo);
         }
-      },
-      onError: (Object e) => _logger.e('[Bloc] Mic stream error: $e'),
-    );
+      }
+    }, onError: (Object e) => _logger.e('[Bloc] Mic stream error: $e'));
   }
 
   int _processFullBuffer(Uint8List buffer, AudioRepository audioRepo) {
     final rms = _calculateRMS(buffer);
+    // Phase de calibration silencieuse (ex: pendant que le patient écoute)
+    if (state is Listening && _isCalibrating) {
+      _baselineRms = ((_baselineRms * _rmsSamples) + rms) / (_rmsSamples + 1);
+      _rmsSamples++;
+      // Après environ 20 buffers (~1 seconde), on fige le bruit de fond
+      if (_rmsSamples > 20) _isCalibrating = false;
+    }
+
     if (state is Speaking) {
-      if (rms > 3500) {
-        _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)})');
+      // Calcul du seuil dynamique : 4x le bruit de fond (avec un minimum de sécurité)
+      // Cela permet de s'adapter si la pièce est très bruyante ou très silencieuse.
+      final dynamicThreshold = math.max(3000.0, _baselineRms * 4.0);
+
+      if (rms > dynamicThreshold) {
+        _logger.i(
+          '[Bloc] Interruption détectée (RMS: ${rms.toStringAsFixed(0)} > Seuil: ${dynamicThreshold.toStringAsFixed(0)})',
+        );
         _handleInterruption();
       }
-      // Do not forward mic audio to the server while the agent is
-      // speaking. On Android, hardware AEC is unreliable and the
-      // speaker output leaks into the mic signal. Sending it would
-      // cause the server to interpret the echo as user speech and
-      // trigger a new response, creating an echo loop. Interruption
-      // is still detected locally via the RMS check above.
     } else {
       _applyGain(buffer, 2.0);
       audioRepo.sendAudio(Uint8List.fromList(buffer));
@@ -385,28 +412,25 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     try {
       _useElevenLabs = await _settingsService.getUseElevenLabs();
       _liveSubscription = _textRepository
-          .connect(
-            useElevenLabs: _useElevenLabs,
-            sessionId: _sessionId,
-          )
+          .connect(useElevenLabs: _useElevenLabs, sessionId: _sessionId)
           .listen(
-        (e) {
-          _cancelResponseTimeout();
-          add(AssistantEvent.liveEventReceived(e));
-        },
-        onError: (Object e) {
-          _cancelResponseTimeout();
-          _logger.e('[Bloc] Live stream error (text mode): $e');
-          add(const AssistantEvent.errorOccurred('Connexion perdue.'));
-        },
-        onDone: () {
-          _cancelResponseTimeout();
-          if (state is! Idle && state is! AssistantError) {
-            _logger.i('[Bloc] Connection closed by server (text mode)');
-            add(const AssistantEvent.errorOccurred('Session terminée.'));
-          }
-        },
-      );
+            (e) {
+              _cancelResponseTimeout();
+              add(AssistantEvent.liveEventReceived(e));
+            },
+            onError: (Object e) {
+              _cancelResponseTimeout();
+              _logger.e('[Bloc] Live stream error (text mode): $e');
+              add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+            },
+            onDone: () {
+              _cancelResponseTimeout();
+              if (state is! Idle && state is! AssistantError) {
+                _logger.i('[Bloc] Connection closed by server (text mode)');
+                add(const AssistantEvent.errorOccurred('Session terminée.'));
+              }
+            },
+          );
 
       emit(const AssistantState.listening());
       _startResponseTimeout();
@@ -414,9 +438,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       await _speechService.startListening(
         onInterim: (text) {
           if (state case Listening()) {
-            add(AssistantEvent.liveEventReceived(
-              LiveEvent.inputTranscription(text),
-            ));
+            add(
+              AssistantEvent.liveEventReceived(
+                LiveEvent.inputTranscription(text),
+              ),
+            );
           }
         },
         onFinal: (text) => add(AssistantEvent.speechRecognized(text)),
@@ -436,8 +462,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   // ── Turn / call helpers ────────────────────────────────────────────────────
 
   double _calculateRMS(Uint8List bytes) {
-    final samples =
-        Int16List.view(bytes.buffer, bytes.offsetInBytes, bytes.length ~/ 2);
+    final samples = Int16List.view(
+      bytes.buffer,
+      bytes.offsetInBytes,
+      bytes.length ~/ 2,
+    );
     if (samples.isEmpty) return 0.0;
     double sum = 0;
     for (final sample in samples) {
@@ -453,8 +482,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   }
 
   void _applyGain(Uint8List bytes, double factor) {
-    final samples =
-        Int16List.view(bytes.buffer, bytes.offsetInBytes, bytes.length ~/ 2);
+    final samples = Int16List.view(
+      bytes.buffer,
+      bytes.offsetInBytes,
+      bytes.length ~/ 2,
+    );
     for (var i = 0; i < samples.length; i++) {
       samples[i] = (samples[i] * factor).round().clamp(-32768, 32767);
     }
@@ -523,8 +555,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     required bool exactMatch,
     required Emitter<AssistantState> emit,
   }) async {
-    final result =
-        await _phoneCallService.callByName(contactName, exactMatch: exactMatch);
+    final result = await _phoneCallService.callByName(
+      contactName,
+      exactMatch: exactMatch,
+    );
     final resultMessage = switch (result) {
       PhoneCallSuccess() => '$contactName appelé.',
       PhoneCallError(:final message) => message,
