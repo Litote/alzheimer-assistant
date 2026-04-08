@@ -11,7 +11,7 @@ Voice assistant for Alzheimer's patients.
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Litote_alzheimer-assistant&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=Litote_alzheimer-assistant)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Litote_alzheimer-assistant&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=Litote_alzheimer-assistant)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Litote_alzheimer-assistant&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=Litote_alzheimer-assistant)
-[![Apache2 license](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg?style=flat)](https://www.apache.org/licenses/LICENSE-2.0)
+[![GNU Affero General Public License](https://img.shields.io/badge/license-GNU%20Affero%20General%20Public%20License-blue.svg?style=flat)](https://www.gnu.org/licenses/agpl-3.0.fr.html)
 
 ## Structure
 
