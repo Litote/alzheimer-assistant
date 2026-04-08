@@ -330,6 +330,7 @@ void main() {
   late MockSettingsService settingsService;
 
   setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
     registerFallbackValue(Uint8List(0));
     registerFallbackValue(const LiveEvent.turnComplete());
   });
@@ -1828,5 +1829,82 @@ void main() {
         await bloc.close();
       },
     );
+  });
+
+  // ── Wakelock ───────────────────────────────────────────────────────────────
+
+  group('wakelock', () {
+    late List<String> wakelockCalls;
+    late Future<void> Function() enableWakelock;
+    late Future<void> Function() disableWakelock;
+
+    setUp(() {
+      wakelockCalls = [];
+      enableWakelock = () async => wakelockCalls.add('enable');
+      disableWakelock = () async => wakelockCalls.add('disable');
+    });
+
+    MockStreamingAudioPlayerService stubbedPlayer() {
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.hasChunks).thenReturn(false);
+      when(() => player.addChunk(any())).thenReturn(null);
+      when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+      return player;
+    }
+
+    AssistantBloc makeWakelockBloc(_ControllableRepository live) => AssistantBloc(
+          audioRepository: live,
+          textRepository: live,
+          micService: _FakeMicService(),
+          audioPlayer: stubbedPlayer(),
+          settingsService: _FakeSettingsService(),
+          enableWakelock: enableWakelock,
+          disableWakelock: disableWakelock,
+        );
+
+    test('enables wakelock when transitioning to Connecting', () async {
+      final live = _ControllableRepository();
+      final bloc = makeWakelockBloc(live);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(wakelockCalls, contains('enable'));
+      await bloc.close();
+    });
+
+    test('disables wakelock when transitioning to Idle', () async {
+      final live = _ControllableRepository();
+      final bloc = makeWakelockBloc(live);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      wakelockCalls.clear();
+
+      // Cancel the session → back to Idle
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(wakelockCalls, contains('disable'));
+      await bloc.close();
+    });
+
+    test('disables wakelock when transitioning to AssistantError', () async {
+      final live = _ControllableRepository();
+      final bloc = makeWakelockBloc(live);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      wakelockCalls.clear();
+
+      bloc.add(const AssistantEvent.errorOccurred('Erreur réseau'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(wakelockCalls, contains('disable'));
+      await bloc.close();
+    });
   });
 }

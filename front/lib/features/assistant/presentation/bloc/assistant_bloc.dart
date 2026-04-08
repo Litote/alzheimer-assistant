@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
@@ -31,6 +32,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     ClientTtsService? nativeTtsService,
     Duration responseTimeout = const Duration(seconds: 15),
     bool showTranscription = false,
+    Future<void> Function()? enableWakelock,
+    Future<void> Function()? disableWakelock,
   })  : _textRepository = textRepository,
         _audioRepository = audioRepository,
         _micService = micService,
@@ -42,6 +45,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         _nativeTtsService = nativeTtsService,
         _responseTimeout = responseTimeout,
         _showTranscription = showTranscription,
+        _enableWakelock = enableWakelock ?? WakelockPlus.enable,
+        _disableWakelock = disableWakelock ?? WakelockPlus.disable,
         super(const AssistantState.idle()) {
     on<StartListening>(_onStartListening);
     on<LiveEventReceived>(_onLiveEventReceived);
@@ -64,6 +69,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   final ClientTtsService? _nativeTtsService;
   final Duration _responseTimeout;
   final bool _showTranscription;
+  final Future<void> Function() _enableWakelock;
+  final Future<void> Function() _disableWakelock;
   final _logger = appLogger;
 
   StreamSubscription<LiveEvent>? _liveSubscription;
@@ -97,6 +104,19 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   /// Falls back to [_textRepository] if [_audioRepository] is null.
   ConversationRepository get _activeRepo =>
       _textMode ? _textRepository : (_audioRepository ?? _textRepository);
+
+  // ── Wakelock ───────────────────────────────────────────────────────────────
+
+  @override
+  void onChange(Change<AssistantState> change) {
+    super.onChange(change);
+    final next = change.nextState;
+    if (next is Idle || next is AssistantError) {
+      _disableWakelock().ignore();
+    } else {
+      _enableWakelock().ignore();
+    }
+  }
 
   // ── Event handlers ─────────────────────────────────────────────────────────
 
