@@ -14,21 +14,6 @@ All commands below are run from `front/` unless stated otherwise.
 
 ---
 
-## Upgrading Flutter
-
-The required Flutter version is defined in a single place: **`.flutter-version`** (in `front/`).
-All CI workflows read from this file via `flutter-version-file: front/.flutter-version`.
-
-To upgrade:
-1. Update `.flutter-version` with the new version (e.g. `3.42.0`)
-2. Run `flutter upgrade` locally and verify `flutter --version` matches
-3. Regenerate golden screenshots (rendering may change between Flutter versions):
-   - either locally: `flutter test test/golden/ --update-goldens --tags golden`
-   - or via the "Update Golden Screenshots" GitHub Actions workflow
-4. Open a PR — CI will use the new version automatically
-
----
-
 ## Quick Reference
 
 ```bash
@@ -307,3 +292,19 @@ When golden tests fail in CI, the workflow uploads a `golden-failures` artifact 
 test/golden/goldens/   ← committed reference images
 test/golden/failures/  ← generated diffs on failure (not committed)
 ```
+
+---
+
+## Upgrading Flutter
+
+The required Flutter version is defined in a single place: **`.flutter-version`** (in `front/`).
+All CI workflows read from this file via `flutter-version-file: front/.flutter-version`.
+
+To upgrade:
+1. Update `.flutter-version` with the new version (e.g. `3.42.0`)
+2. Run `flutter upgrade` locally and verify `flutter --version` matches
+3. Regenerate golden screenshots (rendering may change between Flutter versions):
+   - either locally: `flutter test test/golden/ --update-goldens --tags golden`
+   - or via the "Update Golden Screenshots" GitHub Actions workflow
+4. Open a PR — CI will use the new version automatically
+
