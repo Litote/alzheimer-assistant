@@ -11,6 +11,8 @@ class ResponseBubble extends StatelessWidget {
     return BlocBuilder<AssistantBloc, AssistantState>(
       builder: (context, state) {
         final (text, isError, semanticLabel) = switch (state) {
+          Listening(imageUrl: final img) when img.isNotEmpty =>
+            ('', false, 'Photo — appuyez pour agrandir'),
           Listening(interimTranscript: final t) when t.isNotEmpty =>
             (t, false, 'Vous dites : $t'),
           Listening(statusLabel: final l) when l.isNotEmpty =>
@@ -34,6 +36,7 @@ class ResponseBubble extends StatelessWidget {
 
         final imageUrl = switch (state) {
           Speaking(:final imageUrl) => imageUrl,
+          Listening(:final imageUrl) => imageUrl,
           Idle(:final imageUrl) => imageUrl,
           _ => '',
         };

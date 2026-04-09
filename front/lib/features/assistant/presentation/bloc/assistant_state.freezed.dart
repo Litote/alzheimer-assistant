@@ -163,8 +163,8 @@ extension AssistantStatePatterns on AssistantState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(String imageUrl)? idle,
     TResult Function()? connecting,
-    TResult Function(
-            String interimTranscript, String statusLabel, String welcomeText)?
+    TResult Function(String interimTranscript, String statusLabel,
+            String welcomeText, String imageUrl)?
         listening,
     TResult Function(
             String responseText, String userTranscript, String imageUrl)?
@@ -179,8 +179,8 @@ extension AssistantStatePatterns on AssistantState {
       case Connecting() when connecting != null:
         return connecting();
       case Listening() when listening != null:
-        return listening(
-            _that.interimTranscript, _that.statusLabel, _that.welcomeText);
+        return listening(_that.interimTranscript, _that.statusLabel,
+            _that.welcomeText, _that.imageUrl);
       case Speaking() when speaking != null:
         return speaking(
             _that.responseText, _that.userTranscript, _that.imageUrl);
@@ -208,8 +208,8 @@ extension AssistantStatePatterns on AssistantState {
   TResult when<TResult extends Object?>({
     required TResult Function(String imageUrl) idle,
     required TResult Function() connecting,
-    required TResult Function(
-            String interimTranscript, String statusLabel, String welcomeText)
+    required TResult Function(String interimTranscript, String statusLabel,
+            String welcomeText, String imageUrl)
         listening,
     required TResult Function(
             String responseText, String userTranscript, String imageUrl)
@@ -223,8 +223,8 @@ extension AssistantStatePatterns on AssistantState {
       case Connecting():
         return connecting();
       case Listening():
-        return listening(
-            _that.interimTranscript, _that.statusLabel, _that.welcomeText);
+        return listening(_that.interimTranscript, _that.statusLabel,
+            _that.welcomeText, _that.imageUrl);
       case Speaking():
         return speaking(
             _that.responseText, _that.userTranscript, _that.imageUrl);
@@ -249,8 +249,8 @@ extension AssistantStatePatterns on AssistantState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(String imageUrl)? idle,
     TResult? Function()? connecting,
-    TResult? Function(
-            String interimTranscript, String statusLabel, String welcomeText)?
+    TResult? Function(String interimTranscript, String statusLabel,
+            String welcomeText, String imageUrl)?
         listening,
     TResult? Function(
             String responseText, String userTranscript, String imageUrl)?
@@ -264,8 +264,8 @@ extension AssistantStatePatterns on AssistantState {
       case Connecting() when connecting != null:
         return connecting();
       case Listening() when listening != null:
-        return listening(
-            _that.interimTranscript, _that.statusLabel, _that.welcomeText);
+        return listening(_that.interimTranscript, _that.statusLabel,
+            _that.welcomeText, _that.imageUrl);
       case Speaking() when speaking != null:
         return speaking(
             _that.responseText, _that.userTranscript, _that.imageUrl);
@@ -367,7 +367,8 @@ class Listening implements AssistantState {
   const Listening(
       {this.interimTranscript = '',
       this.statusLabel = '',
-      this.welcomeText = ''});
+      this.welcomeText = '',
+      this.imageUrl = ''});
 
   @JsonKey()
   final String interimTranscript;
@@ -375,6 +376,8 @@ class Listening implements AssistantState {
   final String statusLabel;
   @JsonKey()
   final String welcomeText;
+  @JsonKey()
+  final String imageUrl;
 
   /// Create a copy of AssistantState
   /// with the given fields replaced by the non-null parameter values.
@@ -393,16 +396,18 @@ class Listening implements AssistantState {
             (identical(other.statusLabel, statusLabel) ||
                 other.statusLabel == statusLabel) &&
             (identical(other.welcomeText, welcomeText) ||
-                other.welcomeText == welcomeText));
+                other.welcomeText == welcomeText) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, interimTranscript, statusLabel, welcomeText);
+  int get hashCode => Object.hash(
+      runtimeType, interimTranscript, statusLabel, welcomeText, imageUrl);
 
   @override
   String toString() {
-    return 'AssistantState.listening(interimTranscript: $interimTranscript, statusLabel: $statusLabel, welcomeText: $welcomeText)';
+    return 'AssistantState.listening(interimTranscript: $interimTranscript, statusLabel: $statusLabel, welcomeText: $welcomeText, imageUrl: $imageUrl)';
   }
 }
 
@@ -412,7 +417,11 @@ abstract mixin class $ListeningCopyWith<$Res>
   factory $ListeningCopyWith(Listening value, $Res Function(Listening) _then) =
       _$ListeningCopyWithImpl;
   @useResult
-  $Res call({String interimTranscript, String statusLabel, String welcomeText});
+  $Res call(
+      {String interimTranscript,
+      String statusLabel,
+      String welcomeText,
+      String imageUrl});
 }
 
 /// @nodoc
@@ -429,6 +438,7 @@ class _$ListeningCopyWithImpl<$Res> implements $ListeningCopyWith<$Res> {
     Object? interimTranscript = null,
     Object? statusLabel = null,
     Object? welcomeText = null,
+    Object? imageUrl = null,
   }) {
     return _then(Listening(
       interimTranscript: null == interimTranscript
@@ -442,6 +452,10 @@ class _$ListeningCopyWithImpl<$Res> implements $ListeningCopyWith<$Res> {
       welcomeText: null == welcomeText
           ? _self.welcomeText
           : welcomeText // ignore: cast_nullable_to_non_nullable
+              as String,
+      imageUrl: null == imageUrl
+          ? _self.imageUrl
+          : imageUrl // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }

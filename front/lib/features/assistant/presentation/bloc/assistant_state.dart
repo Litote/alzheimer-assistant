@@ -17,6 +17,7 @@ sealed class AssistantState with _$AssistantState {
     @Default('') String interimTranscript,
     @Default('') String statusLabel,
     @Default('') String welcomeText,
+    @Default('') String imageUrl,
   }) = Listening;
 
   /// Agent is responding — audio buffer is filling, text is streaming in.

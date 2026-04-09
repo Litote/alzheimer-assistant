@@ -93,6 +93,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   /// Session identifier persisted across turns (text mode only).
   String? _sessionId;
 
+  /// Last image URL received, persisted across states.
+  String _currentImageUrl = '';
+
   /// Whether text mode was active when the current connection was opened.
   bool _textMode = false;
 
@@ -160,14 +163,17 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   ) async {
     if (event.text.isEmpty) {
       await _disconnectAll();
-      emit(const AssistantState.idle());
+      emit(AssistantState.idle(imageUrl: _currentImageUrl));
       return;
     }
     await _speechService.stopListening();
     _textRepository.sendText(event.text);
     _userTranscript = event.text;
     _responseText = '';
-    emit(AssistantState.speaking(userTranscript: _userTranscript));
+    emit(AssistantState.speaking(
+      userTranscript: _userTranscript,
+      imageUrl: _currentImageUrl,
+    ));
     _startResponseTimeout();
   }
 
@@ -225,7 +231,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   void _handleInputTranscription(String text, Emitter<AssistantState> emit) {
     if (_showTranscription || _textMode) {
-      emit(AssistantState.listening(interimTranscript: text));
+      emit(AssistantState.listening(
+        interimTranscript: text,
+        imageUrl: _currentImageUrl,
+      ));
     }
   }
 
@@ -244,7 +253,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     // image visible — skip the text state update.
     final current = state;
     if (current is Speaking && current.imageUrl.isNotEmpty) return;
-    emit(AssistantState.speaking(responseText: _responseText));
+    emit(AssistantState.speaking(
+      responseText: _responseText,
+      imageUrl: _currentImageUrl,
+    ));
   }
 
   Future<void> _tryStartTts(String text) async {
@@ -266,6 +278,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         interimTranscript: interimTranscript,
         statusLabel: label,
         welcomeText: _welcomeText,
+        imageUrl: _currentImageUrl,
       ));
     }
   }
@@ -277,17 +290,19 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         interimTranscript: interimTranscript,
         statusLabel: statusLabel,
         welcomeText: _welcomeText,
+        imageUrl: _currentImageUrl,
       ));
     }
   }
 
   void _handleImageUrl(String url, Emitter<AssistantState> emit) {
     _logger.i('[Bloc] LiveImageUrl: $url');
+    _currentImageUrl = url;
     final current = state;
     if (current is Speaking) {
-      emit(current.copyWith(imageUrl: url));
+      emit(current.copyWith(imageUrl: _currentImageUrl));
     } else {
-      emit(AssistantState.speaking(imageUrl: url));
+      emit(AssistantState.speaking(imageUrl: _currentImageUrl));
     }
   }
 
@@ -295,12 +310,15 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     AudioPlaybackFinished event,
     Emitter<AssistantState> emit,
   ) async {
-    if (state case Speaking(:final imageUrl)) {
+    if (state is Speaking) {
       if (_textMode) {
         await _disconnectAll();
-        emit(AssistantState.idle(imageUrl: imageUrl));
+        emit(AssistantState.idle(imageUrl: _currentImageUrl));
       } else {
-        emit(AssistantState.listening(welcomeText: _welcomeText));
+        emit(AssistantState.listening(
+          welcomeText: _welcomeText,
+          imageUrl: _currentImageUrl,
+        ));
       }
     }
   }
@@ -320,7 +338,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     await _audioPlayer?.stop();
     if (state is! Speaking) return;
     await _disconnectAll();
-    emit(const AssistantState.idle());
+    emit(AssistantState.idle(imageUrl: _currentImageUrl));
   }
 
   // ── Connection helpers ─────────────────────────────────────────────────────
@@ -359,7 +377,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       );
 
       await _setupMicStreaming(audioRepo);
-      emit(AssistantState.listening(welcomeText: _welcomeText));
+      emit(AssistantState.listening(
+        welcomeText: _welcomeText,
+        imageUrl: _currentImageUrl,
+      ));
       _startResponseTimeout();
     } catch (e) {
       _logger.e('[Bloc] Connection error: $e');
@@ -441,7 +462,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
           }
         },
       );
-      emit(AssistantState.listening(welcomeText: _welcomeText));
+      emit(AssistantState.listening(
+        welcomeText: _welcomeText,
+        imageUrl: _currentImageUrl,
+      ));
       _startResponseTimeout();
     } catch (e) {
       _logger.e('[Bloc] LiveKit connection error: $e');
@@ -482,7 +506,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
       );
 
-      emit(const AssistantState.listening());
+      emit(AssistantState.listening(imageUrl: _currentImageUrl));
       _startResponseTimeout();
 
       await _speechService.startListening(
@@ -535,20 +559,22 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   }
 
   Future<void> _handleTurnComplete(Emitter<AssistantState> emit) async {
-    if (state case Speaking(:final imageUrl)) {
+    if (state is Speaking) {
       if (_textMode) {
-        await _handleTextModeTurnComplete(imageUrl, emit);
+        await _handleTextModeTurnComplete(emit);
       } else if (_webRtcMode) {
         _responseText = '';
-        emit(AssistantState.listening(welcomeText: _welcomeText));
+        emit(AssistantState.listening(
+          welcomeText: _welcomeText,
+          imageUrl: _currentImageUrl,
+        ));
       } else {
-        await _handleAudioModeTurnComplete(imageUrl, emit);
+        await _handleAudioModeTurnComplete(emit);
       }
     }
   }
 
   Future<void> _handleTextModeTurnComplete(
-    String imageUrl,
     Emitter<AssistantState> emit,
   ) async {
     if (_ttsStarted && _responseText.isEmpty) {
@@ -575,11 +601,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
     // No text or no TTS service: disconnect immediately.
     await _disconnectAll();
-    emit(AssistantState.idle(imageUrl: imageUrl));
+    emit(AssistantState.idle(imageUrl: _currentImageUrl));
   }
 
   Future<void> _handleAudioModeTurnComplete(
-    String imageUrl,
     Emitter<AssistantState> emit,
   ) async {
     _responseText = '';
@@ -588,9 +613,12 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     if (newTextMode != _textMode || newUseElevenLabs != _useElevenLabs) {
       _logger.i('[Bloc] Settings changed after turn — reconnecting');
       await _disconnectAll();
-      emit(AssistantState.idle(imageUrl: imageUrl));
+      emit(AssistantState.idle(imageUrl: _currentImageUrl));
     } else {
-      emit(AssistantState.listening(welcomeText: _welcomeText));
+      emit(AssistantState.listening(
+        welcomeText: _welcomeText,
+        imageUrl: _currentImageUrl,
+      ));
     }
   }
 

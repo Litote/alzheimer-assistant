@@ -4,11 +4,21 @@ plugins {
 
 // ── Flutter tasks ──────────────────────────────────────────────────────────
 
+// Resolve flutter executable from local.properties if available, fallback to PATH.
+val flutterCmd = project.file("android/local.properties").let { propFile ->
+    if (propFile.exists()) {
+        val props = java.util.Properties()
+        propFile.inputStream().use { props.load(it) }
+        val sdk = props.getProperty("flutter.sdk")
+        if (sdk != null) "$sdk/bin/flutter" else "flutter"
+    } else "flutter"
+}
+
 val flutterPubGet by tasks.registering(Exec::class) {
     group = "front"
     description = "Installs Flutter dependencies."
     workingDir = projectDir
-    commandLine("flutter", "pub", "get", "--enforce-lockfile")
+    commandLine(flutterCmd, "pub", "get", "--enforce-lockfile")
 }
 
 val frontAnalyze by tasks.registering(Exec::class) {
@@ -16,7 +26,7 @@ val frontAnalyze by tasks.registering(Exec::class) {
     description = "Runs Flutter static analysis."
     dependsOn(flutterPubGet)
     workingDir = projectDir
-    commandLine("flutter", "analyze", "--fatal-infos")
+    commandLine(flutterCmd, "analyze", "--fatal-infos")
 }
 
 val frontTest by tasks.registering(Exec::class) {
@@ -26,7 +36,7 @@ val frontTest by tasks.registering(Exec::class) {
     workingDir = projectDir
     // --coverage generates coverage/lcov.info consumed by SonarQube
     commandLine(
-        "flutter", "test", "test/",
+        flutterCmd, "test", "test/",
         "--exclude-tags", "golden",
         "--coverage",
     )
@@ -38,7 +48,7 @@ val frontBuildAndroid by tasks.registering(Exec::class) {
     dependsOn(flutterPubGet)
     workingDir = projectDir
     commandLine(
-        "flutter", "build", "apk", "--release",
+        flutterCmd, "build", "apk", "--release",
         "--dart-define-from-file=secrets.json",
     )
 }
@@ -49,7 +59,7 @@ val frontBuildIos by tasks.registering(Exec::class) {
     dependsOn(flutterPubGet)
     workingDir = projectDir
     commandLine(
-        "flutter", "build", "ios",
+        flutterCmd, "build", "ios",
         "--no-codesign", "--simulator", "--debug",
         "--dart-define-from-file=secrets.json",
     )
