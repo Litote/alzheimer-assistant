@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:alzheimer_assistant/app/router.dart';
 import 'package:alzheimer_assistant/app/theme.dart';
+import 'package:alzheimer_assistant/features/assistant/data/repositories/livekit_audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/sse_text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/ws_audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
@@ -37,6 +38,7 @@ class App extends StatelessWidget {
               AssistantBloc(
                 textRepository: SseTextRepository(),
                 audioRepository: WsAudioRepository(),
+                webRtcRepository: LiveKitAudioRepository(),
                 micService: MicrophoneStreamService(),
                 // audioPlayer is intentionally omitted here: PcmStreamingAudioPlayerService
                 // is created lazily inside the BLoC on the first audio-mode connect,

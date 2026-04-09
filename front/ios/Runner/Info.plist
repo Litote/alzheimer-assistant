@@ -12,9 +12,12 @@
 	<!-- Contacts permission for phone call feature -->
 	<key>NSContactsUsageDescription</key>
 	<string>L'application accède aux contacts pour lancer des appels téléphoniques.</string>
-	<!-- Microphone permission for speech recognition -->
+	<!-- Microphone permission for speech recognition and WebRTC -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>L'application a besoin du microphone pour vous écouter et vous aider.</string>
+	<!-- Local network access for WebRTC / LiveKit -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>L'application utilise le réseau local pour la communication audio en temps réel.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>L'application utilise la reconnaissance vocale pour comprendre vos questions.</string>
 	<key>CFBundleDevelopmentRegion</key>

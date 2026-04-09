@@ -1,8 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Microphone permission for speech recognition -->
+    <!-- Microphone permission for speech recognition and WebRTC -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <!-- Internet permission for API calls -->
+    <!-- Internet permission for API calls and WebRTC -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- WebRTC / LiveKit permissions -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
     <!-- Contacts permission for phone call feature -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <uses-permission android:name="android.permission.CALL_PHONE"/>

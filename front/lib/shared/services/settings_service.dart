@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SettingsService {
   static const _keyUseElevenLabs = 'use_elevenlabs';
   static const _keyUseTextMode = 'use_text_mode';
+  static const _keyUseLiveKit = 'use_livekit';
 
   /// Returns whether ElevenLabs TTS is enabled. Defaults to [true].
   Future<bool> getUseElevenLabs() async {
@@ -28,5 +29,17 @@ class SettingsService {
   Future<void> setUseTextMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyUseTextMode, value);
+  }
+
+  /// Returns whether LiveKit WebRTC mode is enabled. Defaults to [false].
+  Future<bool> getUseLiveKit() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyUseLiveKit) ?? false;
+  }
+
+  /// Persists the LiveKit WebRTC mode preference.
+  Future<void> setUseLiveKit(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyUseLiveKit, value);
   }
 }

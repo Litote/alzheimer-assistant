@@ -9,6 +9,7 @@ import 'package:alzheimer_assistant/features/assistant/domain/entities/live_even
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/conversation_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrtc_repository.dart';
 import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/pcm_streaming_audio_player_service.dart';
@@ -23,6 +24,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   AssistantBloc({
     required TextRepository textRepository,
     AudioRepository? audioRepository,
+    WebRtcRepository? webRtcRepository,
     required MicrophoneStreamService micService,
     StreamingAudioPlayerService? audioPlayer,
     PhoneCallService? phoneCallService,
@@ -36,6 +38,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     Future<void> Function()? disableWakelock,
   })  : _textRepository = textRepository,
         _audioRepository = audioRepository,
+        _webRtcRepository = webRtcRepository,
         _micService = micService,
         _audioPlayer = audioPlayer,
         _phoneCallService = phoneCallService ?? PhoneCallService(),
@@ -58,6 +61,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   final TextRepository _textRepository;
   final AudioRepository? _audioRepository;
+  final WebRtcRepository? _webRtcRepository;
   final MicrophoneStreamService _micService;
   // Nullable: lazily created (PcmStreamingAudioPlayerService) on first audio
   // mode connect, to avoid touching the iOS audio session in text mode.
@@ -92,6 +96,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   /// Whether text mode was active when the current connection was opened.
   bool _textMode = false;
 
+  /// Whether LiveKit WebRTC mode was active when the current connection was opened.
+  bool _webRtcMode = false;
+
   /// Whether ElevenLabs TTS was enabled when the current connection was opened.
   bool _useElevenLabs = false;
 
@@ -101,9 +108,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   // ── Active repository accessor ────────────────────────────────────────────
 
   /// Returns the repository for the current (or upcoming) mode.
-  /// Falls back to [_textRepository] if [_audioRepository] is null.
-  ConversationRepository get _activeRepo =>
-      _textMode ? _textRepository : (_audioRepository ?? _textRepository);
+  ConversationRepository get _activeRepo {
+    if (_webRtcMode) return _webRtcRepository ?? _textRepository;
+    if (_textMode) return _textRepository;
+    return _audioRepository ?? _textRepository;
+  }
 
   // ── Wakelock ───────────────────────────────────────────────────────────────
 
@@ -135,7 +144,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
 
     _textMode = await _settingsService.getUseTextMode();
-    if (_textMode) {
+    final useLiveKit = await _settingsService.getUseLiveKit();
+    if (useLiveKit && _webRtcRepository != null) {
+      await _connectWebRtc(emit);
+    } else if (_textMode) {
       await _connectTextMode(emit);
     } else {
       await _connect(emit);
@@ -221,7 +233,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     String text,
     Emitter<AssistantState> emit,
   ) async {
-    if (!_showTranscription && !_textMode) return;
+    if (!_showTranscription && !_textMode && !_webRtcMode) return;
     if (text == _responseText) {
       // Final echo — start TTS immediately in text mode.
       await _tryStartTts(text);
@@ -293,7 +305,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
   }
 
-  void _onErrorOccurred(ErrorOccurred event, Emitter<AssistantState> emit) {
+  Future<void> _onErrorOccurred(
+    ErrorOccurred event,
+    Emitter<AssistantState> emit,
+  ) async {
+    await _disconnectAll();
     emit(AssistantState.error(message: event.message));
   }
 
@@ -396,6 +412,44 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     return 0;
   }
 
+  Future<void> _connectWebRtc(Emitter<AssistantState> emit) async {
+    emit(const AssistantState.connecting());
+    _responseText = '';
+    _userTranscript = '';
+    _welcomeText = '';
+    _webRtcMode = true;
+
+    try {
+      _useElevenLabs = await _settingsService.getUseElevenLabs();
+      _liveSubscription = _webRtcRepository!
+          .connect(useElevenLabs: _useElevenLabs)
+          .listen(
+        (e) {
+          _cancelResponseTimeout();
+          add(AssistantEvent.liveEventReceived(e));
+        },
+        onError: (Object e) {
+          _cancelResponseTimeout();
+          _logger.e('[Bloc] LiveKit stream error: $e');
+          add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+        },
+        onDone: () {
+          _cancelResponseTimeout();
+          if (state is! Idle && state is! AssistantError) {
+            _logger.i('[Bloc] LiveKit room closed by server');
+            add(const AssistantEvent.errorOccurred('Session terminée.'));
+          }
+        },
+      );
+      emit(AssistantState.listening(welcomeText: _welcomeText));
+      _startResponseTimeout();
+    } catch (e) {
+      _logger.e('[Bloc] LiveKit connection error: $e');
+      await _disconnectAll();
+      emit(const AssistantState.error(message: 'Impossible de se connecter.'));
+    }
+  }
+
   Future<void> _connectTextMode(Emitter<AssistantState> emit) async {
     emit(const AssistantState.connecting());
     _responseText = '';
@@ -484,6 +538,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     if (state case Speaking(:final imageUrl)) {
       if (_textMode) {
         await _handleTextModeTurnComplete(imageUrl, emit);
+      } else if (_webRtcMode) {
+        _responseText = '';
+        emit(AssistantState.listening(welcomeText: _welcomeText));
       } else {
         await _handleAudioModeTurnComplete(imageUrl, emit);
       }
@@ -583,6 +640,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     await _activeRepo.disconnect();
     await _elevenLabsTtsService?.stop();
     await _nativeTtsService?.stop();
+    _webRtcMode = false;
   }
 
   String _formatNames(List<String> names) {

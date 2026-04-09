@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrtc_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
@@ -28,6 +29,8 @@ class MockStreamingAudioPlayerService extends Mock
     implements StreamingAudioPlayerService {}
 
 class MockPhoneCallService extends Mock implements PhoneCallService {}
+
+class MockWebRtcRepository extends Mock implements WebRtcRepository {}
 
 class MockSettingsService extends Mock implements SettingsService {}
 
@@ -171,6 +174,12 @@ class _FakeSettingsService implements SettingsService {
 
   @override
   Future<void> setUseTextMode(bool value) async {}
+
+  @override
+  Future<bool> getUseLiveKit() async => false;
+
+  @override
+  Future<void> setUseLiveKit(bool value) async {}
 }
 
 class _MutableFakeSettingsService implements SettingsService {
@@ -199,6 +208,12 @@ class _MutableFakeSettingsService implements SettingsService {
 
   @override
   Future<void> setUseTextMode(bool value) async {}
+
+  @override
+  Future<bool> getUseLiveKit() async => false;
+
+  @override
+  Future<void> setUseLiveKit(bool value) async {}
 }
 
 /// Settings: useElevenLabs=true, textMode=true.
@@ -214,6 +229,12 @@ class _ElevenLabsTextSettingsService implements SettingsService {
 
   @override
   Future<void> setUseTextMode(bool value) async {}
+
+  @override
+  Future<bool> getUseLiveKit() async => false;
+
+  @override
+  Future<void> setUseLiveKit(bool value) async {}
 }
 
 // ── Speech recognition service helper ─────────────────────────────────────
@@ -267,6 +288,28 @@ class _NoOpClientTtsService implements ClientTtsService {
   @override
   Future<void> dispose() async {}
 }
+
+/// Settings with LiveKit enabled (textMode=false).
+class _FakeLiveKitSettingsService implements SettingsService {
+  @override
+  Future<bool> getUseElevenLabs() async => false;
+
+  @override
+  Future<void> setUseElevenLabs(bool value) async {}
+
+  @override
+  Future<bool> getUseTextMode() async => false;
+
+  @override
+  Future<void> setUseTextMode(bool value) async {}
+
+  @override
+  Future<bool> getUseLiveKit() async => true;
+
+  @override
+  Future<void> setUseLiveKit(bool value) async {}
+}
+
 
 // ── BLoC factory helpers ───────────────────────────────────────────────────
 
@@ -347,6 +390,7 @@ void main() {
         )).thenAnswer((_) => StreamController<LiveEvent>().stream);
     when(() => settingsService.getUseElevenLabs()).thenAnswer((_) async => false);
     when(() => settingsService.getUseTextMode()).thenAnswer((_) async => false);
+    when(() => settingsService.getUseLiveKit()).thenAnswer((_) async => false);
     when(() => audioRepository.disconnect()).thenAnswer((_) async {});
     when(() => audioRepository.sendAudio(any())).thenReturn(null);
     when(() => audioRepository.sendToolResponse(
@@ -1829,6 +1873,178 @@ void main() {
         await bloc.close();
       },
     );
+  });
+
+  // ── LiveKit / WebRTC mode ──────────────────────────────────────────────────
+
+  group('WebRTC mode', () {
+    late MockWebRtcRepository webRtcRepository;
+
+    setUp(() {
+      webRtcRepository = MockWebRtcRepository();
+      when(
+        () => webRtcRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      ).thenAnswer((_) => StreamController<LiveEvent>().stream);
+      when(() => webRtcRepository.disconnect()).thenAnswer((_) async {});
+      when(
+        () => webRtcRepository.sendToolResponse(
+          callId: any(named: 'callId'),
+          functionName: any(named: 'functionName'),
+          result: any(named: 'result'),
+        ),
+      ).thenReturn(null);
+      when(() => webRtcRepository.sendInterruption()).thenReturn(null);
+    });
+
+    test('StartListening routes to WebRTC when useLiveKit=true', () async {
+      final bloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: _FakeMicService(),
+        settingsService: _FakeSettingsService(),
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+      final settings = _FakeLiveKitSettingsService();
+      final liveKitBloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: _FakeMicService(),
+        settingsService: settings,
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+
+      liveKitBloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      verify(
+        () => webRtcRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      ).called(1);
+
+      await liveKitBloc.close();
+      await bloc.close();
+    });
+
+    test('StartListening in WebRTC mode does not start mic streaming', () async {
+      final mockMic = MockMicrophoneStreamService();
+      when(() => mockMic.stop()).thenAnswer((_) async {});
+      when(() => mockMic.dispose()).thenAnswer((_) async {});
+
+      final settings = _FakeLiveKitSettingsService();
+      final bloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: mockMic,
+        settingsService: settings,
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      verifyNever(() => mockMic.startStreaming());
+      await bloc.close();
+    });
+
+    test('outputTranscription in WebRTC mode emits Speaking', () async {
+      final live = _ControllableRepository();
+      when(
+        () => webRtcRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      ).thenAnswer((_) => live.connect());
+
+      final settings = _FakeLiveKitSettingsService();
+      final bloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: _FakeMicService(),
+        settingsService: settings,
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+
+      final states = <AssistantState>[];
+      bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      live.emit(const LiveEvent.outputTranscription('Bonjour'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(states.whereType<Speaking>(), isNotEmpty);
+      await bloc.close();
+    });
+
+    test('turnComplete in WebRTC mode returns to Listening (not Idle)', () async {
+      final live = _ControllableRepository();
+      when(
+        () => webRtcRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      ).thenAnswer((_) => live.connect());
+
+      final settings = _FakeLiveKitSettingsService();
+      final bloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: _FakeMicService(),
+        settingsService: settings,
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      live.emit(const LiveEvent.outputTranscription('Réponse'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      live.emit(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state, isA<Listening>());
+      await bloc.close();
+    });
+
+    test('errorOccurred while in WebRTC Listening disconnects repository', () async {
+      final live = _ControllableRepository();
+      when(
+        () => webRtcRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      ).thenAnswer((_) => live.connect());
+
+      final settings = _FakeLiveKitSettingsService();
+      final bloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: _FakeMicService(),
+        settingsService: settings,
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      bloc.add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      verify(() => webRtcRepository.disconnect()).called(greaterThan(0));
+      expect(bloc.state, isA<AssistantError>());
+      await bloc.close();
+    });
   });
 
   // ── Wakelock ───────────────────────────────────────────────────────────────

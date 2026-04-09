@@ -13,6 +13,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _useElevenLabs = false;
   bool _useTextMode = false;
+  bool _useLiveKit = false;
   bool _loaded = false;
 
   @override
@@ -24,9 +25,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final elevenLabs = await widget.settingsService.getUseElevenLabs();
     final textMode = await widget.settingsService.getUseTextMode();
+    final liveKit = await widget.settingsService.getUseLiveKit();
     setState(() {
       _useElevenLabs = elevenLabs;
       _useTextMode = textMode;
+      _useLiveKit = liveKit;
       _loaded = true;
     });
   }
@@ -62,6 +65,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) async {
                     await widget.settingsService.setUseTextMode(value);
                     setState(() => _useTextMode = value);
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text('Mode LiveKit (WebRTC)'),
+                  subtitle: const Text(
+                    'Utilise LiveKit pour la communication audio en temps réel. '
+                    'Nécessite que le serveur supporte LiveKit. '
+                    'Prend effet à la prochaine conversation.',
+                  ),
+                  value: _useLiveKit,
+                  onChanged: (value) async {
+                    await widget.settingsService.setUseLiveKit(value);
+                    setState(() => _useLiveKit = value);
                   },
                 ),
               ],
