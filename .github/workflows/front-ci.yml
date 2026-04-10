@@ -117,11 +117,14 @@ jobs:
   # ── Build iOS ─────────────────────────────────────────────────────────────
   build-ios:
     name: Build iOS (no codesign)
-    runs-on: macos-latest
+    runs-on: macos-26
     needs: test
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter

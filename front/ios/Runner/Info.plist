@@ -9,6 +9,9 @@
 	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Camera permission required by SDK dependencies (e.g. livekit_client) even though the app does not use the camera -->
+	<key>NSCameraUsageDescription</key>
+	<string>L'application n'utilise pas la caméra. Cette déclaration est requise par une dépendance SDK.</string>
 	<!-- Contacts permission for phone call feature -->
 	<key>NSContactsUsageDescription</key>
 	<string>L'application accède aux contacts pour lancer des appels téléphoniques.</string>

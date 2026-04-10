@@ -61,8 +61,8 @@ dependencies:
   # Utilities
   logger: 2.7.0
   shared_preferences: 2.5.5
-  device_info_plus: 12.3.0 # Fixed version to avoid build error on CI introduced in 12.4.0
-  connectivity_plus: 7.0.0 # Fixed version to avoid build error on CI introduced in 7.1.0
+  #device_info_plus: 12.3.0 # Fixed version to avoid build error on CI introduced in 12.4.0
+  #connectivity_plus: 7.0.0 # Fixed version to avoid build error on CI introduced in 7.1.0
 
   # Client-side TTS
   flutter_tts: 4.2.5

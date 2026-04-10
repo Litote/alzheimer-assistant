@@ -17,7 +17,7 @@ defaults:
 jobs:
   update-goldens:
     name: Generate & commit golden screenshots
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 20
 
     steps:
@@ -27,6 +27,9 @@ jobs:
           # Check out the current branch (not the detached SHA)
           # so we can commit the generated goldens to it
           ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
       - name: Setup Flutter
         uses: ./.github/actions/setup-flutter
