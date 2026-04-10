@@ -33,6 +33,8 @@ jobs:
 
       # ── Signing ─────────────────────────────────────────────────────────────
       # Import the distribution certificate into a temporary keychain.
+      # Manual signing (CODE_SIGN_STYLE=Manual) is used to avoid Xcode creating
+      # a new certificate on every run via -allowProvisioningUpdates.
       # The keychain is deleted in the cleanup step regardless of success/failure.
       - name: Import distribution certificate
         env:
@@ -56,9 +58,20 @@ jobs:
             -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
+      - name: Install provisioning profile
+        env:
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PP_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          # A .mobileprovision file embeds a plain XML plist inside a CMS envelope.
+          # Python extracts it directly without needing to decode the CMS signature.
+          UUID=$(grep -aEio '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' "$PP_PATH" | head -1)
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"${UUID}".mobileprovision
+
       # ── App Store Connect API key ────────────────────────────────────────────
-      # Xcode reads the key from this standard location to manage provisioning
-      # profiles automatically (-allowProvisioningUpdates).
+      # Still needed for xcrun altool upload (authentication to App Store Connect).
       - name: Store App Store Connect API key
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
@@ -95,10 +108,14 @@ jobs:
       # ── Archive ─────────────────────────────────────────────────────────────
       - name: Archive
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: |
+          PP_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          PROFILE_UUID=$(grep -aEio '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' "$PP_PATH" | head -1)
+
+          [ -z "$PROFILE_UUID" ] && echo "ERROR: could not extract UUID from provisioning profile" && exit 1
+
           set -o pipefail
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
@@ -106,12 +123,11 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath /tmp/Runner.xcarchive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
-            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            "CODE_SIGN_IDENTITY=Apple Distribution" \
+            PROVISIONING_PROFILE="$PROFILE_UUID" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             2>&1 | tee /tmp/xcodebuild-archive.log | xcpretty || {
             echo "--- xcodebuild archive FAILED — error lines ---"
             grep -E "(error:|ARCHIVE FAILED|The following|build commands failed)" /tmp/xcodebuild-archive.log || true
@@ -124,7 +140,12 @@ jobs:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: |
+          PP_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          PROFILE_UUID=$(grep -aEio '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' "$PP_PATH" | head -1)
+          PROFILE_NAME=$(python3 -c "import re,sys; d=open(sys.argv[1],'rb').read(); print(re.search(rb'<key>Name</key>\s*<string>([^<]+)</string>',d).group(1).decode())" "$PP_PATH")
+
           cat > /tmp/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -135,7 +156,12 @@ jobs:
             <key>teamID</key>
             <string>${APPLE_TEAM_ID}</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>org.litote.alzheimerAssistant</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
             <key>uploadBitcode</key>
             <false/>
             <key>uploadSymbols</key>
@@ -149,7 +175,6 @@ jobs:
             -archivePath /tmp/Runner.xcarchive \
             -exportPath /tmp/Runner-ipa \
             -exportOptionsPlist /tmp/ExportOptions.plist \
-            -allowProvisioningUpdates \
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
             -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
