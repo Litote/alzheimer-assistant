@@ -52,7 +52,7 @@ dependencies:
   path_provider: 2.1.5
 
   # Phone calls
-  flutter_contacts: 2.0.1
+  flutter_contacts: 2.0.2
   flutter_phone_direct_caller: 2.2.1
 
   # Permissions
