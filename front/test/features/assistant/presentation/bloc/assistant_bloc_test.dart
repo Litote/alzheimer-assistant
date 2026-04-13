@@ -116,6 +116,38 @@ class _EmptyRepository implements AudioRepository, TextRepository {
   Future<void> disconnect() async {}
 }
 
+/// Repository backed by an externally-owned broadcast controller.
+/// disconnect() is a no-op so the stream stays open between exchanges,
+/// allowing the BLoC to re-subscribe for a second turn.
+class _PersistentRepository implements AudioRepository, TextRepository {
+  _PersistentRepository(this._controller);
+
+  final StreamController<LiveEvent> _controller;
+
+  @override
+  Stream<LiveEvent> connect({bool useElevenLabs = false, String? sessionId}) =>
+      _controller.stream;
+
+  @override
+  void sendAudio(Uint8List pcmBytes) {}
+
+  @override
+  void sendText(String text) {}
+
+  @override
+  void sendInterruption() {}
+
+  @override
+  void sendToolResponse({
+    required String callId,
+    required String functionName,
+    required String result,
+  }) {}
+
+  @override
+  Future<void> disconnect() async {}
+}
+
 // ── Mic service helpers ────────────────────────────────────────────────────
 
 class _ControlledMicService implements MicrophoneStreamService {
@@ -681,6 +713,117 @@ void main() {
         const AssistantState.idle(imageUrl: 'https://example.com/photo.jpg'),
       );
 
+      await bloc.close();
+    },
+  );
+
+  test(
+    'imageUrl from exchange 1 is NOT carried over into exchange 2 (audio mode)',
+    () async {
+      // Use a broadcast controller that stays open across disconnect() calls so
+      // the BLoC can subscribe again for the second exchange.
+      final liveController = StreamController<LiveEvent>.broadcast();
+      final live = _PersistentRepository(liveController);
+
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.addChunk(any())).thenReturn(null);
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        audioRepository: live,
+        textRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(),
+      );
+
+      // ── Exchange 1 ────────────────────────────────────────────────────────
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      liveController.add(const LiveEvent.imageUrl('https://example.com/photo.jpg'));
+      liveController.add(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // After exchange 1, Listening state must carry the image.
+      expect(bloc.state, isA<Listening>());
+      expect(
+        (bloc.state as Listening).imageUrl,
+        'https://example.com/photo.jpg',
+      );
+
+      // ── Interrupt → Idle ──────────────────────────────────────────────────
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(bloc.state, const AssistantState.idle());
+
+      // ── Exchange 2: no image sent ─────────────────────────────────────────
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // The Listening state for exchange 2 must NOT carry the old image URL.
+      expect(bloc.state, isA<Listening>());
+      expect(
+        (bloc.state as Listening).imageUrl,
+        '',
+        reason: 'image from exchange 1 must not bleed into exchange 2',
+      );
+
+      await liveController.close();
+      await bloc.close();
+    },
+  );
+
+  test(
+    'imageUrl NOT carried over into next turn within same session (audio chunks)',
+    () async {
+      // Turn 1 sends image + audio; turn 2 (same connection) sends audio only.
+      // The Speaking state of turn 2 must have imageUrl == ''.
+      final liveController = StreamController<LiveEvent>.broadcast();
+      final live = _PersistentRepository(liveController);
+
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.addChunk(any())).thenReturn(null);
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+          .thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        audioRepository: live,
+        textRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(),
+      );
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // ── Turn 1: image + audio ─────────────────────────────────────────────
+      liveController.add(const LiveEvent.imageUrl('https://example.com/photo.jpg'));
+      liveController.add(LiveEvent.audioChunk(_kAudioChunk));
+      liveController.add(const LiveEvent.turnComplete());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state, isA<Listening>());
+      expect((bloc.state as Listening).imageUrl, 'https://example.com/photo.jpg');
+
+      // ── Turn 2: audio only, no new image ─────────────────────────────────
+      liveController.add(LiveEvent.audioChunk(_kAudioChunk));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state, isA<Speaking>());
+      expect(
+        (bloc.state as Speaking).imageUrl,
+        '',
+        reason: 'image from turn 1 must not bleed into turn 2',
+      );
+
+      await liveController.close();
       await bloc.close();
     },
   );

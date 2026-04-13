@@ -221,6 +221,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _audioPlayer!.addChunk(bytes);
     if (state is! Speaking) {
       _welcomeText = '';
+      _currentImageUrl = '';
       _logger.i('[Bloc] → first chunk: emitting Speaking + calling playAndClear');
       emit(AssistantState.speaking(responseText: _responseText));
       _audioPlayer!.playAndClear(onComplete: () {
@@ -252,6 +253,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     // When an image is displayed, accumulate text for TTS but keep the
     // image visible — skip the text state update.
     final current = state;
+    if (current is Listening) {
+      // First response event of a new turn — clear image from previous turn.
+      _currentImageUrl = '';
+    }
     if (current is Speaking && current.imageUrl.isNotEmpty) return;
     emit(AssistantState.speaking(
       responseText: _responseText,
@@ -348,6 +353,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _responseText = '';
     _userTranscript = '';
     _welcomeText = '';
+    _currentImageUrl = '';
 
     try {
       _useElevenLabs = await _settingsService.getUseElevenLabs();
@@ -438,6 +444,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _responseText = '';
     _userTranscript = '';
     _welcomeText = '';
+    _currentImageUrl = '';
     _webRtcMode = true;
 
     try {
@@ -479,6 +486,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _responseText = '';
     _userTranscript = '';
     _ttsStarted = false;
+    _currentImageUrl = '';
 
     try {
       _useElevenLabs = await _settingsService.getUseElevenLabs();
