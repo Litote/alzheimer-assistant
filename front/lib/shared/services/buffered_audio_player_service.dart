@@ -69,23 +69,42 @@ class BufferedAudioPlayerService implements StreamingAudioPlayerService {
     _pcmBuffer.clear();
 
     await _completionSub?.cancel();
-    _completionSub = _player.onPlayerComplete.listen((_) {
+
+    // Hoisted so both the completion callback and the error handler can delete it.
+    String? tempFilePath;
+
+    _completionSub = _player.onPlayerComplete.listen((_) async {
       _completionSub = null;
+      // Delete the temporary WAV file to avoid filling device storage.
+      final path = tempFilePath;
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+          _logger.d('[BufferedPlayer] Temporary WAV file deleted.');
+        }
+      }
       onComplete();
     });
 
     try {
       final wav = _buildWav(pcm);
       final dir = await _getTempDir();
-      final path = '${dir.path}/agent_${DateTime.now().millisecondsSinceEpoch}.wav';
-      await File(path).writeAsBytes(wav);
+      tempFilePath = '${dir.path}/agent_${DateTime.now().millisecondsSinceEpoch}.wav';
+      await File(tempFilePath).writeAsBytes(wav);
 
-      _logger.i('[BufferedPlayer] Playing ${pcm.length} PCM bytes as WAV → $path');
-      await _player.play(DeviceFileSource(path));
+      _logger.i('[BufferedPlayer] Playing ${pcm.length} PCM bytes as WAV → $tempFilePath');
+      await _player.play(DeviceFileSource(tempFilePath));
     } catch (e) {
       _logger.e('[BufferedPlayer] Playback error: $e');
       await _completionSub?.cancel();
       _completionSub = null;
+      // Clean up the file even when the player throws.
+      final path = tempFilePath;
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      }
       onComplete();
     }
   }

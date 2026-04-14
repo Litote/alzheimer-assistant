@@ -71,16 +71,75 @@ void main() {
   test('playAndClear calls onComplete when player finishes', () async {
     final completionController = StreamController<void>();
     when(() => mockPlayer.onPlayerComplete).thenAnswer((_) => completionController.stream);
-    
+
     service.addChunk(Uint8List.fromList([0, 0, 0, 0]));
-    
+
     var completed = false;
-    await service.playAndClear(onComplete: () => completed = true);
-    
+    final completer = Completer<void>();
+    await service.playAndClear(onComplete: () {
+      completed = true;
+      completer.complete();
+    });
+
     completionController.add(null);
-    await Future<void>.delayed(Duration.zero);
-    
+    await completer.future;
+
     expect(completed, isTrue);
     await completionController.close();
+  });
+
+  test('playAndClear deletes the temp WAV file after playback completes', () async {
+    final tempDir = await Directory.systemTemp.createTemp('buffered_player_test_');
+    final completionController = StreamController<void>();
+    when(() => mockPlayer.onPlayerComplete).thenAnswer((_) => completionController.stream);
+
+    final onCompleteCompleter = Completer<void>();
+    final svc = BufferedAudioPlayerService(
+      player: mockPlayer,
+      getTempDir: () async => tempDir,
+    );
+
+    svc.addChunk(Uint8List.fromList([0, 0, 0, 0]));
+    await svc.playAndClear(onComplete: onCompleteCompleter.complete);
+
+    final files = tempDir.listSync().whereType<File>().toList();
+    expect(files.length, 1, reason: 'WAV file must exist before playback completes');
+
+    completionController.add(null);
+    // Wait until onComplete() fires — the async callback deletes the file first,
+    // then calls onComplete(), so when the Completer resolves the file is gone.
+    await onCompleteCompleter.future;
+
+    expect(
+      files.first.existsSync(),
+      isFalse,
+      reason: 'WAV file must be deleted after playback to avoid filling device storage',
+    );
+
+    await completionController.close();
+    await tempDir.delete(recursive: true);
+  });
+
+  test('playAndClear deletes the temp WAV file even on playback error', () async {
+    final tempDir = await Directory.systemTemp.createTemp('buffered_player_error_test_');
+    when(() => mockPlayer.onPlayerComplete).thenAnswer((_) => const Stream.empty());
+    when(() => mockPlayer.play(any())).thenThrow(Exception('playback error'));
+
+    final svc = BufferedAudioPlayerService(
+      player: mockPlayer,
+      getTempDir: () async => tempDir,
+    );
+
+    svc.addChunk(Uint8List.fromList([0, 0, 0, 0]));
+    await svc.playAndClear(onComplete: () {});
+
+    final files = tempDir.listSync().whereType<File>().toList();
+    expect(
+      files,
+      isEmpty,
+      reason: 'WAV file must be deleted even when the player throws',
+    );
+
+    await tempDir.delete(recursive: true);
   });
 }

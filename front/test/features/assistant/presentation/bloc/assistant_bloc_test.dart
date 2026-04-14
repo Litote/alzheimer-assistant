@@ -609,8 +609,11 @@ void main() {
       live.emit(const LiveEvent.outputTranscription('sont prêts.'));
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
+      // After emitFinal, the BLoC emits Listening(statusLabel: 'Je réfléchis...')
+      // to give user feedback while waiting for the server's first response.
+      // The first outputTranscription then transitions to Speaking.
       expect(states, containsAllInOrder([
-        const AssistantState.speaking(userTranscript: 'Bonjour'),
+        isA<Listening>().having((s) => s.statusLabel, 'statusLabel', 'Je réfléchis...'),
         const AssistantState.speaking(responseText: 'Vos médicaments '),
         const AssistantState.speaking(responseText: 'Vos médicaments sont prêts.'),
       ]));
@@ -1526,6 +1529,70 @@ void main() {
     await bloc.close();
   });
 
+  test('interruption threshold adapts to measured background noise', () async {
+    // Verifies that after calibration with a quiet environment (RMS ≈ 400),
+    // the dynamic threshold is max(3000, 400 * 4) = 3000, so a buffer with
+    // RMS ≈ 3200 triggers interruption even though it is below the old
+    // hard-coded threshold of 3500.
+    final live = _ControllableRepository();
+    final mic = _ControlledMicService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      audioRepository: live,
+      textRepository: live,
+      micService: mic,
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(),
+    );
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(bloc.state, isA<Listening>());
+
+    // Calibration: 25 low-noise buffers (all samples = 400, RMS ≈ 400).
+    // After 20+ buffers, the baseline locks in at ≈ 400.
+    // dynamic threshold = max(3000, 400 * 4) = 3000.
+    final quietBuffer = Uint8List(3200);
+    final quietSamples = Int16List.view(quietBuffer.buffer);
+    for (var i = 0; i < quietSamples.length; i++) {
+      quietSamples[i] = 400;
+    }
+    for (var i = 0; i < 25; i++) {
+      mic.push(Uint8List.fromList(quietBuffer));
+      await Future<void>.delayed(Duration.zero);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    // Transition to Speaking.
+    live.emit(LiveEvent.audioChunk(Uint8List(4)));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(bloc.state, isA<Speaking>());
+
+    // Buffer with RMS ≈ 3200 — above dynamic threshold (3000)
+    // but below the old hard-coded threshold (3500).
+    final interruptBuffer = Uint8List(3200);
+    final interruptSamples = Int16List.view(interruptBuffer.buffer);
+    for (var i = 0; i < interruptSamples.length; i++) {
+      interruptSamples[i] = 3200;
+    }
+    mic.push(interruptBuffer);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      live.sendInterruptionCount,
+      1,
+      reason: 'A buffer above the dynamic threshold must trigger interruption',
+    );
+
+    await bloc.close();
+  });
+
   // ── TEXT MODE ─────────────────────────────────────────────────────────────
 
   test('text mode: StartListening → Connecting → Listening, STT started', () async {
@@ -1560,41 +1627,50 @@ void main() {
     await bloc.close();
   });
 
-  test('text mode: STT final result → sendText() called, Speaking emitted', () async {
-    final live = _ControllableRepository();
-    final speech = _ControllableSpeechService();
-    final player = MockStreamingAudioPlayerService();
-    when(() => player.stop()).thenAnswer((_) async {});
-    when(() => player.dispose()).thenAnswer((_) async {});
+  test(
+    'text mode: STT final result → sendText() called, Listening(statusLabel) emitted',
+    () async {
+      final live = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
 
-    final bloc = AssistantBloc(
-      textRepository: live,
-      audioRepository: live,
-      micService: _FakeMicService(),
-      audioPlayer: player,
-      settingsService: _FakeSettingsService(textMode: true),
-      speechService: speech,
-    );
+      final bloc = AssistantBloc(
+        textRepository: live,
+        audioRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+      );
 
-    final states = <AssistantState>[];
-    final sub = bloc.stream.listen(states.add);
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
 
-    bloc.add(const AssistantEvent.startListening());
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    speech.emitFinal('Appelle maman');
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      speech.emitFinal('Appelle maman');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(live.sentTexts, ['Appelle maman']);
-    expect(states, containsAllInOrder([
-      const AssistantState.connecting(),
-      const AssistantState.listening(),
-      const AssistantState.speaking(userTranscript: 'Appelle maman'),
-    ]));
+      expect(live.sentTexts, ['Appelle maman']);
+      // After emitFinal the BLoC emits a "thinking" Listening state (not
+      // Speaking) so the UI gives feedback while waiting for the server.
+      expect(states, containsAllInOrder([
+        const AssistantState.connecting(),
+        const AssistantState.listening(),
+        isA<Listening>().having(
+          (s) => s.statusLabel,
+          'statusLabel',
+          'Je réfléchis...',
+        ),
+      ]));
 
-    await sub.cancel();
-    await bloc.close();
-  });
+      await sub.cancel();
+      await bloc.close();
+    },
+  );
 
   test('text mode: STT interim result → Listening with interimTranscript', () async {
     final live = _ControllableRepository();
@@ -1773,6 +1849,55 @@ void main() {
 
     await bloc.close();
   });
+
+  test(
+    'text mode: after speech recognized → emits Listening(statusLabel) while waiting for server',
+    () async {
+      // Verifies that between the moment the user finishes speaking and the
+      // moment the server's first response arrives, the BLoC emits a
+      // Listening state with statusLabel = 'Je réfléchis...' so the UI
+      // gives visible feedback that the request was sent.
+      final live = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+
+      final bloc = AssistantBloc(
+        textRepository: live,
+        audioRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: player,
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+        nativeTtsService: _NoOpClientTtsService(),
+      );
+
+      final states = <AssistantState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      speech.emitFinal('Bonjour');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        states,
+        contains(
+          isA<Listening>().having(
+            (s) => s.statusLabel,
+            'statusLabel',
+            'Je réfléchis...',
+          ),
+        ),
+        reason: 'A "thinking" label must be shown between sendText() and the first server response',
+      );
+
+      await sub.cancel();
+      await bloc.close();
+    },
+  );
 
   // ── No server response within timeout ─────────────────────────────────────
 

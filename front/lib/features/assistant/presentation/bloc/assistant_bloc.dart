@@ -20,6 +20,10 @@ import 'package:alzheimer_assistant/shared/services/streaming_audio_player_servi
 import 'assistant_event.dart';
 import 'assistant_state.dart';
 
+const _connectionLostMessage = 'Connexion perdue.';
+const _sessionEndedMessage = 'Session terminée.';
+const _connectionFailedMessage = 'Impossible de se connecter.';
+
 class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   AssistantBloc({
     required TextRepository textRepository,
@@ -108,6 +112,13 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   /// True once TTS has been started for the current turn.
   bool _ttsStarted = false;
 
+  /// Measured average RMS during the calibration phase (first ~1 second of
+  /// silence while the device is in Listening state). Used to set the
+  /// interruption threshold dynamically instead of relying on the hardcoded 3500.
+  double _baselineRms = 0.0;
+  int _rmsSamples = 0;
+  bool _isCalibrating = false;
+
   // ── Active repository accessor ────────────────────────────────────────────
 
   /// Returns the repository for the current (or upcoming) mode.
@@ -170,8 +181,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _textRepository.sendText(event.text);
     _userTranscript = event.text;
     _responseText = '';
-    emit(AssistantState.speaking(
-      userTranscript: _userTranscript,
+    // Show a "thinking" label while waiting for the server's first response.
+    // The BLoC will transition to Speaking when the first transcription arrives.
+    emit(AssistantState.listening(
+      interimTranscript: _userTranscript,
+      statusLabel: 'Je réfléchis...',
       imageUrl: _currentImageUrl,
     ));
     _startResponseTimeout();
@@ -354,6 +368,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _userTranscript = '';
     _welcomeText = '';
     _currentImageUrl = '';
+    // Reset baseline noise calibration for each new audio session.
+    _baselineRms = 0.0;
+    _rmsSamples = 0;
+    _isCalibrating = true;
 
     try {
       _useElevenLabs = await _settingsService.getUseElevenLabs();
@@ -371,13 +389,13 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         onError: (Object e) {
           _cancelResponseTimeout();
           _logger.e('[Bloc] Live stream error: $e');
-          add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+          add(const AssistantEvent.errorOccurred(_connectionLostMessage));
         },
         onDone: () {
           _cancelResponseTimeout();
           if (state is! Idle && state is! AssistantError) {
             _logger.i('[Bloc] WebSocket closed by server');
-            add(const AssistantEvent.errorOccurred('Session terminée.'));
+            add(const AssistantEvent.errorOccurred(_sessionEndedMessage));
           }
         },
       );
@@ -391,7 +409,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     } catch (e) {
       _logger.e('[Bloc] Connection error: $e');
       await _disconnectAll();
-      emit(const AssistantState.error(message: 'Impossible de se connecter.'));
+      emit(const AssistantState.error(message: _connectionFailedMessage));
     }
   }
 
@@ -421,9 +439,22 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   int _processFullBuffer(Uint8List buffer, AudioRepository audioRepo) {
     final rms = _calculateRMS(buffer);
+
+    // Calibration phase: measure average background noise during the first
+    // ~20 buffers (~1 second) of the Listening state, before the user speaks.
+    // Only runs while in Listening to avoid skewing the baseline with speech.
+    if (state is Listening && _isCalibrating) {
+      _baselineRms = ((_baselineRms * _rmsSamples) + rms) / (_rmsSamples + 1);
+      _rmsSamples++;
+      if (_rmsSamples > 20) _isCalibrating = false;
+    }
+
     if (state is Speaking) {
-      if (rms > 3500) {
-        _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)})');
+      // Dynamic threshold: 4× the measured background noise, with a safety
+      // minimum of 3000. Adapts to both quiet and noisy environments.
+      final dynamicThreshold = math.max(3000.0, _baselineRms * 4.0);
+      if (rms > dynamicThreshold) {
+        _logger.i('[Bloc] Interruption detected (RMS: ${rms.toStringAsFixed(0)} > threshold: ${dynamicThreshold.toStringAsFixed(0)})');
         _handleInterruption();
       }
       // Do not forward mic audio to the server while the agent is
@@ -459,13 +490,13 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         onError: (Object e) {
           _cancelResponseTimeout();
           _logger.e('[Bloc] LiveKit stream error: $e');
-          add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+          add(const AssistantEvent.errorOccurred(_connectionLostMessage));
         },
         onDone: () {
           _cancelResponseTimeout();
           if (state is! Idle && state is! AssistantError) {
             _logger.i('[Bloc] LiveKit room closed by server');
-            add(const AssistantEvent.errorOccurred('Session terminée.'));
+            add(const AssistantEvent.errorOccurred(_sessionEndedMessage));
           }
         },
       );
@@ -477,7 +508,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     } catch (e) {
       _logger.e('[Bloc] LiveKit connection error: $e');
       await _disconnectAll();
-      emit(const AssistantState.error(message: 'Impossible de se connecter.'));
+      emit(const AssistantState.error(message: _connectionFailedMessage));
     }
   }
 
@@ -503,13 +534,13 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         onError: (Object e) {
           _cancelResponseTimeout();
           _logger.e('[Bloc] Live stream error (text mode): $e');
-          add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+          add(const AssistantEvent.errorOccurred(_connectionLostMessage));
         },
         onDone: () {
           _cancelResponseTimeout();
           if (state is! Idle && state is! AssistantError) {
             _logger.i('[Bloc] Connection closed by server (text mode)');
-            add(const AssistantEvent.errorOccurred('Session terminée.'));
+            add(const AssistantEvent.errorOccurred(_sessionEndedMessage));
           }
         },
       );
@@ -535,7 +566,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     } catch (e) {
       _logger.e('[Bloc] Text mode connection error: $e');
       await _disconnectAll();
-      emit(const AssistantState.error(message: 'Impossible de se connecter.'));
+      emit(const AssistantState.error(message: _connectionFailedMessage));
     }
   }
 
@@ -579,6 +610,12 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       } else {
         await _handleAudioModeTurnComplete(emit);
       }
+    } else if (state is Listening && _textMode) {
+      // turnComplete arrived while still in the "thinking" Listening state
+      // (server sent no transcription, only a turn signal). Disconnect and
+      // return to Idle so the user can speak again.
+      await _disconnectAll();
+      emit(AssistantState.idle(imageUrl: _currentImageUrl));
     }
   }
 

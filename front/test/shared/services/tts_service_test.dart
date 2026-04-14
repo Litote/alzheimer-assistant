@@ -126,6 +126,7 @@ void main() {
       final controller1 = StreamController<void>();
       final controller2 = StreamController<void>();
       var callCount = 0;
+      final completer2 = Completer<void>();
 
       // First play → stream 1
       when(() => mockPlayer.onPlayerComplete)
@@ -138,12 +139,18 @@ void main() {
       // Second play → stream 2 (before the first one has finished)
       when(() => mockPlayer.onPlayerComplete)
           .thenAnswer((_) => controller2.stream);
-      await service.play([4, 5, 6], onComplete: () => callCount++);
+      await service.play([4, 5, 6], onComplete: () {
+        callCount++;
+        completer2.complete();
+      });
 
       // Only the 2nd stream should trigger onComplete
       controller1.add(null); // event from the first stream (should be ignored)
       controller2.add(null); // event from the second stream (should trigger)
-      await Future<void>.microtask(() {});
+      // Wait for the async completion callback to fully execute (file delete +
+      // onComplete). A bare microtask pump is not enough since the callback
+      // awaits I/O.
+      await completer2.future;
 
       expect(
         callCount,
@@ -228,5 +235,61 @@ void main() {
     final service = _makeService(mockPlayer);
     await service.dispose();
     verify(() => mockPlayer.dispose()).called(1);
+  });
+
+  // ── Temp file cleanup ─────────────────────────────────────────────────
+
+  test('play() deletes the temp MP3 file after playback completes', () async {
+    final tempDir = await Directory.systemTemp.createTemp('tts_test_');
+    final completionController = StreamController<void>();
+    when(() => mockPlayer.onPlayerComplete).thenAnswer((_) => completionController.stream);
+    when(() => mockPlayer.play(any())).thenAnswer((_) async {});
+
+    final onCompleteCompleter = Completer<void>();
+    final service = TtsService(
+      player: mockPlayer,
+      getTempDir: () async => tempDir,
+    );
+
+    await service.play([1, 2, 3], onComplete: onCompleteCompleter.complete);
+
+    final files = tempDir.listSync().whereType<File>().toList();
+    expect(files.length, 1, reason: 'MP3 file must exist before playback completes');
+
+    completionController.add(null);
+    // Wait until onComplete() fires — the async callback deletes the file first,
+    // then calls onComplete(), so when the Completer resolves the file is gone.
+    await onCompleteCompleter.future;
+
+    expect(
+      files.first.existsSync(),
+      isFalse,
+      reason: 'MP3 file must be deleted after playback to avoid filling device storage',
+    );
+
+    await completionController.close();
+    await tempDir.delete(recursive: true);
+  });
+
+  test('play() deletes the temp MP3 file even on playback error', () async {
+    final tempDir = await Directory.systemTemp.createTemp('tts_error_test_');
+    when(() => mockPlayer.onPlayerComplete).thenAnswer((_) => const Stream.empty());
+    when(() => mockPlayer.play(any())).thenThrow(Exception('playback error'));
+
+    final service = TtsService(
+      player: mockPlayer,
+      getTempDir: () async => tempDir,
+    );
+
+    await service.play([1, 2, 3], onComplete: () {});
+
+    final files = tempDir.listSync().whereType<File>().toList();
+    expect(
+      files,
+      isEmpty,
+      reason: 'MP3 file must be deleted even when the player throws',
+    );
+
+    await tempDir.delete(recursive: true);
   });
 }

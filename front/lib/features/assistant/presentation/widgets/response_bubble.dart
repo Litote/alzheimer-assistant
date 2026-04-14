@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 
+const _expandImageSemanticLabel = 'Photo — appuyez pour agrandir';
+
 class ResponseBubble extends StatelessWidget {
   const ResponseBubble({super.key});
 
@@ -12,7 +14,7 @@ class ResponseBubble extends StatelessWidget {
       builder: (context, state) {
         final (text, isError, semanticLabel) = switch (state) {
           Listening(imageUrl: final img) when img.isNotEmpty =>
-            ('', false, 'Photo — appuyez pour agrandir'),
+            ('', false, _expandImageSemanticLabel),
           Listening(interimTranscript: final t) when t.isNotEmpty =>
             (t, false, 'Vous dites : $t'),
           Listening(statusLabel: final l) when l.isNotEmpty =>
@@ -22,9 +24,9 @@ class ResponseBubble extends StatelessWidget {
           // When an image is displayed, suppress all text so only the image
           // (and its tap hint) appears.
           Speaking(imageUrl: final img) when img.isNotEmpty =>
-            ('', false, 'Photo — appuyez pour agrandir'),
+            ('', false, _expandImageSemanticLabel),
           Idle(imageUrl: final img) when img.isNotEmpty =>
-            ('', false, 'Photo — appuyez pour agrandir'),
+            ('', false, _expandImageSemanticLabel),
           Speaking(responseText: final r) when r.isNotEmpty =>
             (r, false, 'Réponse de l\'assistant : $r'),
           Speaking(userTranscript: final u) when u.isNotEmpty =>

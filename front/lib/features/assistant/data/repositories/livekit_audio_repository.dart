@@ -91,7 +91,9 @@ class LiveKitAudioRepository implements WebRtcRepository {
 
   @override
   void sendInterruption() {
-    _sendData({'client_content': {'interrupted': true}});
+    _sendData({
+      'client_content': {'interrupted': true}
+    });
   }
 
   @override
@@ -142,11 +144,17 @@ class LiveKitAudioRepository implements WebRtcRepository {
 
     final userId = await _deviceIdService.getOrCreate();
     if (generation != _connectGeneration) return; // stale — abort
+    _logger.i(
+      '[LiveKit] Preparing session → deviceId="$userId" useElevenLabs=$_useElevenLabs',
+    );
 
     final creds = await _tokenFetcher(_useElevenLabs, userId);
     if (generation != _connectGeneration) return; // stale — abort
 
-    _logger.i('[LiveKit] Connecting → room="${creds.room}" url="${creds.url}"');
+    final identity = _extractIdentityFromToken(creds.token);
+    _logger.i(
+      '[LiveKit] Token received → url="${creds.url}" room="${creds.room}" identity="${identity ?? 'unknown'}"',
+    );
 
     // Create the Room lazily on the first connect, then reuse it.
     _room ??= _roomFactory();
@@ -155,26 +163,65 @@ class LiveKitAudioRepository implements WebRtcRepository {
     _listener?.dispose();
     _listener = _room!.createListener()
       ..on<DataReceivedEvent>(_onDataReceived)
-      ..on<RoomDisconnectedEvent>(_onDisconnected);
+      ..on<RoomConnectedEvent>(_onConnected)
+      ..on<RoomDisconnectedEvent>(_onDisconnected)
+      ..on<RoomReconnectingEvent>(_onReconnecting)
+      ..on<RoomReconnectedEvent>(_onReconnected)
+      ..on<LocalTrackPublishedEvent>(_onLocalTrackPublished);
 
-    await _room!.connect(creds.url, creds.token);
+    _logger.i(
+      '[LiveKit] room.connect() starting → room="${creds.room}" url="${creds.url}" state=${_room!.connectionState.name}',
+    );
+    try {
+      await _room!.connect(creds.url, creds.token);
+    } catch (e, stackTrace) {
+      _logger.e(
+        '[LiveKit] room.connect() failed → room="${creds.room}" url="${creds.url}" error=$e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     if (generation != _connectGeneration) return; // stale — abort
 
-    _logger.i('[LiveKit] Connected — enabling microphone');
+    _logger.i(
+      '[LiveKit] room.connect() succeeded → state=${_room!.connectionState.name}',
+    );
+    _logger.i('[LiveKit] Enabling microphone');
+
+    final localParticipant = _room!.localParticipant;
+    if (localParticipant == null) {
+      throw StateError('[LiveKit] localParticipant unavailable after connect');
+    }
 
     // The SDK captures mic audio and sends it via LocalAudioTrack (WebRTC).
     // VAD is handled server-side by the livekit-agents framework.
-    await _room!.localParticipant?.setMicrophoneEnabled(
-      true,
-      audioCaptureOptions: const AudioCaptureOptions(
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      ),
-    );
+    try {
+      await localParticipant.setMicrophoneEnabled(
+        true,
+        audioCaptureOptions: const AudioCaptureOptions(
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        ),
+      );
+    } catch (e, stackTrace) {
+      _logger.e(
+        '[LiveKit] setMicrophoneEnabled(true) failed → error=$e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
 
     if (generation != _connectGeneration) return; // stale — abort
-    _logger.i('[LiveKit] Microphone enabled');
+    _logger.i('[LiveKit] setMicrophoneEnabled(true) succeeded');
+  }
+
+  void _onConnected(RoomConnectedEvent event) {
+    _logger.i(
+      '[LiveKit] onConnected → metadata="${event.metadata}" state=${event.room.connectionState.name}',
+    );
   }
 
   void _onDataReceived(DataReceivedEvent event) {
@@ -190,18 +237,34 @@ class LiveKitAudioRepository implements WebRtcRepository {
     }
   }
 
+  void _onReconnecting(RoomReconnectingEvent event) {
+    _logger.w('[LiveKit] onReconnecting');
+  }
+
+  void _onReconnected(RoomReconnectedEvent event) {
+    _logger.i('[LiveKit] onReconnected');
+  }
+
   void _onDisconnected(RoomDisconnectedEvent event) {
-    _logger.i('[LiveKit] Room disconnected unexpectedly: ${event.reason}');
+    _logger.i('[LiveKit] onDisconnected → reason=${event.reason}');
     final ctrl = _controller;
     if (ctrl == null || ctrl.isClosed) return;
     ctrl.close();
   }
 
+  void _onLocalTrackPublished(LocalTrackPublishedEvent event) {
+    _logger.i(
+      '[LiveKit] Local track published → sid="${event.publication.sid}" name="${event.publication.name}" source=${event.publication.source.name}',
+    );
+  }
+
   void _sendData(Map<String, dynamic> payload) {
-    _room?.localParticipant?.publishData(
-      utf8.encode(jsonEncode(payload)),
-      reliable: true,
-    ).ignore();
+    _room?.localParticipant
+        ?.publishData(
+          utf8.encode(jsonEncode(payload)),
+          reliable: true,
+        )
+        .ignore();
   }
 }
 
@@ -236,4 +299,26 @@ Future<LiveKitCredentials> _defaultTokenFetcher(
   } finally {
     client.close();
   }
+}
+
+String? _extractIdentityFromToken(String token) {
+  final parts = token.split('.');
+  if (parts.length != 3) return null;
+
+  try {
+    final normalized = base64Url.normalize(parts[1]);
+    final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)))
+        as Map<String, dynamic>;
+    final video = payload['video'];
+    if (video is Map<String, dynamic>) {
+      final identity = video['identity'];
+      if (identity is String && identity.isNotEmpty) {
+        return identity;
+      }
+    }
+  } catch (_) {
+    return null;
+  }
+
+  return null;
 }

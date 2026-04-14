@@ -45,12 +45,12 @@ void main() {
     ));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.byType(SwitchListTile), findsNothing);
+    expect(find.byType(Switch), findsNothing);
   });
 
   // ── Loaded state ───────────────────────────────────────────────────────────
 
-  testWidgets('shows three toggles after settings load', (tester) async {
+  testWidgets('shows three cards with toggles after settings load', (tester) async {
     final service = _FakeSettingsService();
     await tester.pumpWidget(MaterialApp(
       home: SettingsScreen(settingsService: service),
@@ -58,10 +58,10 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.byType(SwitchListTile), findsNWidgets(3));
-    expect(find.text('Synthèse vocale ElevenLabs'), findsOneWidget);
-    expect(find.text('Mode texte'), findsOneWidget);
-    expect(find.text('Mode LiveKit (WebRTC)'), findsOneWidget);
+    expect(find.byType(Switch), findsNWidgets(3));
+    expect(find.text('Voix Haute Qualité'), findsOneWidget);
+    expect(find.text('Mode Alterné (Texte)'), findsOneWidget);
+    expect(find.text('Mode WebRTC (LiveKit)'), findsOneWidget);
   });
 
   // ── Initial value reflected ────────────────────────────────────────────────
@@ -100,12 +100,11 @@ void main() {
     ));
     await tester.pump();
 
-    final elevenLabsTile = find.ancestor(
-      of: find.text('Synthèse vocale ElevenLabs'),
-      matching: find.byType(SwitchListTile),
+    final elevenLabsCard = find.ancestor(
+      of: find.text('Voix Haute Qualité'),
+      matching: find.byType(Card),
     );
-    await tester.tap(
-        find.descendant(of: elevenLabsTile, matching: find.byType(Switch)));
+    await tester.tap(find.descendant(of: elevenLabsCard, matching: find.byType(Switch)));
     await tester.pump();
 
     expect(service.elevenLabs, isTrue);
@@ -119,15 +118,28 @@ void main() {
     ));
     await tester.pump();
 
-    final elevenLabsTile = find.ancestor(
-      of: find.text('Synthèse vocale ElevenLabs'),
-      matching: find.byType(SwitchListTile),
+    final elevenLabsCard = find.ancestor(
+      of: find.text('Voix Haute Qualité'),
+      matching: find.byType(Card),
     );
-    await tester.tap(
-        find.descendant(of: elevenLabsTile, matching: find.byType(Switch)));
+    await tester.tap(find.descendant(of: elevenLabsCard, matching: find.byType(Switch)));
     await tester.pump();
 
     expect(service.elevenLabs, isFalse);
+  });
+
+  testWidgets('tapping the ElevenLabs card body also toggles the setting',
+      (tester) async {
+    final service = _FakeSettingsService(initial: false);
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsScreen(settingsService: service),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('Voix Haute Qualité'));
+    await tester.pump();
+
+    expect(service.elevenLabs, isTrue);
   });
 
   // ── Text mode toggle ───────────────────────────────────────────────────────
@@ -162,12 +174,11 @@ void main() {
     ));
     await tester.pump();
 
-    final textModeTile = find.ancestor(
-      of: find.text('Mode texte'),
-      matching: find.byType(SwitchListTile),
+    final textModeCard = find.ancestor(
+      of: find.text('Mode Alterné (Texte)'),
+      matching: find.byType(Card),
     );
-    await tester.tap(
-        find.descendant(of: textModeTile, matching: find.byType(Switch)));
+    await tester.tap(find.descendant(of: textModeCard, matching: find.byType(Switch)));
     await tester.pump();
 
     expect(service.textMode, isTrue);
@@ -205,12 +216,11 @@ void main() {
     ));
     await tester.pump();
 
-    final liveKitTile = find.ancestor(
-      of: find.text('Mode LiveKit (WebRTC)'),
-      matching: find.byType(SwitchListTile),
-    );
-    await tester.tap(
-        find.descendant(of: liveKitTile, matching: find.byType(Switch)));
+    // The third card may be below the default test viewport (800×600).
+    // ensureVisible + pumpAndSettle scrolls it fully into view.
+    await tester.ensureVisible(find.text('Mode WebRTC (LiveKit)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mode WebRTC (LiveKit)'));
     await tester.pump();
 
     expect(service.liveKit, isTrue);
@@ -224,12 +234,9 @@ void main() {
     ));
     await tester.pump();
 
-    final liveKitTile = find.ancestor(
-      of: find.text('Mode LiveKit (WebRTC)'),
-      matching: find.byType(SwitchListTile),
-    );
-    await tester.tap(
-        find.descendant(of: liveKitTile, matching: find.byType(Switch)));
+    await tester.ensureVisible(find.text('Mode WebRTC (LiveKit)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mode WebRTC (LiveKit)'));
     await tester.pump();
 
     expect(service.liveKit, isFalse);

@@ -51,6 +51,7 @@ void main() {
     eventsListener = MockEventsListener();
 
     when(() => room.localParticipant).thenReturn(localParticipant);
+    when(() => room.connectionState).thenReturn(ConnectionState.connected);
     when(() => room.connect(any(), any())).thenAnswer((_) async {});
     when(() => room.disconnect()).thenAnswer((_) async {});
     when(
@@ -78,6 +79,33 @@ void main() {
       () => eventsListener.on<RoomDisconnectedEvent>(any()),
     ).thenAnswer((inv) {
       handlers[RoomDisconnectedEvent] =
+          inv.positionalArguments.first as Function;
+      return () async {};
+    });
+    when(
+      () => eventsListener.on<RoomConnectedEvent>(any()),
+    ).thenAnswer((inv) {
+      handlers[RoomConnectedEvent] = inv.positionalArguments.first as Function;
+      return () async {};
+    });
+    when(
+      () => eventsListener.on<RoomReconnectingEvent>(any()),
+    ).thenAnswer((inv) {
+      handlers[RoomReconnectingEvent] =
+          inv.positionalArguments.first as Function;
+      return () async {};
+    });
+    when(
+      () => eventsListener.on<RoomReconnectedEvent>(any()),
+    ).thenAnswer((inv) {
+      handlers[RoomReconnectedEvent] =
+          inv.positionalArguments.first as Function;
+      return () async {};
+    });
+    when(
+      () => eventsListener.on<LocalTrackPublishedEvent>(any()),
+    ).thenAnswer((inv) {
+      handlers[LocalTrackPublishedEvent] =
           inv.positionalArguments.first as Function;
       return () async {};
     });
@@ -119,7 +147,9 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final raw = utf8.encode(
-      jsonEncode({'server_content': {'turn_complete': true}}),
+      jsonEncode({
+        'server_content': {'turn_complete': true}
+      }),
     );
     (handlers[DataReceivedEvent]! as Function)(
       DataReceivedEvent(
@@ -140,7 +170,9 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final raw = utf8.encode(
-      jsonEncode({'output_transcription': {'text': 'Bonjour'}}),
+      jsonEncode({
+        'output_transcription': {'text': 'Bonjour'}
+      }),
     );
     (handlers[DataReceivedEvent]! as Function)(
       DataReceivedEvent(data: raw, participant: null, topic: null),
@@ -271,6 +303,18 @@ void main() {
     expect(streamError, isNotNull);
   });
 
+  test('missing localParticipant after connect propagates as stream error',
+      () async {
+    when(() => room.localParticipant).thenReturn(null);
+    final repo = _makeRepo(room: room);
+
+    Object? streamError;
+    repo.connect().listen((_) {}, onError: (e) => streamError = e);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(streamError, isA<StateError>());
+  });
+
   // ── room recreation after disconnect ──────────────────────────────────────
 
   test('connect after disconnect creates a new Room via factory', () async {
@@ -285,6 +329,7 @@ void main() {
       final localHandlers = <Type, Function>{};
 
       when(() => r.localParticipant).thenReturn(lp);
+      when(() => r.connectionState).thenReturn(ConnectionState.connected);
       when(() => r.connect(any(), any())).thenAnswer((_) async {});
       when(() => r.disconnect()).thenAnswer((_) async {});
       when(
@@ -301,6 +346,26 @@ void main() {
       });
       when(() => el.on<RoomDisconnectedEvent>(any())).thenAnswer((inv) {
         localHandlers[RoomDisconnectedEvent] =
+            inv.positionalArguments.first as Function;
+        return () async {};
+      });
+      when(() => el.on<RoomConnectedEvent>(any())).thenAnswer((inv) {
+        localHandlers[RoomConnectedEvent] =
+            inv.positionalArguments.first as Function;
+        return () async {};
+      });
+      when(() => el.on<RoomReconnectingEvent>(any())).thenAnswer((inv) {
+        localHandlers[RoomReconnectingEvent] =
+            inv.positionalArguments.first as Function;
+        return () async {};
+      });
+      when(() => el.on<RoomReconnectedEvent>(any())).thenAnswer((inv) {
+        localHandlers[RoomReconnectedEvent] =
+            inv.positionalArguments.first as Function;
+        return () async {};
+      });
+      when(() => el.on<LocalTrackPublishedEvent>(any())).thenAnswer((inv) {
+        localHandlers[LocalTrackPublishedEvent] =
             inv.positionalArguments.first as Function;
         return () async {};
       });
