@@ -413,6 +413,28 @@ void main() {
     }
   });
 
+  // ── Starting state ──────────────────────────────────────────────────────────
+
+  group('HomeScreen — starting', () {
+    for (final device in _devices) {
+      testWidgets(device.id, (tester) async {
+        _setDevice(tester, device);
+        addTearDown(() => _resetDevice(tester));
+
+        final bloc = _blocWith(const AssistantState.starting());
+        addTearDown(bloc.close);
+
+        await tester.pumpWidget(_buildApp(bloc));
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/home_starting_${device.id}.png'),
+        );
+      });
+    }
+  });
+
   // ── Speaking state ──────────────────────────────────────────────────────
 
   group('HomeScreen — speaking', () {

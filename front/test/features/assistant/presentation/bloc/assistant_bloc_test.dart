@@ -457,6 +457,7 @@ void main() {
     ),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
     ],
@@ -471,6 +472,7 @@ void main() {
     ),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
     ],
@@ -494,6 +496,7 @@ void main() {
     },
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
     ],
@@ -1327,6 +1330,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(states, containsAllInOrder([
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
       const AssistantState.speaking(),
@@ -1365,6 +1369,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(states, containsAllInOrder([
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
       isA<AssistantError>(),
@@ -1448,6 +1453,7 @@ void main() {
     ),
     act: (bloc) => bloc.add(const AssistantEvent.startListening()),
     expect: () => [
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       isA<AssistantError>(),
     ],
@@ -1618,6 +1624,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(states, containsAllInOrder([
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
     ]));
@@ -1658,6 +1665,7 @@ void main() {
       // After emitFinal the BLoC emits a "thinking" Listening state (not
       // Speaking) so the UI gives feedback while waiting for the server.
       expect(states, containsAllInOrder([
+        const AssistantState.starting(),
         const AssistantState.connecting(),
         const AssistantState.listening(),
         isA<Listening>().having(
@@ -1922,6 +1930,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     expect(states, containsAllInOrder([
+      const AssistantState.starting(),
       const AssistantState.connecting(),
       const AssistantState.listening(),
       isA<AssistantError>(),

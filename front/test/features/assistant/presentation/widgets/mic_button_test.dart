@@ -62,6 +62,18 @@ void main() {
     },
   );
 
+  // ── Starting state ────────────────────────────────────────────────────────
+
+  testWidgets('Starting state → shows mic icon and starting label',
+      (tester) async {
+    when(() => mockBloc.state).thenReturn(const AssistantState.starting());
+
+    await _pump(tester, mockBloc);
+
+    expect(find.byIcon(Icons.mic), findsOneWidget);
+    expect(find.text('Initialisation…'), findsOneWidget);
+  });
+
   // ── Listening state ────────────────────────────────────────────────────────
 
   testWidgets('Listening state → shows mic icon and listening label',

@@ -135,9 +135,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     super.onChange(change);
     final next = change.nextState;
     if (next is Idle || next is AssistantError) {
-      _disableWakelock().ignore();
+      // Use microtask to ensure the state change finishes and the UI can
+      // respond before triggering the potentially blocking platform call.
+      Future.microtask(() => _disableWakelock().ignore());
     } else {
-      _enableWakelock().ignore();
+      Future.microtask(() => _enableWakelock().ignore());
     }
   }
 
@@ -151,11 +153,13 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       emit(const AssistantState.idle());
       return;
     }
-    if (state is Speaking || state is Listening || state is Connecting) {
+    if (state is Speaking || state is Listening || state is Connecting || state is Starting) {
       await _disconnectAll();
       emit(const AssistantState.idle());
       return;
     }
+
+    emit(const AssistantState.starting());
 
     _textMode = await _settingsService.getUseTextMode();
     final useLiveKit = await _settingsService.getUseLiveKit();
@@ -313,7 +317,6 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       ));
     }
   }
-
   void _handleImageUrl(String url, Emitter<AssistantState> emit) {
     _logger.i('[Bloc] LiveImageUrl: $url');
     _currentImageUrl = url;

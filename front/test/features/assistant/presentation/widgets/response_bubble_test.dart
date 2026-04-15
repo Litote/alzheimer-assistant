@@ -60,6 +60,16 @@ void main() {
     expect(find.text('Bonjour'), findsOneWidget);
   });
 
+  // ── Starting state ────────────────────────────────────────────────────────
+
+  testWidgets('Starting state → SizedBox.shrink (no bubble)', (tester) async {
+    when(() => mockBloc.state).thenReturn(const AssistantState.starting());
+
+    await _pump(tester, mockBloc);
+
+    expect(find.byType(Card), findsNothing);
+  });
+
   // ── Connecting state ──────────────────────────────────────────────────────
 
   testWidgets('Connecting state → SizedBox.shrink (no bubble)', (tester) async {

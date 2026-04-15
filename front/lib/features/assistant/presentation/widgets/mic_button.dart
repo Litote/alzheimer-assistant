@@ -37,7 +37,7 @@ class _MicButtonState extends State<MicButton> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     return BlocConsumer<AssistantBloc, AssistantState>(
       listener: (context, state) {
-        if (state is Listening || state is Speaking) {
+        if (state is Listening || state is Speaking || state is Starting || state is Connecting) {
           _controller.repeat(reverse: true);
         } else {
           _controller.stop();
@@ -114,6 +114,9 @@ class _MicButtonState extends State<MicButton> with SingleTickerProviderStateMix
         ),
       );
     }
+    if (state is Starting) {
+      return const Icon(Icons.mic, color: Colors.white, size: 40);
+    }
     return Icon(config.icon, color: Colors.white, size: 40);
   }
 
@@ -125,12 +128,19 @@ class _MicButtonState extends State<MicButton> with SingleTickerProviderStateMix
             semanticLabel: 'Bouton microphone. Appuyez pour parler à l\'assistant.',
             enabled: true,
           ),
+        Starting() => const _ButtonConfig(
+            icon: Icons.mic,
+            backgroundColor: Color(0xFF81C784), // Vert clair (initialisation)
+            label: 'Initialisation…',
+            semanticLabel: 'Démarrage de l\'assistant.',
+            enabled: true,
+          ),
         Connecting() => const _ButtonConfig(
             icon: Icons.sync,
-            backgroundColor: Color(0xFF9E9E9E), // Gris
+            backgroundColor: Color(0xFF4CAF50), // Vert (on reste en vert pendant la connexion)
             label: 'Connexion…',
             semanticLabel: 'Connexion en cours. Veuillez patienter.',
-            enabled: false,
+            enabled: true,
           ),
         Listening() => const _ButtonConfig(
             icon: Icons.mic,

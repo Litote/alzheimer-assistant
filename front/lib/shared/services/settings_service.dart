@@ -6,40 +6,46 @@ class SettingsService {
   static const _keyUseTextMode = 'use_text_mode';
   static const _keyUseLiveKit = 'use_livekit';
 
+  SharedPreferences? _prefs;
+
+  Future<SharedPreferences> _getPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
+
   /// Returns whether ElevenLabs TTS is enabled. Defaults to [true].
   Future<bool> getUseElevenLabs() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     return prefs.getBool(_keyUseElevenLabs) ?? true;
   }
 
   /// Persists the ElevenLabs TTS preference.
   Future<void> setUseElevenLabs(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setBool(_keyUseElevenLabs, value);
   }
 
-  /// Returns whether text-to-text mode is enabled (device STT → text → SSE →
-  /// text → client TTS). Defaults to [false] (audio-to-audio via WebSocket).
+  /// Returns whether text-to-text mode is enabled.
   Future<bool> getUseTextMode() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     return prefs.getBool(_keyUseTextMode) ?? true;
   }
 
   /// Persists the text mode preference.
   Future<void> setUseTextMode(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setBool(_keyUseTextMode, value);
   }
 
   /// Returns whether LiveKit WebRTC mode is enabled. Defaults to [false].
   Future<bool> getUseLiveKit() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     return prefs.getBool(_keyUseLiveKit) ?? false;
   }
 
   /// Persists the LiveKit WebRTC mode preference.
   Future<void> setUseLiveKit(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setBool(_keyUseLiveKit, value);
   }
 }

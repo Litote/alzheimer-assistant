@@ -9,6 +9,9 @@ sealed class AssistantState with _$AssistantState {
   /// agent's turn ends.
   const factory AssistantState.idle({@Default('') String imageUrl}) = Idle;
 
+  /// Transition state after tap, before connection is established — button enabled.
+  const factory AssistantState.starting() = Starting;
+
   /// WebSocket handshake in progress — button disabled.
   const factory AssistantState.connecting() = Connecting;
 

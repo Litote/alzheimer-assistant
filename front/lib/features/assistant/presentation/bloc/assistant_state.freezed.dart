@@ -51,6 +51,7 @@ extension AssistantStatePatterns on AssistantState {
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(Idle value)? idle,
+    TResult Function(Starting value)? starting,
     TResult Function(Connecting value)? connecting,
     TResult Function(Listening value)? listening,
     TResult Function(Speaking value)? speaking,
@@ -61,6 +62,8 @@ extension AssistantStatePatterns on AssistantState {
     switch (_that) {
       case Idle() when idle != null:
         return idle(_that);
+      case Starting() when starting != null:
+        return starting(_that);
       case Connecting() when connecting != null:
         return connecting(_that);
       case Listening() when listening != null:
@@ -90,6 +93,7 @@ extension AssistantStatePatterns on AssistantState {
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(Idle value) idle,
+    required TResult Function(Starting value) starting,
     required TResult Function(Connecting value) connecting,
     required TResult Function(Listening value) listening,
     required TResult Function(Speaking value) speaking,
@@ -99,6 +103,8 @@ extension AssistantStatePatterns on AssistantState {
     switch (_that) {
       case Idle():
         return idle(_that);
+      case Starting():
+        return starting(_that);
       case Connecting():
         return connecting(_that);
       case Listening():
@@ -125,6 +131,7 @@ extension AssistantStatePatterns on AssistantState {
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(Idle value)? idle,
+    TResult? Function(Starting value)? starting,
     TResult? Function(Connecting value)? connecting,
     TResult? Function(Listening value)? listening,
     TResult? Function(Speaking value)? speaking,
@@ -134,6 +141,8 @@ extension AssistantStatePatterns on AssistantState {
     switch (_that) {
       case Idle() when idle != null:
         return idle(_that);
+      case Starting() when starting != null:
+        return starting(_that);
       case Connecting() when connecting != null:
         return connecting(_that);
       case Listening() when listening != null:
@@ -162,6 +171,7 @@ extension AssistantStatePatterns on AssistantState {
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function(String imageUrl)? idle,
+    TResult Function()? starting,
     TResult Function()? connecting,
     TResult Function(String interimTranscript, String statusLabel,
             String welcomeText, String imageUrl)?
@@ -176,6 +186,8 @@ extension AssistantStatePatterns on AssistantState {
     switch (_that) {
       case Idle() when idle != null:
         return idle(_that.imageUrl);
+      case Starting() when starting != null:
+        return starting();
       case Connecting() when connecting != null:
         return connecting();
       case Listening() when listening != null:
@@ -207,6 +219,7 @@ extension AssistantStatePatterns on AssistantState {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({
     required TResult Function(String imageUrl) idle,
+    required TResult Function() starting,
     required TResult Function() connecting,
     required TResult Function(String interimTranscript, String statusLabel,
             String welcomeText, String imageUrl)
@@ -220,6 +233,8 @@ extension AssistantStatePatterns on AssistantState {
     switch (_that) {
       case Idle():
         return idle(_that.imageUrl);
+      case Starting():
+        return starting();
       case Connecting():
         return connecting();
       case Listening():
@@ -248,6 +263,7 @@ extension AssistantStatePatterns on AssistantState {
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function(String imageUrl)? idle,
+    TResult? Function()? starting,
     TResult? Function()? connecting,
     TResult? Function(String interimTranscript, String statusLabel,
             String welcomeText, String imageUrl)?
@@ -261,6 +277,8 @@ extension AssistantStatePatterns on AssistantState {
     switch (_that) {
       case Idle() when idle != null:
         return idle(_that.imageUrl);
+      case Starting() when starting != null:
+        return starting();
       case Connecting() when connecting != null:
         return connecting();
       case Listening() when listening != null:
@@ -338,6 +356,26 @@ class _$IdleCopyWithImpl<$Res> implements $IdleCopyWith<$Res> {
           : imageUrl // ignore: cast_nullable_to_non_nullable
               as String,
     ));
+  }
+}
+
+/// @nodoc
+
+class Starting implements AssistantState {
+  const Starting();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType && other is Starting);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  String toString() {
+    return 'AssistantState.starting()';
   }
 }
 

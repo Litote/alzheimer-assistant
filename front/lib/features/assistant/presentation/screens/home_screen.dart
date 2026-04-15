@@ -90,7 +90,8 @@ class _Header extends StatelessWidget {
         final subtitle = switch (state) {
           Idle() || AssistantError() =>
             'Appuyez sur le bouton pour me parler.',
-          Connecting() => 'Connexion…',
+          Starting() => '…',
+          Connecting() => '…',
           Listening() => 'Je vous écoute…',
           Speaking() => 'Je vous réponds.',
         };
