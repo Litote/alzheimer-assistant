@@ -40,7 +40,6 @@ A change is complete when:
 - [ ] Type safety is preserved
 - [ ] Architecture boundaries are respected
 - [ ] Tests are added for new logic
-- [ ] `flutter analyze` reports zero errors and zero warnings
 - [ ] IDE diagnostics (Problems panel) report zero errors
 - [ ] SonarCloud quality gate passes (coverage ≥ 80%, 0 hotspots to review, 0 bugs, 0 vulnerabilities) — run `./gradlew allSonar` from the repo root
 - [ ] If any widget, theme, text, layout, or state rendering changed: golden screenshots regenerated locally on macOS (`flutter test test/golden/ --update-goldens --tags golden` in `front/`) and the updated `.png` files committed
@@ -58,19 +57,19 @@ Each component has a dedicated agent with a strict scope boundary. An orchestrat
 
 ### flutter-agent
 - **Scope:** `front/` exclusively
-- **Entry context:** [`front/CLAUDE.md`](front/CLAUDE.md)
+- **Entry context:** [`front/AGENT.md`](front/CLAUDE.md)
 - **Stack:** Flutter / Dart
 - **Must not touch:** `agent/`, `infra/`
 
 ### backend-agent
 - **Scope:** `agent/` exclusively
-- **Entry context:** `agent/CLAUDE.md` _(to be created when component is bootstrapped)_
+- **Entry context:** `agent/AGENT.md` _(to be created when component is bootstrapped)_
 - **Stack:** Python / Google ADK / Cloud Run
 - **Must not touch:** `front/`, `infra/`
 
 ### infra-agent
 - **Scope:** `infra/` exclusively
-- **Entry context:** `infra/CLAUDE.md` _(to be created when component is bootstrapped)_
+- **Entry context:** `infra/AGENT.md` _(to be created when component is bootstrapped)_
 - **Stack:** Terraform / GCP
 - **Must not touch:** `front/`, `agent/`
 - **Extra caution:** always plan before apply, never destroy without explicit confirmation
