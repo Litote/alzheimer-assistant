@@ -8,7 +8,13 @@ abstract interface class ConversationRepository {
   /// [useElevenLabs] is forwarded to the server in the setup message
   /// (audio mode only — ignored by SSE).
   /// [sessionId] resumes an existing session (text mode only — ignored by WS).
-  Stream<LiveEvent> connect({bool useElevenLabs = false, String? sessionId});
+  /// [supabaseUserId] is the authenticated Supabase user UUID. The agent uses
+  /// it to scope all Supabase queries to the correct user.
+  Stream<LiveEvent> connect({
+    bool useElevenLabs = false,
+    String? sessionId,
+    String supabaseUserId = '',
+  });
 
   /// Sends a tool response back to the agent after executing a tool call.
   void sendToolResponse({

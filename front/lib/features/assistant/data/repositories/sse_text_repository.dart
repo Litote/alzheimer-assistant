@@ -30,15 +30,21 @@ class SseTextRepository implements TextRepository {
 
   StreamController<LiveEvent>? _controller;
   String? _sessionId;
+  String _supabaseUserId = '';
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   @override
-  Stream<LiveEvent> connect({bool useElevenLabs = false, String? sessionId}) {
+  Stream<LiveEvent> connect({
+    bool useElevenLabs = false,
+    String? sessionId,
+    String supabaseUserId = '',
+  }) {
     _controller?.close();
     _controller = StreamController<LiveEvent>();
     // session_id is required by the server — generate one if not resuming.
     _sessionId = sessionId ?? _generateSessionId();
+    _supabaseUserId = supabaseUserId;
     _logger.i('[SseText] Ready (sessionId: $_sessionId)');
     // Notify the BLoC immediately so it persists the session ID.
     _controller!.add(LiveEvent.sessionEstablished(_sessionId!));
@@ -106,6 +112,7 @@ class SseTextRepository implements TextRepository {
       'session_id': _sessionId,
       'new_message': message,
       'streaming': false,
+      'supabase_user_id': _supabaseUserId,
     };
 
     try {

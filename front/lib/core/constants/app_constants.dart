@@ -2,6 +2,8 @@ class AppConstants {
   AppConstants._();
 
   static const String adkAppName = 'alzheimerassistant';
+  // adkUserId is the ADK session scoping ID — kept static.
+  // The Supabase user identity is resolved dynamically via AuthService.
   static const String adkUserId = 'user';
 
   // Required via --dart-define at build time — no default, build fails if missing.
@@ -15,6 +17,10 @@ class AppConstants {
   static const String elevenLabsTtsModel = String.fromEnvironment(
     'ELEVENLABS_TTS_MODEL',
     defaultValue: 'eleven_flash_v2_5',
+  );
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
   );
 
   /// WebSocket endpoint for ADK audio-to-audio bidi streaming.

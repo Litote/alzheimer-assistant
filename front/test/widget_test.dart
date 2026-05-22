@@ -7,14 +7,27 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:alzheimer_assistant/app/app.dart';
+import 'package:alzheimer_assistant/shared/services/auth_service.dart';
+
+class _MockUser extends Mock implements User {}
 
 void main() {
-  testWidgets('App smoke test', (WidgetTester tester) async {
-    // Mark onboarding as done so the router skips the onboarding screen.
+  setUp(() {
     SharedPreferences.setMockInitialValues({'onboarding_done': true});
+  });
 
-    await tester.pumpWidget(const App());
+  testWidgets('App smoke test', (WidgetTester tester) async {
+    final user = _MockUser();
+    when(() => user.id).thenReturn('user-123');
+
+    await tester.pumpWidget(
+      App(
+        authService: AuthService.test(currentUser: () => user),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Bonjour, je suis là\npour vous aider'), findsOneWidget);

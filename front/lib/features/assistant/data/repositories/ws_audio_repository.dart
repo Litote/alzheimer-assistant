@@ -54,6 +54,7 @@ class WsAudioRepository implements AudioRepository {
   Stream<LiveEvent> connect({
     bool useElevenLabs = false,
     String? sessionId,
+    String supabaseUserId = '',
   }) {
     final uri = _buildWsUri();
     _logger.i('[WsAudio] Connecting → $uri (useElevenLabs: $useElevenLabs)');
@@ -66,6 +67,7 @@ class WsAudioRepository implements AudioRepository {
       'app_name': AppConstants.adkAppName,
       'user_id': AppConstants.adkUserId,
       'use_elevenlabs': useElevenLabs,
+      'supabase_user_id': supabaseUserId,
     };
     _logger.i('[WsAudio] → setup: use_elevenlabs=$useElevenLabs app_name=${AppConstants.adkAppName}');
     _sendJson({'setup': setup});

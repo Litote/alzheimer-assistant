@@ -58,6 +58,7 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   Stream<LiveEvent> connect({
     bool useElevenLabs = false,
     String? sessionId,
+    String supabaseUserId = '',
   }) {
     lastConnectedSessionId = sessionId;
     return _controller.stream;
@@ -93,6 +94,7 @@ class _EmptyRepository implements AudioRepository, TextRepository {
   Stream<LiveEvent> connect({
     bool useElevenLabs = false,
     String? sessionId,
+    String supabaseUserId = '',
   }) =>
       _controller.stream;
 
@@ -125,7 +127,11 @@ class _PersistentRepository implements AudioRepository, TextRepository {
   final StreamController<LiveEvent> _controller;
 
   @override
-  Stream<LiveEvent> connect({bool useElevenLabs = false, String? sessionId}) =>
+  Stream<LiveEvent> connect({
+    bool useElevenLabs = false,
+    String? sessionId,
+    String supabaseUserId = '',
+  }) =>
       _controller.stream;
 
   @override

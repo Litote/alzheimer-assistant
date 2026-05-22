@@ -39,6 +39,7 @@ class FakeLiveRepository implements AudioRepository, TextRepository {
   Stream<LiveEvent> connect({
     bool useElevenLabs = false,
     String? sessionId,
+    String supabaseUserId = '',
   }) async* {
     _disconnected = false;
     _disconnectCompleter = Completer<void>();

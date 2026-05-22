@@ -74,6 +74,7 @@ class LiveKitAudioRepository implements WebRtcRepository {
   Stream<LiveEvent> connect({
     bool useElevenLabs = false,
     String? sessionId,
+    String supabaseUserId = '',
   }) {
     _useElevenLabs = useElevenLabs;
     _controller?.close();

@@ -100,12 +100,16 @@ jobs:
           ADK_BASE_URL: ${{ secrets.ADK_BASE_URL }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           cat > secrets.json <<EOF
           {
             "ADK_BASE_URL": "$ADK_BASE_URL",
             "ELEVENLABS_API_KEY": "$ELEVENLABS_API_KEY",
-            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID"
+            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID",
+            "SUPABASE_URL": "$SUPABASE_URL",
+            "SUPABASE_ANON_KEY": "$SUPABASE_ANON_KEY"
           }
           EOF
 
@@ -155,12 +159,16 @@ jobs:
           ADK_BASE_URL: ${{ secrets.ADK_BASE_URL }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           cat > secrets.json <<EOF
           {
             "ADK_BASE_URL": "$ADK_BASE_URL",
             "ELEVENLABS_API_KEY": "$ELEVENLABS_API_KEY",
-            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID"
+            "ELEVENLABS_VOICE_ID": "$ELEVENLABS_VOICE_ID",
+            "SUPABASE_URL": "$SUPABASE_URL",
+            "SUPABASE_ANON_KEY": "$SUPABASE_ANON_KEY"
           }
           EOF
 

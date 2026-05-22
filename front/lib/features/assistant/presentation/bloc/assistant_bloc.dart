@@ -10,6 +10,7 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/conversation_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrtc_repository.dart';
+import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/pcm_streaming_audio_player_service.dart';
@@ -36,6 +37,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     SpeechRecognitionService? speechService,
     ClientTtsService? elevenLabsTtsService,
     ClientTtsService? nativeTtsService,
+    AuthService? authService,
     Duration responseTimeout = const Duration(seconds: 15),
     bool showTranscription = false,
     Future<void> Function()? enableWakelock,
@@ -50,6 +52,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         _speechService = speechService ?? SpeechRecognitionService(),
         _elevenLabsTtsService = elevenLabsTtsService,
         _nativeTtsService = nativeTtsService,
+        _authService = authService,
         _responseTimeout = responseTimeout,
         _showTranscription = showTranscription,
         _enableWakelock = enableWakelock ?? WakelockPlus.enable,
@@ -75,6 +78,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   final SpeechRecognitionService _speechService;
   final ClientTtsService? _elevenLabsTtsService;
   final ClientTtsService? _nativeTtsService;
+  final AuthService? _authService;
   final Duration _responseTimeout;
   final bool _showTranscription;
   final Future<void> Function() _enableWakelock;
@@ -384,7 +388,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       _audioPlayer ??= PcmStreamingAudioPlayerService();
 
       final audioRepo = _audioRepository!;
-      _liveSubscription = audioRepo.connect(useElevenLabs: _useElevenLabs).listen(
+      _liveSubscription = audioRepo.connect(
+        useElevenLabs: _useElevenLabs,
+        supabaseUserId: _authService?.supabaseUserId ?? '',
+      ).listen(
         (e) {
           _cancelResponseTimeout();
           add(AssistantEvent.liveEventReceived(e));
@@ -484,7 +491,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     try {
       _useElevenLabs = await _settingsService.getUseElevenLabs();
       _liveSubscription = _webRtcRepository!
-          .connect(useElevenLabs: _useElevenLabs)
+          .connect(
+            useElevenLabs: _useElevenLabs,
+            supabaseUserId: _authService?.supabaseUserId ?? '',
+          )
           .listen(
         (e) {
           _cancelResponseTimeout();
@@ -528,6 +538,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
           .connect(
             useElevenLabs: _useElevenLabs,
             sessionId: _sessionId,
+            supabaseUserId: _authService?.supabaseUserId ?? '',
           )
           .listen(
         (e) {
