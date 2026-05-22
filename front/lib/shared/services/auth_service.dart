@@ -26,6 +26,7 @@ class AuthService {
         _signInWithGoogle = (() => supabase.auth.signInWithOAuth(
               OAuthProvider.google,
               redirectTo: _googleSignInRedirectUrl,
+              authScreenLaunchMode: LaunchMode.externalApplication,
             )),
         _signOut = (() => supabase.auth.signOut()),
         _authStateChanges = supabase.auth.onAuthStateChange;

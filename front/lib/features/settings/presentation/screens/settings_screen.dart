@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.settingsService});
+  const SettingsScreen({
+    super.key,
+    required this.settingsService,
+    required this.authService,
+  });
 
   final SettingsService settingsService;
+  final AuthService authService;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -48,6 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                _UserInfoCard(authService: widget.authService),
+                const SizedBox(height: 24),
                 _SettingCard(
                   title: 'Voix Haute Qualité',
                   description:
@@ -90,8 +98,159 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _useLiveKit = value);
                   },
                 ),
+                const SizedBox(height: 48),
+                _SignOutButton(authService: widget.authService),
               ],
             ),
+    );
+  }
+}
+
+class _UserInfoCard extends StatelessWidget {
+  const _UserInfoCard({required this.authService});
+
+  final AuthService authService;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final user = authService.currentUser;
+    final email = user?.email ?? user?.userMetadata?['email'] as String?;
+    final name = user?.userMetadata?['full_name'] as String?;
+    final id = user?.id ?? '—';
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.account_circle_outlined,
+                    color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Compte connecté',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (name != null) ...[
+              _InfoRow(label: 'Nom', value: name, theme: theme),
+              const SizedBox(height: 6),
+            ],
+            if (email != null) ...[
+              _InfoRow(label: 'Email', value: email, theme: theme),
+              const SizedBox(height: 6),
+            ],
+            _InfoRow(label: 'ID', value: id, theme: theme, mono: true),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+    this.mono = false,
+  });
+
+  final String label;
+  final String value;
+  final ThemeData theme;
+  final bool mono;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 48,
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: mono
+                ? theme.textTheme.bodySmall?.copyWith(
+                    fontFamily: 'monospace',
+                    color: theme.colorScheme.onSurface,
+                  )
+                : theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SignOutButton extends StatelessWidget {
+  const _SignOutButton({required this.authService});
+
+  final AuthService authService;
+
+  Future<void> _confirm(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Se déconnecter ?'),
+        content: const Text(
+          'Vous devrez vous reconnecter avec votre compte Google pour utiliser l\'application.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Se déconnecter'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await authService.signOut();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return OutlinedButton.icon(
+      key: const Key('sign-out-button'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: theme.colorScheme.error,
+        side: BorderSide(color: theme.colorScheme.error.withAlpha(120)),
+        minimumSize: const Size.fromHeight(56),
+        shape: const StadiumBorder(),
+      ),
+      onPressed: () => _confirm(context),
+      icon: const Icon(Icons.logout),
+      label: const Text('Se déconnecter'),
     );
   }
 }

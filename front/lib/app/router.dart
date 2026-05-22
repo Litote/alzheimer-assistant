@@ -25,6 +25,15 @@ GoRouter createAppRouter({
     // Refresh the router whenever the Supabase auth state changes (sign in/out,
     // or when the app resumes from the OAuth browser callback).
     refreshListenable: _GoRouterAuthNotifier(authService),
+    // Catch unknown routes (e.g. the OAuth callback URL mistakenly forwarded by
+    // Flutter's deep-link layer) and redirect to a sensible destination instead
+    // of showing a blank screen.
+    errorBuilder: (context, state) {
+      if (!authService.isSignedIn) {
+        return LoginScreen(authService: authService);
+      }
+      return const HomeScreen();
+    },
     redirect: (context, state) async {
       // 1. Auth check — redirect to login if not signed in.
       if (!authService.isSignedIn && state.matchedLocation != _loginPath) {
@@ -54,6 +63,7 @@ GoRouter createAppRouter({
         path: '/settings',
         builder: (context, state) => SettingsScreen(
           settingsService: context.read<SettingsService>(),
+          authService: context.read<AuthService>(),
         ),
       ),
       GoRoute(
