@@ -86,6 +86,10 @@
 	     Without this key, App Store Connect requires all 4 orientations. -->
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<!-- Disable Flutter's built-in deep linking (introduced in Flutter 3.24) so
+	     that app_links can intercept the OAuth callback URL before Flutter routes it. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<!-- Deep-link for Supabase OAuth callback (Google Sign-In via browser).
 	     The custom scheme must match the redirectTo URL used in AuthService. -->
 	<key>CFBundleURLTypes</key>
