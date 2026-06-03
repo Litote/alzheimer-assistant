@@ -32,7 +32,7 @@ dependencies:
   speech_to_text: 7.3.0
 
   # Microphone streaming (raw PCM 16kHz for ADK Live)
-  record: 6.2.0
+  record: 7.0.0
 
   # WebSocket transport (ADK Live bidi streaming)
   web_socket_channel: 3.0.3
