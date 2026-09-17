@@ -201,11 +201,22 @@ jobs:
             ls -la /tmp/Runner-ipa/ || echo "(empty or missing)"
             exit 1
           fi
+          # altool can print "ERROR:" while still exiting 0 (e.g. missing/expired
+          # Apple agreement), so the exit code alone cannot be trusted here.
+          set +e
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA_PATH" \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            2>&1 | tee /tmp/altool-upload.log
+          ALTOOL_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$ALTOOL_EXIT" -ne 0 ] || grep -q "ERROR:" /tmp/altool-upload.log; then
+            echo "altool upload failed (exit code $ALTOOL_EXIT, or an ERROR was reported)"
+            exit 1
+          fi
 
       # ── Cleanup ──────────────────────────────────────────────────────────────
       - name: Delete temporary keychain
