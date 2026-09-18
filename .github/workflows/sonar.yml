@@ -50,7 +50,7 @@ jobs:
           build-scan-publish: false
 
       - name: Setup Flutter
-        uses: ./.github/actions/setup-flutter
+        uses: $/.github/actions/setup-flutter
         with:
           working-directory: front
 
