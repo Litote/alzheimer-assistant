@@ -13,7 +13,7 @@ String _sseLine(Map<String, dynamic> json) => 'data: ${jsonEncode(json)}';
 /// Creates a [SseTextRepository] whose fetch function returns [lines].
 SseTextRepository _makeRepo(List<String> lines) {
   return SseTextRepository(
-    fetchFn: (_, __) => Stream.fromIterable(lines),
+    fetchFn: (_, _) => Stream.fromIterable(lines),
   );
 }
 
@@ -356,7 +356,7 @@ void main() {
   test('sendText() after disconnect() is a no-op', () async {
     int callCount = 0;
     final repo = SseTextRepository(
-      fetchFn: (_, __) {
+      fetchFn: (_, _) {
         callCount++;
         return const Stream.empty();
       },
@@ -374,7 +374,7 @@ void main() {
 
   test('fetch error is forwarded to stream as error', () async {
     final repo = SseTextRepository(
-      fetchFn: (_, __) => Stream.error(Exception('network error')),
+      fetchFn: (_, _) => Stream.error(Exception('network error')),
     );
 
     final completer = Completer<Object>();

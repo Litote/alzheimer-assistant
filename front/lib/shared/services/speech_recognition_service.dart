@@ -64,11 +64,11 @@ class SpeechRecognitionService {
       // triggers an infinite error/restart loop.
       await _stt.cancel();
       await _stt.listen(
-        localeId: 'fr_FR',
-        // Reduce pauseFor as iOS handles its own timeout better in confirmation mode
-        pauseFor: const Duration(seconds: 2),
-        listenFor: const Duration(seconds: 20),
         listenOptions: SpeechListenOptions(
+          localeId: 'fr_FR',
+          // Reduce pauseFor as iOS handles its own timeout better in confirmation mode
+          pauseFor: const Duration(seconds: 2),
+          listenFor: const Duration(seconds: 20),
           listenMode: ListenMode.confirmation, // Keeps confirmation mode but speaks immediately
           cancelOnError: false, // IMPORTANT: prevents the plugin from cutting out on silence
           partialResults: true,

@@ -12,9 +12,9 @@ class MockSpeechToText extends Mock implements SpeechToText {}
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 SpeechRecognitionResult _result(String words, {bool isFinal = true}) =>
-    SpeechRecognitionResult(
+    SpeechRecognitionResult.init(
       [SpeechRecognitionWords(words, null, 1.0)],
-      isFinal,
+      isFinal ? ResultType.finalResult : ResultType.partial,
     );
 
 /// Stubs [mock.listen] to immediately invoke [onResult] with [result].
@@ -22,9 +22,6 @@ void _stubListen(MockSpeechToText mock, SpeechRecognitionResult result) {
   when(
     () => mock.listen(
       onResult: any(named: 'onResult'),
-      localeId: any(named: 'localeId'),
-      pauseFor: any(named: 'pauseFor'),
-      listenFor: any(named: 'listenFor'),
       listenOptions: any(named: 'listenOptions'),
     ),
   ).thenAnswer((invocation) async {
@@ -88,9 +85,6 @@ void main() {
     verifyNever(
       () => mockStt.listen(
         onResult: any(named: 'onResult'),
-        localeId: any(named: 'localeId'),
-        pauseFor: any(named: 'pauseFor'),
-        listenFor: any(named: 'listenFor'),
         listenOptions: any(named: 'listenOptions'),
       ),
     );
@@ -141,9 +135,6 @@ void main() {
     when(
       () => mockStt.listen(
         onResult: any(named: 'onResult'),
-        localeId: any(named: 'localeId'),
-        pauseFor: any(named: 'pauseFor'),
-        listenFor: any(named: 'listenFor'),
         listenOptions: any(named: 'listenOptions'),
       ),
     ).thenThrow(Exception('microphone unavailable'));
@@ -176,9 +167,6 @@ void main() {
     when(
       () => mockStt.listen(
         onResult: any(named: 'onResult'),
-        localeId: any(named: 'localeId'),
-        pauseFor: any(named: 'pauseFor'),
-        listenFor: any(named: 'listenFor'),
         listenOptions: any(named: 'listenOptions'),
       ),
     ).thenAnswer((_) async {});
@@ -209,9 +197,6 @@ void main() {
     when(
       () => mockStt.listen(
         onResult: any(named: 'onResult'),
-        localeId: any(named: 'localeId'),
-        pauseFor: any(named: 'pauseFor'),
-        listenFor: any(named: 'listenFor'),
         listenOptions: any(named: 'listenOptions'),
       ),
     ).thenAnswer((_) async {});
@@ -242,9 +227,6 @@ void main() {
     when(
       () => mockStt.listen(
         onResult: any(named: 'onResult'),
-        localeId: any(named: 'localeId'),
-        pauseFor: any(named: 'pauseFor'),
-        listenFor: any(named: 'listenFor'),
         listenOptions: any(named: 'listenOptions'),
       ),
     ).thenAnswer((_) async {});

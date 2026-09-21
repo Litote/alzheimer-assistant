@@ -99,7 +99,7 @@ class _FullScreenImagePage extends StatelessWidget {
               if (progress == null) return child;
               return const CircularProgressIndicator(color: Colors.white);
             },
-            errorBuilder: (context, _, __) => const Icon(
+            errorBuilder: (context, _, _) => const Icon(
               Icons.broken_image,
               color: Colors.white54,
               size: 64,
@@ -210,7 +210,7 @@ class _AnimatedBubbleState extends State<_AnimatedBubble>
                   if (progress == null) return child;
                   return const Center(child: CircularProgressIndicator());
                 },
-                errorBuilder: (context, _, __) => const SizedBox.shrink(),
+                errorBuilder: (context, _, _) => const SizedBox.shrink(),
               ),
             ),
           ),

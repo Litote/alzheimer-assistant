@@ -28,7 +28,7 @@ LiveKitAudioRepository _makeRepo({
   ),
 }) {
   return LiveKitAudioRepository(
-    tokenFetcher: (_, __) async => credentials,
+    tokenFetcher: (_, _) async => credentials,
     roomFactory: () => room,
   );
 }
@@ -264,7 +264,7 @@ void main() {
   test('disconnect before token fetch completes aborts _doConnect', () async {
     final completer = Completer<LiveKitCredentials>();
     final repo = LiveKitAudioRepository(
-      tokenFetcher: (_, __) => completer.future,
+      tokenFetcher: (_, _) => completer.future,
       roomFactory: () => room,
     );
 
@@ -292,7 +292,7 @@ void main() {
 
   test('token fetch error propagates as stream error', () async {
     final repo = LiveKitAudioRepository(
-      tokenFetcher: (_, __) async => throw Exception('Network error'),
+      tokenFetcher: (_, _) async => throw Exception('Network error'),
       roomFactory: () => room,
     );
 
@@ -375,7 +375,7 @@ void main() {
     }
 
     final repo = LiveKitAudioRepository(
-      tokenFetcher: (_, __) async =>
+      tokenFetcher: (_, _) async =>
           (url: 'wss://test.livekit.cloud', token: 'tok', room: 'room-1'),
       roomFactory: () => rooms[factoryCallCount++],
     );
