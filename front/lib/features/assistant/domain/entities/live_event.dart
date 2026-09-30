@@ -27,6 +27,10 @@ sealed class LiveEvent with _$LiveEvent {
   /// The agent has finished its current turn — audio + text are complete.
   const factory LiveEvent.turnComplete() = LiveTurnComplete;
 
+  /// The server detected that the user spoke over the agent (barge-in).
+  /// Audio already received for the interrupted turn must be dropped.
+  const factory LiveEvent.interrupted() = LiveInterrupted;
+
   /// Server-side transcription of what the user said.
   const factory LiveEvent.inputTranscription(String text) = LiveInputTranscription;
 

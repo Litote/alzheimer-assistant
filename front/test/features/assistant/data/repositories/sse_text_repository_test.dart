@@ -13,7 +13,7 @@ String _sseLine(Map<String, dynamic> json) => 'data: ${jsonEncode(json)}';
 /// Creates a [SseTextRepository] whose fetch function returns [lines].
 SseTextRepository _makeRepo(List<String> lines) {
   return SseTextRepository(
-    fetchFn: (_, _) => Stream.fromIterable(lines),
+    fetchFn: (_, _, _) => Stream.fromIterable(lines),
   );
 }
 
@@ -58,7 +58,7 @@ void main() {
     String? capturedBody;
 
     final repo = SseTextRepository(
-      fetchFn: (uri, body) {
+      fetchFn: (uri, body, _) {
         capturedUri = uri;
         capturedBody = body;
         return const Stream.empty();
@@ -74,11 +74,47 @@ void main() {
     expect(decoded['session_id'], 'sess-99');
   });
 
+  test('sendText() sends a bearer Authorization header when signed in',
+      () async {
+    Map<String, String>? capturedHeaders;
+
+    final repo = SseTextRepository(
+      fetchFn: (_, _, headers) {
+        capturedHeaders = headers;
+        return const Stream.empty();
+      },
+      accessTokenProvider: () => 'jwt-123',
+    );
+
+    repo.connect();
+    repo.sendText('hello');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(capturedHeaders, {'Authorization': 'Bearer jwt-123'});
+  });
+
+  test('sendText() sends no Authorization header when signed out', () async {
+    Map<String, String>? capturedHeaders;
+
+    final repo = SseTextRepository(
+      fetchFn: (_, _, headers) {
+        capturedHeaders = headers;
+        return const Stream.empty();
+      },
+    );
+
+    repo.connect();
+    repo.sendText('hello');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(capturedHeaders, isEmpty);
+  });
+
   test('connect() without sessionId generates one automatically', () async {
     String? capturedBody;
 
     final repo = SseTextRepository(
-      fetchFn: (_, body) {
+      fetchFn: (_, body, _) {
         capturedBody = body;
         return const Stream.empty();
       },
@@ -99,7 +135,7 @@ void main() {
     Map<String, dynamic>? capturedBody;
 
     final repo = SseTextRepository(
-      fetchFn: (_, body) {
+      fetchFn: (_, body, _) {
         capturedBody = jsonDecode(body) as Map<String, dynamic>;
         return const Stream.empty();
       },
@@ -124,7 +160,7 @@ void main() {
     Map<String, dynamic>? capturedBody;
 
     final repo = SseTextRepository(
-      fetchFn: (_, body) {
+      fetchFn: (_, body, _) {
         capturedBody = jsonDecode(body) as Map<String, dynamic>;
         return const Stream.empty();
       },
@@ -356,7 +392,7 @@ void main() {
   test('sendText() after disconnect() is a no-op', () async {
     int callCount = 0;
     final repo = SseTextRepository(
-      fetchFn: (_, _) {
+      fetchFn: (_, _, _) {
         callCount++;
         return const Stream.empty();
       },
@@ -374,7 +410,7 @@ void main() {
 
   test('fetch error is forwarded to stream as error', () async {
     final repo = SseTextRepository(
-      fetchFn: (_, _) => Stream.error(Exception('network error')),
+      fetchFn: (_, _, _) => Stream.error(Exception('network error')),
     );
 
     final completer = Completer<Object>();

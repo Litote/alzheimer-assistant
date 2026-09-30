@@ -13,16 +13,19 @@ class AuthService {
 
   AuthService.test({
     User? Function()? currentUser,
+    Session? Function()? currentSession,
     Future<void> Function()? signInWithGoogle,
     Future<void> Function()? signOut,
     Stream<AuthState>? authStateChanges,
   })  : _currentUser = currentUser ?? _noUser,
+        _currentSession = currentSession ?? _noSession,
         _signInWithGoogle = signInWithGoogle ?? _noop,
         _signOut = signOut ?? _noop,
         _authStateChanges = authStateChanges ?? const Stream<AuthState>.empty();
 
   AuthService._fromClient(SupabaseClient supabase)
       : _currentUser = (() => supabase.auth.currentUser),
+        _currentSession = (() => supabase.auth.currentSession),
         _signInWithGoogle = (() => supabase.auth.signInWithOAuth(
               OAuthProvider.google,
               redirectTo: _googleSignInRedirectUrl,
@@ -36,9 +39,12 @@ class AuthService {
 
   static User? _noUser() => null;
 
+  static Session? _noSession() => null;
+
   static Future<void> _noop() async {}
 
   final User? Function() _currentUser;
+  final Session? Function() _currentSession;
   final Future<void> Function() _signInWithGoogle;
   final Future<void> Function() _signOut;
   final Stream<AuthState> _authStateChanges;
@@ -48,6 +54,13 @@ class AuthService {
 
   /// The Supabase UUID of the current user, or empty string if not signed in.
   String get supabaseUserId => currentUser?.id ?? '';
+
+  /// The Supabase access token (JWT) of the current session, or empty string
+  /// if not signed in. Sent to the ADK server, which verifies it.
+  ///
+  /// Read it on every request: the Supabase SDK refreshes the session in the
+  /// background, so a stored value would eventually expire.
+  String get accessToken => _currentSession()?.accessToken ?? '';
 
   /// Whether a user is currently signed in.
   bool get isSignedIn => currentUser != null;

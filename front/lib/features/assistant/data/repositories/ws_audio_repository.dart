@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:alzheimer_assistant/core/constants/app_constants.dart';
+import 'package:alzheimer_assistant/core/network/access_token_provider.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/live_message_parser.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
@@ -19,8 +20,9 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio
 ///
 /// ### Connection setup (client → server)
 /// ```json
-/// {"setup": {"app_name": "…", "user_id": "…", "use_elevenlabs": false}}
+/// {"setup": {"app_name": "…", "user_id": "…", "use_elevenlabs": false, "access_token": "<Supabase JWT>"}}
 /// ```
+/// `access_token` is omitted when the user is signed out.
 ///
 /// ### Audio chunk (client → server)
 /// ```json
@@ -39,9 +41,12 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio
 class WsAudioRepository implements AudioRepository {
   WsAudioRepository({
     WebSocketChannel Function(Uri)? channelFactory,
-  }) : _channelFactory = channelFactory ?? WebSocketChannel.connect;
+    AccessTokenProvider? accessTokenProvider,
+  })  : _channelFactory = channelFactory ?? WebSocketChannel.connect,
+        _accessTokenProvider = accessTokenProvider ?? noAccessToken;
 
   final WebSocketChannel Function(Uri) _channelFactory;
+  final AccessTokenProvider _accessTokenProvider;
   WebSocketChannel? _channel;
   final _logger = appLogger;
   final _parser = LiveMessageParser();
@@ -63,11 +68,15 @@ class WsAudioRepository implements AudioRepository {
 
     _channel = _channelFactory(uri);
 
+    // Sent in the setup message rather than the URL so that the token does not
+    // end up in server or proxy access logs.
+    final accessToken = _accessTokenProvider();
     final setup = <String, dynamic>{
       'app_name': AppConstants.adkAppName,
       'user_id': AppConstants.adkUserId,
       'use_elevenlabs': useElevenLabs,
       'supabase_user_id': supabaseUserId,
+      if (accessToken.isNotEmpty) 'access_token': accessToken,
     };
     _logger.i('[WsAudio] → setup: use_elevenlabs=$useElevenLabs app_name=${AppConstants.adkAppName}');
     _sendJson({'setup': setup});

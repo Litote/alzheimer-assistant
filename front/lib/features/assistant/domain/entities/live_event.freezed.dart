@@ -56,14 +56,15 @@ extension LiveEventPatterns on LiveEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( LiveAudioChunk value)?  audioChunk,TResult Function( LiveTextDelta value)?  textDelta,TResult Function( LiveCallPhone value)?  callPhone,TResult Function( LiveTurnComplete value)?  turnComplete,TResult Function( LiveInputTranscription value)?  inputTranscription,TResult Function( LiveOutputTranscription value)?  outputTranscription,TResult Function( LiveToolStatus value)?  toolStatus,TResult Function( LiveSessionInfo value)?  sessionInfo,TResult Function( LiveSessionEstablished value)?  sessionEstablished,TResult Function( LiveImageUrl value)?  imageUrl,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( LiveAudioChunk value)?  audioChunk,TResult Function( LiveTextDelta value)?  textDelta,TResult Function( LiveCallPhone value)?  callPhone,TResult Function( LiveTurnComplete value)?  turnComplete,TResult Function( LiveInterrupted value)?  interrupted,TResult Function( LiveInputTranscription value)?  inputTranscription,TResult Function( LiveOutputTranscription value)?  outputTranscription,TResult Function( LiveToolStatus value)?  toolStatus,TResult Function( LiveSessionInfo value)?  sessionInfo,TResult Function( LiveSessionEstablished value)?  sessionEstablished,TResult Function( LiveImageUrl value)?  imageUrl,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that);case LiveTextDelta() when textDelta != null:
 return textDelta(_that);case LiveCallPhone() when callPhone != null:
 return callPhone(_that);case LiveTurnComplete() when turnComplete != null:
-return turnComplete(_that);case LiveInputTranscription() when inputTranscription != null:
+return turnComplete(_that);case LiveInterrupted() when interrupted != null:
+return interrupted(_that);case LiveInputTranscription() when inputTranscription != null:
 return inputTranscription(_that);case LiveOutputTranscription() when outputTranscription != null:
 return outputTranscription(_that);case LiveToolStatus() when toolStatus != null:
 return toolStatus(_that);case LiveSessionInfo() when sessionInfo != null:
@@ -87,14 +88,15 @@ return imageUrl(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( LiveAudioChunk value)  audioChunk,required TResult Function( LiveTextDelta value)  textDelta,required TResult Function( LiveCallPhone value)  callPhone,required TResult Function( LiveTurnComplete value)  turnComplete,required TResult Function( LiveInputTranscription value)  inputTranscription,required TResult Function( LiveOutputTranscription value)  outputTranscription,required TResult Function( LiveToolStatus value)  toolStatus,required TResult Function( LiveSessionInfo value)  sessionInfo,required TResult Function( LiveSessionEstablished value)  sessionEstablished,required TResult Function( LiveImageUrl value)  imageUrl,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( LiveAudioChunk value)  audioChunk,required TResult Function( LiveTextDelta value)  textDelta,required TResult Function( LiveCallPhone value)  callPhone,required TResult Function( LiveTurnComplete value)  turnComplete,required TResult Function( LiveInterrupted value)  interrupted,required TResult Function( LiveInputTranscription value)  inputTranscription,required TResult Function( LiveOutputTranscription value)  outputTranscription,required TResult Function( LiveToolStatus value)  toolStatus,required TResult Function( LiveSessionInfo value)  sessionInfo,required TResult Function( LiveSessionEstablished value)  sessionEstablished,required TResult Function( LiveImageUrl value)  imageUrl,}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk():
 return audioChunk(_that);case LiveTextDelta():
 return textDelta(_that);case LiveCallPhone():
 return callPhone(_that);case LiveTurnComplete():
-return turnComplete(_that);case LiveInputTranscription():
+return turnComplete(_that);case LiveInterrupted():
+return interrupted(_that);case LiveInputTranscription():
 return inputTranscription(_that);case LiveOutputTranscription():
 return outputTranscription(_that);case LiveToolStatus():
 return toolStatus(_that);case LiveSessionInfo():
@@ -114,14 +116,15 @@ return imageUrl(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( LiveAudioChunk value)?  audioChunk,TResult? Function( LiveTextDelta value)?  textDelta,TResult? Function( LiveCallPhone value)?  callPhone,TResult? Function( LiveTurnComplete value)?  turnComplete,TResult? Function( LiveInputTranscription value)?  inputTranscription,TResult? Function( LiveOutputTranscription value)?  outputTranscription,TResult? Function( LiveToolStatus value)?  toolStatus,TResult? Function( LiveSessionInfo value)?  sessionInfo,TResult? Function( LiveSessionEstablished value)?  sessionEstablished,TResult? Function( LiveImageUrl value)?  imageUrl,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( LiveAudioChunk value)?  audioChunk,TResult? Function( LiveTextDelta value)?  textDelta,TResult? Function( LiveCallPhone value)?  callPhone,TResult? Function( LiveTurnComplete value)?  turnComplete,TResult? Function( LiveInterrupted value)?  interrupted,TResult? Function( LiveInputTranscription value)?  inputTranscription,TResult? Function( LiveOutputTranscription value)?  outputTranscription,TResult? Function( LiveToolStatus value)?  toolStatus,TResult? Function( LiveSessionInfo value)?  sessionInfo,TResult? Function( LiveSessionEstablished value)?  sessionEstablished,TResult? Function( LiveImageUrl value)?  imageUrl,}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that);case LiveTextDelta() when textDelta != null:
 return textDelta(_that);case LiveCallPhone() when callPhone != null:
 return callPhone(_that);case LiveTurnComplete() when turnComplete != null:
-return turnComplete(_that);case LiveInputTranscription() when inputTranscription != null:
+return turnComplete(_that);case LiveInterrupted() when interrupted != null:
+return interrupted(_that);case LiveInputTranscription() when inputTranscription != null:
 return inputTranscription(_that);case LiveOutputTranscription() when outputTranscription != null:
 return outputTranscription(_that);case LiveToolStatus() when toolStatus != null:
 return toolStatus(_that);case LiveSessionInfo() when sessionInfo != null:
@@ -144,13 +147,14 @@ return imageUrl(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Uint8List bytes)?  audioChunk,TResult Function( String text)?  textDelta,TResult Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult Function()?  turnComplete,TResult Function( String text)?  inputTranscription,TResult Function( String text)?  outputTranscription,TResult Function( String label)?  toolStatus,TResult Function( String welcome)?  sessionInfo,TResult Function( String sessionId)?  sessionEstablished,TResult Function( String url)?  imageUrl,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Uint8List bytes)?  audioChunk,TResult Function( String text)?  textDelta,TResult Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult Function()?  turnComplete,TResult Function()?  interrupted,TResult Function( String text)?  inputTranscription,TResult Function( String text)?  outputTranscription,TResult Function( String label)?  toolStatus,TResult Function( String welcome)?  sessionInfo,TResult Function( String sessionId)?  sessionEstablished,TResult Function( String url)?  imageUrl,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that.bytes);case LiveTextDelta() when textDelta != null:
 return textDelta(_that.text);case LiveCallPhone() when callPhone != null:
 return callPhone(_that.callId,_that.contactName,_that.exactMatch);case LiveTurnComplete() when turnComplete != null:
-return turnComplete();case LiveInputTranscription() when inputTranscription != null:
+return turnComplete();case LiveInterrupted() when interrupted != null:
+return interrupted();case LiveInputTranscription() when inputTranscription != null:
 return inputTranscription(_that.text);case LiveOutputTranscription() when outputTranscription != null:
 return outputTranscription(_that.text);case LiveToolStatus() when toolStatus != null:
 return toolStatus(_that.label);case LiveSessionInfo() when sessionInfo != null:
@@ -174,13 +178,14 @@ return imageUrl(_that.url);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Uint8List bytes)  audioChunk,required TResult Function( String text)  textDelta,required TResult Function( String callId,  String contactName,  bool exactMatch)  callPhone,required TResult Function()  turnComplete,required TResult Function( String text)  inputTranscription,required TResult Function( String text)  outputTranscription,required TResult Function( String label)  toolStatus,required TResult Function( String welcome)  sessionInfo,required TResult Function( String sessionId)  sessionEstablished,required TResult Function( String url)  imageUrl,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Uint8List bytes)  audioChunk,required TResult Function( String text)  textDelta,required TResult Function( String callId,  String contactName,  bool exactMatch)  callPhone,required TResult Function()  turnComplete,required TResult Function()  interrupted,required TResult Function( String text)  inputTranscription,required TResult Function( String text)  outputTranscription,required TResult Function( String label)  toolStatus,required TResult Function( String welcome)  sessionInfo,required TResult Function( String sessionId)  sessionEstablished,required TResult Function( String url)  imageUrl,}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk():
 return audioChunk(_that.bytes);case LiveTextDelta():
 return textDelta(_that.text);case LiveCallPhone():
 return callPhone(_that.callId,_that.contactName,_that.exactMatch);case LiveTurnComplete():
-return turnComplete();case LiveInputTranscription():
+return turnComplete();case LiveInterrupted():
+return interrupted();case LiveInputTranscription():
 return inputTranscription(_that.text);case LiveOutputTranscription():
 return outputTranscription(_that.text);case LiveToolStatus():
 return toolStatus(_that.label);case LiveSessionInfo():
@@ -200,13 +205,14 @@ return imageUrl(_that.url);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Uint8List bytes)?  audioChunk,TResult? Function( String text)?  textDelta,TResult? Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult? Function()?  turnComplete,TResult? Function( String text)?  inputTranscription,TResult? Function( String text)?  outputTranscription,TResult? Function( String label)?  toolStatus,TResult? Function( String welcome)?  sessionInfo,TResult? Function( String sessionId)?  sessionEstablished,TResult? Function( String url)?  imageUrl,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Uint8List bytes)?  audioChunk,TResult? Function( String text)?  textDelta,TResult? Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult? Function()?  turnComplete,TResult? Function()?  interrupted,TResult? Function( String text)?  inputTranscription,TResult? Function( String text)?  outputTranscription,TResult? Function( String label)?  toolStatus,TResult? Function( String welcome)?  sessionInfo,TResult? Function( String sessionId)?  sessionEstablished,TResult? Function( String url)?  imageUrl,}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that.bytes);case LiveTextDelta() when textDelta != null:
 return textDelta(_that.text);case LiveCallPhone() when callPhone != null:
 return callPhone(_that.callId,_that.contactName,_that.exactMatch);case LiveTurnComplete() when turnComplete != null:
-return turnComplete();case LiveInputTranscription() when inputTranscription != null:
+return turnComplete();case LiveInterrupted() when interrupted != null:
+return interrupted();case LiveInputTranscription() when inputTranscription != null:
 return inputTranscription(_that.text);case LiveOutputTranscription() when outputTranscription != null:
 return outputTranscription(_that.text);case LiveToolStatus() when toolStatus != null:
 return toolStatus(_that.label);case LiveSessionInfo() when sessionInfo != null:
@@ -452,6 +458,38 @@ int get hashCode => runtimeType.hashCode;
 @override
 String toString() {
     return 'LiveEvent.turnComplete()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class LiveInterrupted implements LiveEvent {
+  const LiveInterrupted();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveInterrupted);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'LiveEvent.interrupted()';
 }
 
 

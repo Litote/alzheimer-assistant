@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:alzheimer_assistant/core/constants/app_constants.dart';
+import 'package:alzheimer_assistant/core/network/access_token_provider.dart';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/live_message_parser.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
@@ -16,9 +17,12 @@ typedef LiveKitCredentials = ({String url, String token, String room});
 /// Fetches LiveKit credentials from the ADK backend.
 /// Receives [useElevenLabs] and a stable [userId] so the backend can scope the
 /// session to the device and encode the preference in room participant metadata.
+/// [accessToken] (Supabase JWT, empty when signed out) authenticates the
+/// request: the backend then scopes the room to the verified Supabase user.
 typedef LiveKitTokenFetcher = Future<LiveKitCredentials> Function(
   bool useElevenLabs,
   String userId,
+  String accessToken,
 );
 
 /// Audio-to-audio transport over WebRTC via LiveKit.
@@ -40,11 +44,14 @@ class LiveKitAudioRepository implements WebRtcRepository {
     LiveKitTokenFetcher? tokenFetcher,
     Room Function()? roomFactory,
     DeviceIdService? deviceIdService,
+    AccessTokenProvider? accessTokenProvider,
   })  : _tokenFetcher = tokenFetcher ?? _defaultTokenFetcher,
+        _accessTokenProvider = accessTokenProvider ?? noAccessToken,
         _roomFactory = roomFactory ?? Room.new,
         _deviceIdService = deviceIdService ?? DeviceIdService();
 
   final LiveKitTokenFetcher _tokenFetcher;
+  final AccessTokenProvider _accessTokenProvider;
 
   /// Factory called on each [connect] to produce a fresh [Room] instance.
   final Room Function() _roomFactory;
@@ -149,7 +156,8 @@ class LiveKitAudioRepository implements WebRtcRepository {
       '[LiveKit] Preparing session → deviceId="$userId" useElevenLabs=$_useElevenLabs',
     );
 
-    final creds = await _tokenFetcher(_useElevenLabs, userId);
+    final creds =
+        await _tokenFetcher(_useElevenLabs, userId, _accessTokenProvider());
     if (generation != _connectGeneration) return; // stale — abort
 
     final identity = _extractIdentityFromToken(creds.token);
@@ -274,6 +282,7 @@ class LiveKitAudioRepository implements WebRtcRepository {
 Future<LiveKitCredentials> _defaultTokenFetcher(
   bool useElevenLabs,
   String userId,
+  String accessToken,
 ) async {
   final uri = Uri.parse('${AppConstants.adkBaseUrl}/livekit-token')
       .replace(queryParameters: {
@@ -284,6 +293,7 @@ Future<LiveKitCredentials> _defaultTokenFetcher(
   try {
     final req = await client.getUrl(uri);
     req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    bearerAuthHeaders(accessToken).forEach(req.headers.set);
     final response = await req.close();
     if (response.statusCode != 200) {
       throw Exception(

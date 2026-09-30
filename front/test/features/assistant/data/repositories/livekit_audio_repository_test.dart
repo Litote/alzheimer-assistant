@@ -28,7 +28,7 @@ LiveKitAudioRepository _makeRepo({
   ),
 }) {
   return LiveKitAudioRepository(
-    tokenFetcher: (_, _) async => credentials,
+    tokenFetcher: (_, _, _) async => credentials,
     roomFactory: () => room,
   );
 }
@@ -264,7 +264,7 @@ void main() {
   test('disconnect before token fetch completes aborts _doConnect', () async {
     final completer = Completer<LiveKitCredentials>();
     final repo = LiveKitAudioRepository(
-      tokenFetcher: (_, _) => completer.future,
+      tokenFetcher: (_, _, _) => completer.future,
       roomFactory: () => room,
     );
 
@@ -292,7 +292,7 @@ void main() {
 
   test('token fetch error propagates as stream error', () async {
     final repo = LiveKitAudioRepository(
-      tokenFetcher: (_, _) async => throw Exception('Network error'),
+      tokenFetcher: (_, _, _) async => throw Exception('Network error'),
       roomFactory: () => room,
     );
 
@@ -301,6 +301,39 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(streamError, isNotNull);
+  });
+
+  test('token fetcher receives the current access token', () async {
+    String? receivedToken;
+    final repo = LiveKitAudioRepository(
+      tokenFetcher: (_, _, accessToken) async {
+        receivedToken = accessToken;
+        throw Exception('stop after token fetch');
+      },
+      roomFactory: () => room,
+      accessTokenProvider: () => 'jwt-123',
+    );
+
+    repo.connect().listen((_) {}, onError: (_) {});
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(receivedToken, 'jwt-123');
+  });
+
+  test('token fetcher receives an empty access token by default', () async {
+    String? receivedToken;
+    final repo = LiveKitAudioRepository(
+      tokenFetcher: (_, _, accessToken) async {
+        receivedToken = accessToken;
+        throw Exception('stop after token fetch');
+      },
+      roomFactory: () => room,
+    );
+
+    repo.connect().listen((_) {}, onError: (_) {});
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(receivedToken, isEmpty);
   });
 
   test('missing localParticipant after connect propagates as stream error',
@@ -375,7 +408,7 @@ void main() {
     }
 
     final repo = LiveKitAudioRepository(
-      tokenFetcher: (_, _) async =>
+      tokenFetcher: (_, _, _) async =>
           (url: 'wss://test.livekit.cloud', token: 'tok', room: 'room-1'),
       roomFactory: () => rooms[factoryCallCount++],
     );

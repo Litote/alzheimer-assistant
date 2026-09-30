@@ -217,6 +217,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         );
       case LiveTurnComplete():
         await _handleTurnComplete(emit);
+      case LiveInterrupted():
+        await _handleServerInterruption(emit);
       case LiveSessionEstablished(:final sessionId):
         _sessionId = sessionId;
         _logger.i('[Bloc] Session established: $sessionId');
@@ -608,6 +610,21 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         Int16List.view(bytes.buffer, bytes.offsetInBytes, bytes.length ~/ 2);
     for (var i = 0; i < samples.length; i++) {
       samples[i] = (samples[i] * factor).round().clamp(-32768, 32767);
+    }
+  }
+
+  /// Barge-in detected server-side (Gemini): the model stopped generating, so
+  /// drop the audio already queued for playback and listen to the user again.
+  /// Unlike [_handleInterruption], nothing is sent back — the server initiated it.
+  Future<void> _handleServerInterruption(Emitter<AssistantState> emit) async {
+    _logger.i('[Bloc] Server interruption — dropping queued agent audio');
+    await _audioPlayer?.stop();
+    _responseText = '';
+    if (state is Speaking) {
+      emit(AssistantState.listening(
+        welcomeText: _welcomeText,
+        imageUrl: _currentImageUrl,
+      ));
     }
   }
 

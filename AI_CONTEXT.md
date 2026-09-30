@@ -73,6 +73,8 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 
 **LiveKit transport:** Flutter fetches a token via `GET <ADK_BASE_URL>/livekit-token`, joins the LiveKit Cloud room, exchanges audio via WebRTC tracks, and non-audio events via Data Messages (same JSON format as the WebSocket protocol).
 
+**Authentication:** every transport sends the Supabase access token of the signed-in user (`Authorization: Bearer` header for HTTP, `access_token` in the WebSocket `setup` message). The agent verifies it and derives the user id from it. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md).
+
 ---
 
 ## Domain Vocabulary

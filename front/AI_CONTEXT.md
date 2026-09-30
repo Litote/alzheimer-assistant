@@ -29,10 +29,25 @@ The Flutter app opens a single WebSocket connection per interaction and closes i
 ```json
 {
   "setup": {
-    "app_name": "alzheimerassistant"
+    "app_name": "alzheimerassistant",
+    "access_token": "<Supabase JWT>"
   }
 }
 ```
+
+`access_token` is the Supabase access token of the signed-in user (`AuthService.accessToken`), omitted when signed out. It is sent in the setup message rather than the URL so it does not appear in access logs.
+
+### Authentication (all transports)
+
+The ADK server verifies the Supabase access token and uses the user id it carries, overriding any client-supplied `supabase_user_id`. With `REQUIRE_AUTH=true` on the server, requests without a valid token are rejected.
+
+| Transport | How the token is sent |
+|-----------|-----------------------|
+| WebSocket `/run_live` | `access_token` field of the `setup` message |
+| Text `POST /run_sse` | `Authorization: Bearer <token>` header |
+| LiveKit `GET /livekit-token` | `Authorization: Bearer <token>` header |
+
+Repositories receive an `AccessTokenProvider` (`core/network/access_token_provider.dart`), wired to `AuthService.accessToken` in `app.dart`. The token is read on every request, never cached, because the Supabase SDK refreshes it in the background.
 
 ### Audio input (client → server)
 
@@ -118,6 +133,14 @@ PCM chunks (24kHz, 16-bit, mono) buffered client-side. On `turn_complete`, all c
 
 Signals the end of the agent's response. The client disconnects and starts audio playback.
 
+### Interrupted (server → client)
+
+```json
+{ "server_content": { "interrupted": true } }
+```
+
+Gemini detected that the user spoke over the agent (barge-in) and stopped generating. Audio arrives faster than realtime, so the client must drop what it has already queued (`StreamingAudioPlayerService.stop()`) and go back to Listening. Nothing is sent back — unlike the client-detected interruption (`client_content.interrupted`).
+
 ### Tool call (server → client)
 
 ```json
@@ -150,7 +173,7 @@ Non-audio events (text, tool calls, turn_complete, etc.) transit as **Data Messa
 
 ### Connection setup
 
-1. Flutter calls `GET <ADK_BASE_URL>/livekit-token`
+1. Flutter calls `GET <ADK_BASE_URL>/livekit-token` (with `Authorization: Bearer <Supabase JWT>` when signed in)
 2. ADK server responds with `{ "url": "wss://...", "token": "<JWT>", "room": "<room-name>" }`
 3. Flutter joins the LiveKit room via `Room.connect(url, token)`
 4. Flutter enables the microphone: `localParticipant.setMicrophoneEnabled(true)`

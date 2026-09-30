@@ -4,14 +4,20 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:alzheimer_assistant/core/constants/app_constants.dart';
+import 'package:alzheimer_assistant/core/network/access_token_provider.dart';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
 
 /// Function type used to POST to the SSE endpoint and return a line stream.
 ///
+/// [headers] carries the `Authorization` header when the user is signed in.
 /// Injectable for testing — production code uses [_httpFetch].
-typedef SseFetchFn = Stream<String> Function(Uri uri, String jsonBody);
+typedef SseFetchFn = Stream<String> Function(
+  Uri uri,
+  String jsonBody,
+  Map<String, String> headers,
+);
 
 /// Text-to-text transport implementing [TextRepository].
 ///
@@ -22,10 +28,14 @@ typedef SseFetchFn = Stream<String> Function(Uri uri, String jsonBody);
 /// Tool responses (e.g. phone call results) are sent as a new POST using the
 /// ADK `functionResponse` part format so the agent can continue the turn.
 class SseTextRepository implements TextRepository {
-  SseTextRepository({SseFetchFn? fetchFn})
-      : _fetchFn = fetchFn ?? _httpFetch;
+  SseTextRepository({
+    SseFetchFn? fetchFn,
+    AccessTokenProvider? accessTokenProvider,
+  })  : _fetchFn = fetchFn ?? _httpFetch,
+        _accessTokenProvider = accessTokenProvider ?? noAccessToken;
 
   final SseFetchFn _fetchFn;
+  final AccessTokenProvider _accessTokenProvider;
   final _logger = appLogger;
 
   StreamController<LiveEvent>? _controller;
@@ -119,7 +129,8 @@ class SseTextRepository implements TextRepository {
       _logger.i('[SseText] POST → $uri');
       _logger.d('[SseText] body: ${jsonEncode(body)}');
       var hasTextContent = false;
-      await for (final line in _fetchFn(uri, jsonEncode(body))) {
+      final headers = bearerAuthHeaders(_accessTokenProvider());
+      await for (final line in _fetchFn(uri, jsonEncode(body), headers)) {
         if (ctrl.isClosed) break;
         _logger.d('[SseText] raw line: "$line"');
         if (_emitParsedEvent(line, ctrl)) hasTextContent = true;
@@ -250,11 +261,16 @@ class SseTextRepository implements TextRepository {
 
 // ── Default HTTP implementation ────────────────────────────────────────────
 
-Stream<String> _httpFetch(Uri uri, String jsonBody) async* {
+Stream<String> _httpFetch(
+  Uri uri,
+  String jsonBody,
+  Map<String, String> headers,
+) async* {
   final client = HttpClient();
   try {
     final req = await client.postUrl(uri);
     req.headers.contentType = ContentType.json;
+    headers.forEach(req.headers.set);
     req.write(jsonBody);
     final response = await req.close();
     if (response.statusCode != 200) {

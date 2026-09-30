@@ -9,6 +9,8 @@ class MockUser extends Mock implements User {}
 
 class MockAuthState extends Mock implements AuthState {}
 
+class MockSession extends Mock implements Session {}
+
 void main() {
   group('AuthService', () {
     test('returns the current Supabase user details when signed in', () {
@@ -28,6 +30,21 @@ void main() {
       expect(service.currentUser, isNull);
       expect(service.supabaseUserId, isEmpty);
       expect(service.isSignedIn, isFalse);
+    });
+
+    test('returns the access token of the current session', () {
+      final session = MockSession();
+      when(() => session.accessToken).thenReturn('jwt-123');
+
+      final service = AuthService.test(currentSession: () => session);
+
+      expect(service.accessToken, 'jwt-123');
+    });
+
+    test('returns an empty access token when there is no session', () {
+      final service = AuthService.test();
+
+      expect(service.accessToken, isEmpty);
     });
 
     test('delegates Google sign-in to the injected auth client', () async {

@@ -42,6 +42,10 @@ class LiveMessageParser {
       _logger.i('[Parser] ← turn_complete');
       return const LiveEvent.turnComplete();
     }
+    if (serverContent['interrupted'] == true) {
+      _logger.i('[Parser] ← interrupted');
+      return const LiveEvent.interrupted();
+    }
     final modelTurn = serverContent['model_turn'];
     if (modelTurn is! Map<String, dynamic>) return null;
     final parts = modelTurn['parts'];

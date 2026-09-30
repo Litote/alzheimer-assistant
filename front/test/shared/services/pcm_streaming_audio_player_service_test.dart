@@ -117,6 +117,99 @@ void main() {
     });
   });
 
+  // ── Paced feeding (queue drained on stop) ─────────────────────────────────
+
+  group('paced feeding', () {
+    // Frames handed to the plugin by each `feed` call.
+    final fedFrames = <int>[];
+
+    // Simulates the plugin's feed callback (OnFeedSamples).
+    Future<void> pluginCallback(int remainingFrames) =>
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(
+          'flutter_pcm_sound/methods',
+          const StandardMethodCodec().encodeMethodCall(
+            MethodCall('OnFeedSamples', {'remaining_frames': remainingFrames}),
+          ),
+          (_) {},
+        );
+
+    // 100 ms of silence at 24 kHz (2400 frames).
+    Uint8List chunk100ms() => Uint8List(2400 * 2);
+
+    setUp(() {
+      fedFrames.clear();
+      _mockAudioRoutingChannel();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('flutter_pcm_sound/methods'),
+        (MethodCall call) async {
+          if (call.method == 'feed') {
+            final bytes = (call.arguments as Map)['buffer'] as Uint8List;
+            fedFrames.add(bytes.length ~/ 2);
+          }
+          return null;
+        },
+      );
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('flutter_pcm_sound/methods'),
+        null,
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('alzheimer_assistant/audio'),
+        null,
+      );
+    });
+
+    test('feeds only ~400 ms ahead and tops up on feed callback', () async {
+      final service = PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // First chunk is fed immediately; the next 9 are queued (1 s total).
+      for (var i = 0; i < 10; i++) {
+        service.addChunk(chunk100ms());
+      }
+      await Future<void>.delayed(Duration.zero);
+      expect(fedFrames, [2400]);
+
+      // Plugin reports low buffer → top up to 400 ms.
+      await pluginCallback(1000);
+      await Future<void>.delayed(Duration.zero);
+      // Whole chunks are added until the lead is reached: 1000 + 4 × 2400 ≥ 9600.
+      expect(fedFrames.last, 2400 * 4);
+
+      await service.dispose();
+    });
+
+    test('stop drops queued audio: nothing more is fed', () async {
+      final service = PcmStreamingAudioPlayerService();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      for (var i = 0; i < 10; i++) {
+        service.addChunk(chunk100ms());
+      }
+      await Future<void>.delayed(Duration.zero);
+      final fedBeforeStop = fedFrames.length;
+
+      await service.stop();
+      await pluginCallback(0);
+      await Future<void>.delayed(Duration.zero);
+      expect(fedFrames.length, fedBeforeStop);
+
+      // Next turn: playback restarts immediately after the starved callback.
+      service.addChunk(chunk100ms());
+      await Future<void>.delayed(Duration.zero);
+      expect(fedFrames.length, fedBeforeStop + 1);
+
+      await service.dispose();
+    });
+  });
+
   // ── iOS audio session ordering ─────────────────────────────────────────────
 
   group('iOS audio session (correct ordering + interruption recovery)', () {

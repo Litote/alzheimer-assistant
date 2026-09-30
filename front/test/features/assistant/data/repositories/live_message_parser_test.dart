@@ -17,6 +17,13 @@ void main() {
     expect(parser.parse(raw), const LiveEvent.turnComplete());
   });
 
+  // ── interrupted ────────────────────────────────────────────────────────────
+
+  test('parses interrupted', () {
+    final raw = jsonEncode({'server_content': {'interrupted': true}});
+    expect(parser.parse(raw), const LiveEvent.interrupted());
+  });
+
   // ── audioChunk ─────────────────────────────────────────────────────────────
 
   test('parses audioChunk from inline_data', () {

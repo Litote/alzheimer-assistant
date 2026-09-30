@@ -977,6 +977,37 @@ void main() {
     expect: () => [],
   );
 
+  // ── LiveEvent: interrupted (server-side barge-in) ─────────────────────────
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(interrupted) while Speaking → stops audio, back to Listening',
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.speaking(responseText: _kText),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.interrupted(),
+    )),
+    expect: () => [const AssistantState.listening()],
+    verify: (_) {
+      // Also called again on bloc.close(), hence greaterThan(0).
+      verify(() => audioPlayer.stop()).called(greaterThan(0));
+      // Server-initiated: nothing must be echoed back.
+      verifyNever(() => audioRepository.sendInterruption());
+    },
+  );
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(interrupted) while Listening → stops audio, no state change',
+    build: () =>
+        _makeBloc(audioRepository: audioRepository, audioPlayer: audioPlayer),
+    seed: () => const AssistantState.listening(),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.interrupted(),
+    )),
+    expect: () => [],
+    verify: (_) => verify(() => audioPlayer.stop()).called(greaterThan(0)),
+  );
+
   // ── LiveEvent: turnComplete — settings drift detection ────────────────────
 
   test(

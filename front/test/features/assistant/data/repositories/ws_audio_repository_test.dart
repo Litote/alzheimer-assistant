@@ -94,6 +94,33 @@ void main() {
     expect(setup['setup']['use_elevenlabs'], true);
   });
 
+  test('connect() sends access_token in setup message when signed in',
+      () async {
+    final channel = _FakeChannel();
+    final repo = WsAudioRepository(
+      channelFactory: (_) => channel,
+      accessTokenProvider: () => 'jwt-123',
+    );
+
+    repo.connect().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+
+    final setup = jsonDecode(channel.sent.first as String) as Map;
+    expect(setup['setup']['access_token'], 'jwt-123');
+  });
+
+  test('connect() omits access_token from setup message when signed out',
+      () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    repo.connect().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+
+    final setup = jsonDecode(channel.sent.first as String) as Map;
+    expect(setup['setup'].containsKey('access_token'), isFalse);
+  });
+
   // ── textDelta (ignored) ───────────────────────────────────────────────────
 
   test('server text part → ignored (transcriptions used for display)', () async {

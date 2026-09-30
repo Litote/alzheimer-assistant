@@ -79,9 +79,15 @@ class App extends StatelessWidget {
           create: (_) =>
               _testBloc ??
               AssistantBloc(
-                textRepository: SseTextRepository(),
-                audioRepository: WsAudioRepository(),
-                webRtcRepository: LiveKitAudioRepository(),
+                textRepository: SseTextRepository(
+                  accessTokenProvider: () => _authService.accessToken,
+                ),
+                audioRepository: WsAudioRepository(
+                  accessTokenProvider: () => _authService.accessToken,
+                ),
+                webRtcRepository: LiveKitAudioRepository(
+                  accessTokenProvider: () => _authService.accessToken,
+                ),
                 micService: MicrophoneStreamService(),
                 // audioPlayer is intentionally omitted here: PcmStreamingAudioPlayerService
                 // is created lazily inside the BLoC on the first audio-mode connect,
