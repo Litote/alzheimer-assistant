@@ -23,7 +23,7 @@ dependencies:
   json_annotation: 4.12.0
 
   # UI
-  google_fonts: 8.2.1
+  google_fonts: 9.0.0
   cupertino_icons: 1.0.9
   wakelock_plus: 1.8.0
   livekit_client: 2.13.0
