@@ -10,6 +10,7 @@ import 'package:alzheimer_assistant/features/assistant/domain/entities/live_even
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrtc_repository.dart';
 import 'package:alzheimer_assistant/shared/services/device_id_service.dart';
 import 'package:livekit_client/livekit_client.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 /// Token and server URL returned by the backend.
 typedef LiveKitCredentials = ({String url, String token, String room});
@@ -82,6 +83,7 @@ class LiveKitAudioRepository implements WebRtcRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) {
     _useElevenLabs = useElevenLabs;
     _controller?.close();

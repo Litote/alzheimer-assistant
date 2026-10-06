@@ -8,6 +8,7 @@ import 'package:alzheimer_assistant/core/network/access_token_provider.dart';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 /// Function type used to POST to the SSE endpoint and return a line stream.
 ///
@@ -49,6 +50,7 @@ class SseTextRepository implements TextRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) {
     _controller?.close();
     _controller = StreamController<LiveEvent>();
@@ -58,6 +60,11 @@ class SseTextRepository implements TextRepository {
     _logger.i('[SseText] Ready (sessionId: $_sessionId)');
     // Notify the BLoC immediately so it persists the session ID.
     _controller!.add(LiveEvent.sessionEstablished(_sessionId!));
+    if (reminder != null) {
+      // The agent answers with the reminder announcement, without user input.
+      _logger.i('[SseText] Announcing reminder ${reminder.eventId}');
+      _doPost(null, _controller!, reminder: reminder).ignore();
+    }
     return _controller!.stream;
   }
 
@@ -112,15 +119,17 @@ class SseTextRepository implements TextRepository {
   }
 
   Future<void> _doPost(
-    Map<String, dynamic> message,
-    StreamController<LiveEvent> ctrl,
-  ) async {
+    Map<String, dynamic>? message,
+    StreamController<LiveEvent> ctrl, {
+    ReminderRef? reminder,
+  }) async {
     final uri = Uri.parse(AppConstants.adkTextUrl);
     final body = <String, dynamic>{
       'app_name': AppConstants.adkAppName,
       'user_id': AppConstants.adkUserId,
       'session_id': _sessionId,
-      'new_message': message,
+      'new_message': ?message,
+      if (reminder != null) 'reminder': reminder.toJson(),
       'streaming': false,
       'supabase_user_id': _supabaseUserId,
     };

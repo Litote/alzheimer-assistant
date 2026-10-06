@@ -1,4 +1,5 @@
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 /// Common interface for both text-to-text (SSE) and audio-to-audio (WebSocket)
 /// transports.
@@ -10,10 +11,13 @@ abstract interface class ConversationRepository {
   /// [sessionId] resumes an existing session (text mode only — ignored by WS).
   /// [supabaseUserId] is the authenticated Supabase user UUID. The agent uses
   /// it to scope all Supabase queries to the correct user.
+  /// [reminder] (tapped notification) makes the agent speak first to announce
+  /// that event (WebSocket and SSE — ignored by LiveKit).
   Stream<LiveEvent> connect({
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   });
 
   /// Sends a tool response back to the agent after executing a tool call.

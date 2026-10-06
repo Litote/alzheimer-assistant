@@ -52,6 +52,7 @@ Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ─�
   - LiveKit: mic/speaker via WebRTC tracks (SDK-managed); text/tool events via Data Messages
   - Text SSE: device STT → HTTP SSE → client TTS
   - Handles `call_phone` tool calls: resolves contacts, initiates phone calls
+  - Schedules agenda reminders as local notifications; tapping one opens a session where the agent announces the event
 - See [`front/CLAUDE.md`](front/CLAUDE.md) and [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for full details
 
 ### `agent/` — Conversational AI Agent
@@ -73,6 +74,8 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 
 **LiveKit transport:** Flutter fetches a token via `GET <ADK_BASE_URL>/livekit-token`, joins the LiveKit Cloud room, exchanges audio via WebRTC tracks, and non-audio events via Data Messages (same JSON format as the WebSocket protocol).
 
+**Reminders:** `GET <ADK_BASE_URL>/reminders/upcoming` returns the notifications to schedule; a tapped notification opens a session with `reminder: {event_id, date}` (WS `setup` or SSE body) so that the agent speaks first. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md#reminders-proactive-notifications).
+
 **Authentication:** every transport sends the Supabase access token of the signed-in user (`Authorization: Bearer` header for HTTP, `access_token` in the WebSocket `setup` message). The agent verifies it and derives the user id from it. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md).
 
 ---
@@ -85,6 +88,7 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 | **VAD** | Voice Activity Detection. Handled server-side (Gemini in WS mode, livekit-agents in WebRTC mode). |
 | **PCM** | Pulse-Code Modulation. Raw uncompressed audio. Input: 16kHz 16-bit mono. Output: 24kHz 16-bit mono. |
 | **`turnComplete`** | Server signal that the agent has finished its response turn. In WS mode: triggers playback + disconnect. In LiveKit mode: returns to Listening (connection stays open). |
+| **Reminder** | Agenda event occurrence notified on the phone. `Reminder` (server payload, with `notifyAt`) and `ReminderRef` (`eventId` + `date`, sent back to the agent) in `features/reminders/domain/entities/reminder.dart`. |
 | **`LiveEvent`** | Sealed Dart union emitted by any repository: `audioChunk`, `outputTranscription`, `inputTranscription`, `callPhone`, `turnComplete`, `toolStatus`, `sessionInfo`, `sessionEstablished`, `imageUrl`. |
 | **`LiveMessageParser`** | Shared JSON parser used by both `WsAudioRepository` and `LiveKitAudioRepository`. Located in `data/repositories/live_message_parser.dart`. |
 | **`WebRtcRepository`** | Domain interface for LiveKit transport. Distinct from `AudioRepository`: no `sendAudio()`, no mic streaming in the BLoC. |

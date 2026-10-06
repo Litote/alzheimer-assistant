@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/sse_text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,48 @@ void main() {
       const LiveEvent.outputTranscription('Pong'),
       const LiveEvent.turnComplete(),
     ]));
+  });
+
+  test('connect() with a reminder posts it at once, without new_message', () async {
+    final bodies = <Map<String, dynamic>>[];
+    final repo = SseTextRepository(
+      fetchFn: (_, body, _) {
+        bodies.add(jsonDecode(body) as Map<String, dynamic>);
+        return Stream.value(_sseLine({
+          'content': {'role': 'model', 'parts': [{'text': 'Rappel'}]},
+          'author': 'agent',
+        }));
+      },
+    );
+
+    final events = <LiveEvent>[];
+    repo
+        .connect(
+          sessionId: 's1',
+          reminder: const ReminderRef(eventId: 'evt-1', date: '2026-10-01'),
+        )
+        .listen(events.add);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(bodies, hasLength(1));
+    expect(bodies.single['reminder'], {'event_id': 'evt-1', 'date': '2026-10-01'});
+    expect(bodies.single.containsKey('new_message'), isFalse);
+    expect(events, contains(const LiveEvent.outputTranscription('Rappel')));
+  });
+
+  test('connect() without a reminder does not post anything', () async {
+    var posts = 0;
+    final repo = SseTextRepository(
+      fetchFn: (_, _, _) {
+        posts++;
+        return const Stream.empty();
+      },
+    );
+
+    repo.connect(sessionId: 's1');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(posts, 0);
   });
 
   test('connect() with sessionId forwards it in the POST body', () async {

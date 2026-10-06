@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 // ── Exported constants so the test can assert on them ─────────────────────
 
@@ -40,6 +41,7 @@ class FakeLiveRepository implements AudioRepository, TextRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) async* {
     _disconnected = false;
     _disconnectCompleter = Completer<void>();

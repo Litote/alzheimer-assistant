@@ -46,6 +46,7 @@ The ADK server verifies the Supabase access token and uses the user id it carrie
 | WebSocket `/run_live` | `access_token` field of the `setup` message |
 | Text `POST /run_sse` | `Authorization: Bearer <token>` header |
 | LiveKit `GET /livekit-token` | `Authorization: Bearer <token>` header |
+| Reminders `GET /reminders/upcoming` | `Authorization: Bearer <token>` header |
 
 Repositories receive an `AccessTokenProvider` (`core/network/access_token_provider.dart`), wired to `AuthService.accessToken` in `app.dart`. The token is read on every request, never cached, because the Supabase SDK refreshes it in the background.
 
@@ -161,6 +162,25 @@ When the agent sends a `call_phone` tool call, the front:
 3. If multiple matches → sends ambiguity message back via `sendToolResponse`
 4. If no match → sends error message back via `sendToolResponse`
 5. On successful call → sends confirmation via `sendToolResponse`
+
+### Reminders (proactive notifications)
+
+The agent cannot reach the phone when no session is open, so agenda reminders are **local notifications** scheduled on the device (`flutter_local_notifications`).
+
+1. **Sync** — `ReminderListener` (wraps the app in `app.dart`) calls `ReminderScheduler.sync()` on every auth change and every time the app resumes. It asks the notification permission (and, once on Android, the exact-alarm setting), fetches `GET <ADK_BASE_URL>/reminders/upcoming?days=7`, then replaces all scheduled notifications. On error the existing ones are kept.
+   ```json
+   [{"event_id": "…", "date": "2026-10-01", "notify_at": "2026-10-01T07:45:00Z", "title": "Kiné", "body": "À 10:00 - …"}]
+   ```
+   The server expands recurring events and applies `events.notify_before_minutes`; `notify_at` is UTC, so the app needs no timezone handling. At most 60 reminders (iOS keeps 64 pending notifications).
+2. **Tap** — the payload is a `ReminderRef` (`{"event_id", "date"}`). `ReminderNotificationService` delivers it to the tap handler (kept pending until one is set when the tap launched the app), which dispatches `AssistantEvent.reminderOpened`.
+3. **Announcement** — the BLoC closes any active session and connects with `reminder:`. The agent speaks first:
+   - Audio WS: `"reminder": {"event_id", "date"}` in the `setup` message.
+   - Text SSE: an immediate `POST /run_sse` with `reminder` and no `new_message`; STT is not started (the user answers with the mic button).
+   - LiveKit is not supported: audio mode uses the WebSocket transport for reminders.
+
+Limitation: events added by the caregiver are only scheduled the next time the app is opened.
+
+Manual test checklist: [`docs/reminders-test-plan.md`](../docs/reminders-test-plan.md).
 
 ---
 

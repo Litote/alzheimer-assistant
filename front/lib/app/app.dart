@@ -7,11 +7,15 @@ import 'package:alzheimer_assistant/features/assistant/data/repositories/livekit
 import 'package:alzheimer_assistant/features/assistant/data/repositories/sse_text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/ws_audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
+import 'package:alzheimer_assistant/features/reminders/data/reminder_repository.dart';
+import 'package:alzheimer_assistant/features/reminders/presentation/reminder_listener.dart';
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/elevenlabs_client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/native_client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/permission_service.dart';
+import 'package:alzheimer_assistant/shared/services/reminder_notification_service.dart';
+import 'package:alzheimer_assistant/shared/services/reminder_scheduler.dart';
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
 import 'package:alzheimer_assistant/shared/services/speech_recognition_service.dart';
 
@@ -25,11 +29,13 @@ class App extends StatelessWidget {
     AuthService? authService,
     SettingsService? settingsService,
     PermissionService? permissionService,
+    ReminderNotificationService? reminderNotifications,
   }) : this._(
           key: key,
           authService: authService ?? AuthService(),
           settingsService: settingsService ?? SettingsService(),
           permissionService: permissionService ?? PermissionService(),
+          reminderNotifications: reminderNotifications,
         );
 
   // Constructor reserved for E2E tests: injects a pre-configured bloc
@@ -52,9 +58,20 @@ class App extends StatelessWidget {
     required AuthService authService,
     required SettingsService settingsService,
     required PermissionService permissionService,
+    ReminderNotificationService? reminderNotifications,
     AssistantBloc? testBloc,
     super.key,
   })  : _authService = authService,
+        _reminderNotifications = reminderNotifications,
+        _reminderScheduler = reminderNotifications == null
+            ? null
+            : ReminderScheduler(
+                repository: ReminderRepository(
+                  accessTokenProvider: () => authService.accessToken,
+                ),
+                notifications: reminderNotifications,
+                supabaseUserIdProvider: () => authService.supabaseUserId,
+              ),
         _settingsService = settingsService,
         _router = createAppRouter(
           authService: authService,
@@ -66,6 +83,10 @@ class App extends StatelessWidget {
   final SettingsService _settingsService;
   final GoRouter _router;
   final AssistantBloc? _testBloc;
+
+  /// Initialized in main(); null in tests (no reminders).
+  final ReminderNotificationService? _reminderNotifications;
+  final ReminderScheduler? _reminderScheduler;
 
   @override
   Widget build(BuildContext context) {
@@ -99,14 +120,28 @@ class App extends StatelessWidget {
                 nativeTtsService: NativeClientTtsService(),
                 authService: context.read<AuthService>(),
               ),
-          child: MaterialApp.router(
-            title: 'Assistant',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light,
-            routerConfig: _router,
+          child: _withReminders(
+            MaterialApp.router(
+              title: 'Assistant',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light,
+              routerConfig: _router,
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _withReminders(Widget child) {
+    final notifications = _reminderNotifications;
+    final scheduler = _reminderScheduler;
+    if (notifications == null || scheduler == null) return child;
+    return ReminderListener(
+      authService: _authService,
+      notifications: notifications,
+      scheduler: scheduler,
+      child: child,
     );
   }
 }

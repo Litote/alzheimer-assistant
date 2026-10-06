@@ -28,6 +28,9 @@ class AppConstants {
 
   /// SSE endpoint for text-to-text mode.
   static String get adkTextUrl => '$adkBaseUrl/run_sse';
+
+  /// Upcoming event notifications to schedule on the device.
+  static String get adkRemindersUrl => '$adkBaseUrl/reminders/upcoming';
   static String elevenLabsTtsUrl(String voiceId) =>
       'https://api.elevenlabs.io/v1/text-to-speech/$voiceId';
 }

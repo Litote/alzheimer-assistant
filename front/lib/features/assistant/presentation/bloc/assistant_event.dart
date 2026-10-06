@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 part 'assistant_event.freezed.dart';
 
@@ -16,6 +17,11 @@ abstract class AssistantEvent with _$AssistantEvent {
 
   /// An error occurred (network, permissions, etc.).
   const factory AssistantEvent.errorOccurred(String message) = ErrorOccurred;
+
+  /// The user tapped a reminder notification: open a session in which the
+  /// agent speaks first to announce the event. Any active session is closed.
+  const factory AssistantEvent.reminderOpened(ReminderRef reminder) =
+      ReminderOpened;
 
   /// The app has returned to the foreground (Android lifecycle fix).
   const factory AssistantEvent.appResumed() = AppResumed;

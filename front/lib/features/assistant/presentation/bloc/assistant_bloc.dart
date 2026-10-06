@@ -10,6 +10,7 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/conversation_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrtc_repository.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
@@ -59,6 +60,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         _disableWakelock = disableWakelock ?? WakelockPlus.disable,
         super(const AssistantState.idle()) {
     on<StartListening>(_onStartListening);
+    on<ReminderOpened>(_onReminderOpened);
     on<LiveEventReceived>(_onLiveEventReceived);
     on<AudioPlaybackFinished>(_onAudioPlaybackFinished);
     on<ErrorOccurred>(_onErrorOccurred);
@@ -173,6 +175,23 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       await _connectTextMode(emit);
     } else {
       await _connect(emit);
+    }
+  }
+
+  Future<void> _onReminderOpened(
+    ReminderOpened event,
+    Emitter<AssistantState> emit,
+  ) async {
+    if (state is! Idle) await _disconnectAll();
+    emit(const AssistantState.starting());
+
+    // LiveKit sessions cannot announce a reminder: the WebSocket transport is
+    // used instead in audio mode.
+    _textMode = await _settingsService.getUseTextMode();
+    if (_textMode) {
+      await _connectTextMode(emit, reminder: event.reminder);
+    } else {
+      await _connect(emit, reminder: event.reminder);
     }
   }
 
@@ -371,7 +390,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   // ── Connection helpers ─────────────────────────────────────────────────────
 
-  Future<void> _connect(Emitter<AssistantState> emit) async {
+  Future<void> _connect(
+    Emitter<AssistantState> emit, {
+    ReminderRef? reminder,
+  }) async {
     emit(const AssistantState.connecting());
     _responseText = '';
     _userTranscript = '';
@@ -393,6 +415,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       _liveSubscription = audioRepo.connect(
         useElevenLabs: _useElevenLabs,
         supabaseUserId: _authService?.supabaseUserId ?? '',
+        reminder: reminder,
       ).listen(
         (e) {
           _cancelResponseTimeout();
@@ -527,7 +550,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
   }
 
-  Future<void> _connectTextMode(Emitter<AssistantState> emit) async {
+  Future<void> _connectTextMode(
+    Emitter<AssistantState> emit, {
+    ReminderRef? reminder,
+  }) async {
     emit(const AssistantState.connecting());
     _responseText = '';
     _userTranscript = '';
@@ -541,6 +567,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
             useElevenLabs: _useElevenLabs,
             sessionId: _sessionId,
             supabaseUserId: _authService?.supabaseUserId ?? '',
+            reminder: reminder,
           )
           .listen(
         (e) {
@@ -563,6 +590,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
       emit(AssistantState.listening(imageUrl: _currentImageUrl));
       _startResponseTimeout();
+      // The agent speaks first: the user answers with the mic button.
+      if (reminder != null) return;
 
       await _speechService.startListening(
         onInterim: (text) {

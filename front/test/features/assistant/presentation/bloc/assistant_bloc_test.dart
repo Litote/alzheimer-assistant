@@ -11,6 +11,7 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrt
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
@@ -49,6 +50,8 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   int sendInterruptionCount = 0;
   int sendAudioCount = 0;
   String? lastConnectedSessionId;
+  ReminderRef? lastConnectedReminder;
+  int connectCount = 0;
   final List<String> sentTexts = [];
 
   void emit(LiveEvent event) => _controller.add(event);
@@ -59,8 +62,11 @@ class _ControllableRepository implements AudioRepository, TextRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) {
     lastConnectedSessionId = sessionId;
+    lastConnectedReminder = reminder;
+    connectCount++;
     return _controller.stream;
   }
 
@@ -95,6 +101,7 @@ class _EmptyRepository implements AudioRepository, TextRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) =>
       _controller.stream;
 
@@ -131,6 +138,7 @@ class _PersistentRepository implements AudioRepository, TextRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) =>
       _controller.stream;
 
@@ -2434,6 +2442,93 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(wakelockCalls, contains('disable'));
+      await bloc.close();
+    });
+  });
+
+  group('reminderOpened', () {
+    const reminder = ReminderRef(eventId: 'evt-1', date: '2026-10-01');
+
+    MockStreamingAudioPlayerService stubbedPlayer() {
+      final player = MockStreamingAudioPlayerService();
+      when(() => player.stop()).thenAnswer((_) async {});
+      when(() => player.dispose()).thenAnswer((_) async {});
+      return player;
+    }
+
+    test('text mode → connects with the reminder and does not start STT',
+        () async {
+      final live = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final bloc = AssistantBloc(
+        textRepository: live,
+        audioRepository: live,
+        micService: _FakeMicService(),
+        audioPlayer: stubbedPlayer(),
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+        elevenLabsTtsService: _NoOpClientTtsService(),
+        nativeTtsService: _NoOpClientTtsService(),
+      );
+
+      bloc.add(const AssistantEvent.reminderOpened(reminder));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(live.lastConnectedReminder, reminder);
+      expect(speech.startListeningCount, 0);
+      expect(bloc.state, isA<Listening>());
+
+      live.emit(const LiveEvent.outputTranscription(_kText));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(bloc.state, isA<Speaking>());
+
+      await bloc.close();
+    });
+
+    test('audio mode → WebSocket setup carries the reminder', () async {
+      final live = _ControllableRepository();
+      final bloc = _makeBloc(
+        audioRepository: live,
+        audioPlayer: stubbedPlayer(),
+        settingsService: _FakeSettingsService(),
+      );
+
+      bloc.add(const AssistantEvent.reminderOpened(reminder));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(live.lastConnectedReminder, reminder);
+      expect(bloc.state, isA<Listening>());
+
+      await bloc.close();
+    });
+
+    test('an active session is closed before announcing the reminder',
+        () async {
+      final first = _ControllableRepository();
+      final speech = _ControllableSpeechService();
+      final bloc = AssistantBloc(
+        textRepository: first,
+        audioRepository: first,
+        micService: _FakeMicService(),
+        audioPlayer: stubbedPlayer(),
+        settingsService: _FakeSettingsService(textMode: true),
+        speechService: speech,
+        elevenLabsTtsService: _NoOpClientTtsService(),
+        nativeTtsService: _NoOpClientTtsService(),
+      );
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(bloc.state, isA<Listening>());
+      expect(first.lastConnectedReminder, isNull);
+
+      bloc.add(const AssistantEvent.reminderOpened(reminder));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(speech.stopCalled, isTrue);
+      expect(first.connectCount, 2);
+      expect(first.lastConnectedReminder, reminder);
+
       await bloc.close();
     });
   });

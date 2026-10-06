@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:alzheimer_assistant/app/app.dart';
 import 'package:alzheimer_assistant/core/constants/app_constants.dart';
+import 'package:alzheimer_assistant/shared/services/reminder_notification_service.dart';
 
 void main() async {
   assert(
@@ -22,6 +23,8 @@ void main() async {
     url: AppConstants.supabaseUrl,
     publishableKey: AppConstants.supabaseAnonKey,
   );
+  final reminderNotifications = ReminderNotificationService();
+  await reminderNotifications.initialize();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  runApp(App());
+  runApp(App(reminderNotifications: reminderNotifications));
 }

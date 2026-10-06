@@ -7,6 +7,9 @@ stateDiagram-v2
     [*] --> Idle
 
     Idle --> Listening : StartListening
+    Idle --> Listening : ReminderOpened (agent speaks first, no STT)
+    Listening --> Listening : ReminderOpened (closes the session, reconnects)
+    Speaking --> Listening : ReminderOpened (closes the session, reconnects)
 
     Listening --> Idle : StartListening (cancels STT)
     Listening --> Listening : InterimTranscript (updates interimTranscript)
@@ -38,6 +41,7 @@ stateDiagram-v2
 | Event | Fired by | Effect |
 |-------|----------|--------|
 | `StartListening` | User taps mic | Starts STT, or cancels current state |
+| `ReminderOpened` | User taps a reminder notification | Closes any session, then connects with the reminder so the agent announces the event |
 | `InterimTranscript(text)` | STT partial result | Updates `interimTranscript` in `Listening` |
 | `SendMessage(text)` | STT `onFinal` callback, or phone result relay | Triggers API call → `Processing` |
 | `SpeakResponse(text, audioBytes)` | Repository response (no callPhoneName) | Starts TTS → `Speaking` |

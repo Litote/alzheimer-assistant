@@ -71,6 +71,10 @@ dependencies:
   # Client-side TTS
   flutter_tts: 4.2.5
 
+  # Proactive reminders (scheduled local notifications)
+  flutter_local_notifications: 22.3.1
+  timezone: 0.11.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

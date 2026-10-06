@@ -9,6 +9,7 @@ import 'package:alzheimer_assistant/core/network/access_token_provider.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/live_message_parser.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 /// Audio-to-audio bidi transport over WebSocket (`/run_live`).
 ///
@@ -22,7 +23,9 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio
 /// ```json
 /// {"setup": {"app_name": "…", "user_id": "…", "use_elevenlabs": false, "access_token": "<Supabase JWT>"}}
 /// ```
-/// `access_token` is omitted when the user is signed out.
+/// `access_token` is omitted when the user is signed out. An optional
+/// `"reminder": {"event_id": "…", "date": "YYYY-MM-DD"}` makes the agent speak
+/// first to announce that event.
 ///
 /// ### Audio chunk (client → server)
 /// ```json
@@ -60,6 +63,7 @@ class WsAudioRepository implements AudioRepository {
     bool useElevenLabs = false,
     String? sessionId,
     String supabaseUserId = '',
+    ReminderRef? reminder,
   }) {
     final uri = _buildWsUri();
     _logger.i('[WsAudio] Connecting → $uri (useElevenLabs: $useElevenLabs)');
@@ -77,6 +81,7 @@ class WsAudioRepository implements AudioRepository {
       'use_elevenlabs': useElevenLabs,
       'supabase_user_id': supabaseUserId,
       if (accessToken.isNotEmpty) 'access_token': accessToken,
+      if (reminder != null) 'reminder': reminder.toJson(),
     };
     _logger.i('[WsAudio] → setup: use_elevenlabs=$useElevenLabs app_name=${AppConstants.adkAppName}');
     _sendJson({'setup': setup});

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/ws_audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
+import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 
 // ── Fake WebSocket channel ─────────────────────────────────────────────────
 
@@ -81,6 +82,25 @@ void main() {
     expect(setup['setup']['app_name'], 'alzheimerassistant');
     expect(setup['setup']['use_elevenlabs'], false);
     expect(setup['setup'].containsKey('reply_text'), isFalse);
+  });
+
+  test('connect() sends reminder in setup message only when provided', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    repo
+        .connect(reminder: const ReminderRef(eventId: 'evt-1', date: '2026-10-01'))
+        .listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+
+    final setup = jsonDecode(channel.sent.first as String) as Map;
+    expect(setup['setup']['reminder'], {'event_id': 'evt-1', 'date': '2026-10-01'});
+
+    final otherChannel = _FakeChannel();
+    _makeRepo(otherChannel).connect().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    final otherSetup = jsonDecode(otherChannel.sent.first as String) as Map;
+    expect(otherSetup['setup'].containsKey('reminder'), isFalse);
   });
 
   test('connect(useElevenLabs: true) sets use_elevenlabs in setup message', () async {
