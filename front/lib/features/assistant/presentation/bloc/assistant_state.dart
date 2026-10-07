@@ -1,13 +1,21 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 
 part 'assistant_state.freezed.dart';
 
+/// Every conversational state (idle, listening, speaking) carries
+/// [contactChoices]: the contacts proposed on screen after an ambiguous
+/// `call_phone` request. Empty when no choice is pending. They persist across
+/// states so the user can tap one or answer by voice.
 @freezed
 sealed class AssistantState with _$AssistantState {
   /// Idle — mic button available, no active connection.
   /// [imageUrl] persists the last image shown so it remains visible after the
   /// agent's turn ends.
-  const factory AssistantState.idle({@Default('') String imageUrl}) = Idle;
+  const factory AssistantState.idle({
+    @Default('') String imageUrl,
+    @Default(<PhoneCandidate>[]) List<PhoneCandidate> contactChoices,
+  }) = Idle;
 
   /// Transition state after tap, before connection is established — button enabled.
   const factory AssistantState.starting() = Starting;
@@ -21,6 +29,7 @@ sealed class AssistantState with _$AssistantState {
     @Default('') String statusLabel,
     @Default('') String welcomeText,
     @Default('') String imageUrl,
+    @Default(<PhoneCandidate>[]) List<PhoneCandidate> contactChoices,
   }) = Listening;
 
   /// Agent is responding — audio buffer is filling, text is streaming in.
@@ -30,6 +39,7 @@ sealed class AssistantState with _$AssistantState {
     @Default('') String responseText,
     @Default('') String userTranscript,
     @Default('') String imageUrl,
+    @Default(<PhoneCandidate>[]) List<PhoneCandidate> contactChoices,
   }) = Speaking;
 
   /// Error — displays a message and returns to Idle on next tap.

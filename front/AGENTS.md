@@ -59,7 +59,7 @@ lib/
 │   └── presentation/
 │       ├── bloc/              # AssistantBloc, AssistantEvent, AssistantState
 │       ├── screens/           # HomeScreen
-│       └── widgets/           # MicButton, ResponseBubble
+│       └── widgets/           # MicButton, ResponseBubble, ContactChoiceList
 └── shared/services/
     ├── microphone_stream_service.dart         # PCM mic capture (16kHz, record package)
     ├── streaming_audio_player_service.dart    # PCM chunk buffer → WAV → audioplayers
@@ -94,7 +94,10 @@ StartListening (from Error)     → Idle (reset)
 
 liveEventReceived(textDelta)    → Speaking(responseText accumulated)
 liveEventReceived(audioChunk)   → Speaking (chunk buffered, state emitted once)
-liveEventReceived(callPhone)    → calls PhoneCallService, sends tool response (no state change)
+liveEventReceived(callPhone)    → calls PhoneCallService, sends tool response; if ambiguous,
+                                  re-emits the current state with contactChoices
+contactChosen                   → callByNumber, choices cleared, disconnect → Idle
+contactChoiceCancelled          → choices cleared (same state)
 liveEventReceived(turnComplete) → if hasChunks: playAndClear → AudioPlaybackFinished → Idle
                                   else: → Idle immediately
 

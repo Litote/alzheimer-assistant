@@ -1235,7 +1235,7 @@ void main() {
   );
 
   blocTest<AssistantBloc, AssistantState>(
-    'liveEventReceived(callPhone) — PhoneCallAmbiguous → sends ambiguity message',
+    'liveEventReceived(callPhone) — PhoneCallAmbiguous → sends ambiguity message and proposes contacts',
     build: () {
       when(() => phoneCallService.callByName(any(),
               exactMatch: any(named: 'exactMatch')))
@@ -1254,7 +1254,9 @@ void main() {
         exactMatch: false,
       ),
     )),
-    expect: () => [],
+    expect: () => [
+      const AssistantState.listening(contactChoices: _kTwoCandidates),
+    ],
     verify: (_) {
       verify(() => audioRepository.sendToolResponse(
             callId: 'call-2',
@@ -1263,6 +1265,178 @@ void main() {
           )).called(1);
     },
   );
+
+  group('contact choice', () {
+    const ambiguousCall = AssistantEvent.liveEventReceived(
+      LiveEvent.callPhone(
+        callId: 'call-3',
+        contactName: 'Martin',
+        exactMatch: false,
+      ),
+    );
+
+    setUp(() {
+      when(() => phoneCallService.callByName(any(), exactMatch: false))
+          .thenAnswer((_) async => PhoneCallAmbiguous(_kTwoCandidates));
+      when(() => phoneCallService.callByName(any(), exactMatch: true))
+          .thenAnswer((_) async => PhoneCallSuccess());
+      when(() => phoneCallService.callByNumber(any(),
+              displayName: any(named: 'displayName')))
+          .thenAnswer((_) async => PhoneCallSuccess());
+    });
+
+    AssistantBloc build() => _makeBloc(
+          audioRepository: audioRepository,
+          audioPlayer: audioPlayer,
+          phoneCallService: phoneCallService,
+        );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'contactChosen → calls the chosen number directly and returns to Idle',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(AssistantEvent.contactChosen(_kTwoCandidates[1]));
+      },
+      expect: () => [
+        const AssistantState.listening(contactChoices: _kTwoCandidates),
+        const AssistantState.idle(),
+      ],
+      verify: (_) {
+        verify(() => phoneCallService.callByNumber('+33622222222',
+            displayName: 'Martin Paul')).called(1);
+        verify(() => audioPlayer.stop()).called(greaterThan(0));
+        verify(() => audioRepository.disconnect()).called(greaterThan(0));
+      },
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'contactChosen with call failure → Idle then error',
+      build: () {
+        when(() => phoneCallService.callByNumber(any(),
+                displayName: any(named: 'displayName')))
+            .thenAnswer((_) async => PhoneCallError('Échec'));
+        return build();
+      },
+      seed: () =>
+          const AssistantState.listening(contactChoices: _kTwoCandidates),
+      act: (bloc) => bloc.add(AssistantEvent.contactChosen(_kTwoCandidates[0])),
+      expect: () => [
+        const AssistantState.idle(),
+        const AssistantState.error(message: 'Échec'),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'contactChoiceCancelled → choices cleared, session kept (stays Listening)',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.contactChoiceCancelled());
+      },
+      expect: () => [
+        const AssistantState.listening(contactChoices: _kTwoCandidates),
+        const AssistantState.listening(),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'contact chosen by voice (new callPhone) → choices cleared',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.callPhone(
+            callId: 'call-4',
+            contactName: 'Martin Paul',
+            exactMatch: true,
+          ),
+        ));
+      },
+      expect: () => [
+        const AssistantState.listening(contactChoices: _kTwoCandidates),
+        const AssistantState.listening(),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'turnComplete of the asking turn keeps the choices',
+      build: build,
+      seed: () => const AssistantState.speaking(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.turnComplete(),
+        ));
+      },
+      expect: () => [
+        const AssistantState.speaking(contactChoices: _kTwoCandidates),
+        const AssistantState.listening(contactChoices: _kTwoCandidates),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'user replies without choosing → choices cleared at turnComplete',
+      build: build,
+      seed: () => const AssistantState.speaking(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.inputTranscription('Quel temps fait-il ?'),
+        ));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.turnComplete(),
+        ));
+      },
+      expect: () => [
+        const AssistantState.speaking(contactChoices: _kTwoCandidates),
+        const AssistantState.speaking(),
+        const AssistantState.listening(),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'StartListening while Listening (stop) → choices cleared',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.startListening());
+      },
+      expect: () => [
+        const AssistantState.listening(contactChoices: _kTwoCandidates),
+        const AssistantState.idle(),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'errorOccurred → choices cleared',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(ambiguousCall);
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.errorOccurred('Connexion perdue.'));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const AssistantEvent.startListening());
+      },
+      expect: () => [
+        const AssistantState.listening(contactChoices: _kTwoCandidates),
+        const AssistantState.error(message: 'Connexion perdue.'),
+        const AssistantState.idle(),
+      ],
+    );
+  });
 
   // ── LiveEvent: sessionInfo ────────────────────────────────────────────────
 

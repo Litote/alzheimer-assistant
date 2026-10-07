@@ -66,6 +66,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     on<ErrorOccurred>(_onErrorOccurred);
     on<AppResumed>(_onAppResumed);
     on<SpeechRecognized>(_onSpeechRecognized);
+    on<ContactChosen>(_onContactChosen);
+    on<ContactChoiceCancelled>(_onContactChoiceCancelled);
   }
 
   final TextRepository _textRepository;
@@ -105,6 +107,14 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   /// Last image URL received, persisted across states.
   String _currentImageUrl = '';
+
+  /// Contacts proposed on screen after an ambiguous `call_phone`, persisted
+  /// across states until one is chosen (tap or voice) or the topic changes.
+  List<PhoneCandidate> _contactChoices = const [];
+
+  /// True once the user has spoken since [_contactChoices] were proposed: the
+  /// next turn completion without a `call_phone` then dismisses the choices.
+  bool _userRepliedToChoices = false;
 
   /// Whether text mode was active when the current connection was opened.
   bool _textMode = false;
@@ -161,12 +171,13 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     Emitter<AssistantState> emit,
   ) async {
     if (state is AssistantError) {
-      emit(const AssistantState.idle());
+      emit(AssistantState.idle(contactChoices: _contactChoices));
       return;
     }
     if (state is Speaking || state is Listening || state is Connecting || state is Starting) {
       await _disconnectAll();
-      emit(const AssistantState.idle());
+      _contactChoices = const [];
+      emit(AssistantState.idle(contactChoices: _contactChoices));
       return;
     }
 
@@ -188,6 +199,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     Emitter<AssistantState> emit,
   ) async {
     if (state is! Idle) await _disconnectAll();
+    _contactChoices = const [];
     emit(const AssistantState.starting());
 
     // LiveKit sessions cannot announce a reminder: the WebSocket transport is
@@ -206,16 +218,18 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   ) async {
     if (event.text.isEmpty) {
       await _disconnectAll();
-      emit(AssistantState.idle(imageUrl: _currentImageUrl));
+      emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
       return;
     }
     await _speechService.stopListening();
+    _userRepliedToChoices = true;
     _textRepository.sendText(event.text);
     _userTranscript = event.text;
     _responseText = '';
     // Show a "thinking" label while waiting for the server's first response.
     // The BLoC will transition to Speaking when the first transcription arrives.
     emit(AssistantState.listening(
+      contactChoices: _contactChoices,
       interimTranscript: _userTranscript,
       statusLabel: 'Je réfléchis...',
       imageUrl: _currentImageUrl,
@@ -273,7 +287,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       _welcomeText = '';
       _currentImageUrl = '';
       _logger.i('[Bloc] → first chunk: emitting Speaking + calling playAndClear');
-      emit(AssistantState.speaking(responseText: _responseText));
+      emit(AssistantState.speaking(contactChoices: _contactChoices, responseText: _responseText));
       _audioPlayer!.playAndClear(onComplete: () {
         _logger.i('[Bloc] playAndClear onComplete fired');
       });
@@ -281,8 +295,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   }
 
   void _handleInputTranscription(String text, Emitter<AssistantState> emit) {
+    _userRepliedToChoices = true;
     if (_showTranscription || _textMode) {
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         interimTranscript: text,
         imageUrl: _currentImageUrl,
       ));
@@ -309,6 +325,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
     if (current is Speaking && current.imageUrl.isNotEmpty) return;
     emit(AssistantState.speaking(
+      contactChoices: _contactChoices,
       responseText: _responseText,
       imageUrl: _currentImageUrl,
     ));
@@ -330,6 +347,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   void _handleToolStatus(String label, Emitter<AssistantState> emit) {
     if (state case Listening(:final interimTranscript)) {
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         interimTranscript: interimTranscript,
         statusLabel: label,
         welcomeText: _welcomeText,
@@ -342,6 +360,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _welcomeText = welcome;
     if (state case Listening(:final interimTranscript, :final statusLabel)) {
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         interimTranscript: interimTranscript,
         statusLabel: statusLabel,
         welcomeText: _welcomeText,
@@ -356,7 +375,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     if (current is Speaking) {
       emit(current.copyWith(imageUrl: _currentImageUrl));
     } else {
-      emit(AssistantState.speaking(imageUrl: _currentImageUrl));
+      emit(AssistantState.speaking(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
     }
   }
 
@@ -376,9 +395,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     if (state is Speaking) {
       if (_textMode) {
         await _disconnectAll();
-        emit(AssistantState.idle(imageUrl: _currentImageUrl));
+        emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
       } else {
         emit(AssistantState.listening(
+          contactChoices: _contactChoices,
           welcomeText: _welcomeText,
           imageUrl: _currentImageUrl,
         ));
@@ -391,7 +411,51 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     Emitter<AssistantState> emit,
   ) async {
     await _disconnectAll();
+    _contactChoices = const [];
     emit(AssistantState.error(message: event.message));
+  }
+
+  Future<void> _onContactChosen(
+    ContactChosen event,
+    Emitter<AssistantState> emit,
+  ) async {
+    final candidate = event.candidate;
+    _contactChoices = const [];
+    // The dialer takes the foreground: close the session and silence the
+    // agent, which may still be asking which contact to call.
+    await _audioPlayer?.stop();
+    await _disconnectAll();
+    emit(AssistantState.idle(imageUrl: _currentImageUrl));
+    final result = await _phoneCallService.callByNumber(
+      candidate.number,
+      displayName: candidate.displayName,
+    );
+    if (result case PhoneCallError(:final message)) {
+      emit(AssistantState.error(message: message));
+    }
+  }
+
+  void _onContactChoiceCancelled(
+    ContactChoiceCancelled event,
+    Emitter<AssistantState> emit,
+  ) {
+    _contactChoices = const [];
+    _emitContactChoices(emit);
+  }
+
+  /// Re-emits the current state with the up-to-date [_contactChoices].
+  void _emitContactChoices(Emitter<AssistantState> emit) {
+    final current = state;
+    switch (current) {
+      case Idle():
+        emit(current.copyWith(contactChoices: _contactChoices));
+      case Listening():
+        emit(current.copyWith(contactChoices: _contactChoices));
+      case Speaking():
+        emit(current.copyWith(contactChoices: _contactChoices));
+      case Starting() || Connecting() || AssistantError():
+        break;
+    }
   }
 
   Future<void> _onAppResumed(
@@ -401,7 +465,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     await _audioPlayer?.stop();
     if (state is! Speaking) return;
     await _disconnectAll();
-    emit(AssistantState.idle(imageUrl: _currentImageUrl));
+    emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
   }
 
   // ── Connection helpers ─────────────────────────────────────────────────────
@@ -459,6 +523,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
       await _setupMicStreaming(audioRepo);
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
       ));
@@ -561,6 +626,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
       );
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
       ));
@@ -610,7 +676,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
       );
 
-      emit(AssistantState.listening(imageUrl: _currentImageUrl));
+      emit(AssistantState.listening(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
       _startResponseTimeout();
       // The agent speaks first: the user answers with the mic button.
       if (reminder != null) return;
@@ -673,6 +739,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _responseText = '';
     if (state is Speaking) {
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
       ));
@@ -680,12 +747,18 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   }
 
   Future<void> _handleTurnComplete(Emitter<AssistantState> emit) async {
+    if (_userRepliedToChoices && _contactChoices.isNotEmpty) {
+      // The user answered something that did not lead to a `call_phone`.
+      _contactChoices = const [];
+      _emitContactChoices(emit);
+    }
     if (state is Speaking) {
       if (_textMode) {
         await _handleTextModeTurnComplete(emit);
       } else if (_webRtcMode) {
         _responseText = '';
         emit(AssistantState.listening(
+          contactChoices: _contactChoices,
           welcomeText: _welcomeText,
           imageUrl: _currentImageUrl,
         ));
@@ -697,7 +770,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       // (server sent no transcription, only a turn signal). Disconnect and
       // return to Idle so the user can speak again.
       await _disconnectAll();
-      emit(AssistantState.idle(imageUrl: _currentImageUrl));
+      emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
     }
   }
 
@@ -728,7 +801,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
     // No text or no TTS service: disconnect immediately.
     await _disconnectAll();
-    emit(AssistantState.idle(imageUrl: _currentImageUrl));
+    emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
   }
 
   Future<void> _handleAudioModeTurnComplete(
@@ -742,9 +815,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     if (newTextMode != _textMode || newUseElevenLabs != _useElevenLabs) {
       _logger.i('[Bloc] Settings changed after turn — reconnecting');
       await _disconnectAll();
-      emit(AssistantState.idle(imageUrl: _currentImageUrl));
+      emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
     } else {
       emit(AssistantState.listening(
+        contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
       ));
@@ -757,8 +831,16 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     required bool exactMatch,
     required Emitter<AssistantState> emit,
   }) async {
+    // A new call request (e.g. the user picked a contact by voice) supersedes
+    // any pending on-screen choice.
+    _contactChoices = const [];
     final result =
         await _phoneCallService.callByName(contactName, exactMatch: exactMatch);
+    if (result case PhoneCallAmbiguous(:final candidates)) {
+      _contactChoices = candidates;
+      _userRepliedToChoices = false;
+    }
+    _emitContactChoices(emit);
     final resultMessage = switch (result) {
       PhoneCallSuccess() => '$contactName appelé.',
       PhoneCallError(:final message) => message,

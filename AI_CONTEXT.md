@@ -51,7 +51,7 @@ Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ─�
   - Audio WS: streams raw PCM (16kHz 16-bit mono) over WebSocket, receives PCM (24kHz) back
   - LiveKit: mic/speaker via WebRTC tracks (SDK-managed); text/tool events via Data Messages
   - Text SSE: device STT → HTTP SSE → client TTS
-  - Handles `call_phone` tool calls: resolves contacts, initiates phone calls
+  - Handles `call_phone` tool calls: resolves contacts, initiates phone calls; on ambiguity, shows the candidates as tappable cards
   - Schedules agenda reminders as local notifications; tapping one opens a session where the agent announces the event
 - See [`front/CLAUDE.md`](front/CLAUDE.md) and [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for full details
 
@@ -95,8 +95,8 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 | **`LiveMessageParser`** | Shared JSON parser used by both `WsAudioRepository` and `LiveKitAudioRepository`. Located in `data/repositories/live_message_parser.dart`. |
 | **`WebRtcRepository`** | Domain interface for LiveKit transport. Distinct from `AudioRepository`: no `sendAudio()`, no mic streaming in the BLoC. |
 | **`call_phone` action** | An ADK function call returned by the agent when the user requests a phone call. |
-| **Disambiguation** | Flow triggered when a contact name matches multiple contacts — tool response sent back to agent. |
-| **Golden test** | Screenshot regression test. 16 images (2 states × 8 device sizes). macOS only. |
+| **Disambiguation** | Flow triggered when a contact name matches multiple contacts — tool response sent back to agent, and the candidates shown on screen (`contactChoices` state field, `ContactChoiceList`) so the user can tap one or answer by voice. |
+| **Golden test** | Screenshot regression test. 40 images (5 home screen states × 8 device sizes). macOS only. |
 | **LiveKit Cloud** | SaaS WebRTC infrastructure (signalling + media relay). Intelligence stays on the ADK server. |
 | **livekit-agents** | Python SDK for building LiveKit agent workers. Handles VAD and bridges WebRTC ↔ Gemini Live API. |
 

@@ -133,6 +133,25 @@ flow re-enters `PhoneCallAmbiguous` indefinitely.
 **Agent system prompt requirement:** after a `[phone] plusieurs contacts…`
 message, the agent MUST set `exactMatch: true` when issuing the next `call_phone`.
 
+### On-screen contact choice
+
+On `PhoneCallAmbiguous`, besides the `[phone]` message, the BLoC stores the
+candidates in `contactChoices` (carried by `Idle`, `Listening` and `Speaking`).
+`HomeScreen` then shows `ContactChoiceList` (large tappable cards, with the end
+of the number when two contacts share a name) instead of `ResponseBubble`. The
+mic button stays available, so both ways of answering work:
+
+| Trigger | Effect |
+|---|---|
+| Tap on a card (`contactChosen`) | `callByNumber` on that exact number, choices cleared, session closed → `Idle` (or `AssistantError` if the call fails). The agent is not notified. |
+| Voice answer → agent sends a new `call_phone` | choices cleared, call handled as usual |
+| "Annuler" (`contactChoiceCancelled`) | choices cleared, session kept |
+| User speaks, then the turn completes without `call_phone` | choices cleared |
+| Mic button stops the session, `errorOccurred`, `reminderOpened` | choices cleared |
+
+The choices survive the `Idle` state, which text mode reaches after the agent
+asks its question.
+
 ### [phone] message formats
 
 | Phone result | Message sent to agent |

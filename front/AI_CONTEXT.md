@@ -169,7 +169,7 @@ The front parses it as `LiveEvent.endConversation()` and goes back to `Idle` (mi
 When the agent sends a `call_phone` tool call, the front:
 1. Looks up contacts matching `name`
 2. If `exactMatch: true` and exactly one match → calls immediately
-3. If multiple matches → sends ambiguity message back via `sendToolResponse`
+3. If multiple matches → sends ambiguity message back via `sendToolResponse` **and** shows the candidates on screen (`contactChoices` state field, `ContactChoiceList` widget). Tapping one calls its number directly and closes the session; answering by voice still works (the agent then sends `call_phone` with `exactMatch: true`). See [`DIALOG_FLOW.md`](DIALOG_FLOW.md#on-screen-contact-choice).
 4. If no match → sends error message back via `sendToolResponse`
 5. On successful call → sends confirmation via `sendToolResponse`
 

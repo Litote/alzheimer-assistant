@@ -132,14 +132,14 @@ return error(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String imageUrl)?  idle,TResult Function()?  starting,TResult Function()?  connecting,TResult Function( String interimTranscript,  String statusLabel,  String welcomeText,  String imageUrl)?  listening,TResult Function( String responseText,  String userTranscript,  String imageUrl)?  speaking,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String imageUrl,  List<PhoneCandidate> contactChoices)?  idle,TResult Function()?  starting,TResult Function()?  connecting,TResult Function( String interimTranscript,  String statusLabel,  String welcomeText,  String imageUrl,  List<PhoneCandidate> contactChoices)?  listening,TResult Function( String responseText,  String userTranscript,  String imageUrl,  List<PhoneCandidate> contactChoices)?  speaking,TResult Function( String message)?  error,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case Idle() when idle != null:
-return idle(_that.imageUrl);case Starting() when starting != null:
+return idle(_that.imageUrl,_that.contactChoices);case Starting() when starting != null:
 return starting();case Connecting() when connecting != null:
 return connecting();case Listening() when listening != null:
-return listening(_that.interimTranscript,_that.statusLabel,_that.welcomeText,_that.imageUrl);case Speaking() when speaking != null:
-return speaking(_that.responseText,_that.userTranscript,_that.imageUrl);case AssistantError() when error != null:
+return listening(_that.interimTranscript,_that.statusLabel,_that.welcomeText,_that.imageUrl,_that.contactChoices);case Speaking() when speaking != null:
+return speaking(_that.responseText,_that.userTranscript,_that.imageUrl,_that.contactChoices);case AssistantError() when error != null:
 return error(_that.message);case _:
   return orElse();
 
@@ -158,14 +158,14 @@ return error(_that.message);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String imageUrl)  idle,required TResult Function()  starting,required TResult Function()  connecting,required TResult Function( String interimTranscript,  String statusLabel,  String welcomeText,  String imageUrl)  listening,required TResult Function( String responseText,  String userTranscript,  String imageUrl)  speaking,required TResult Function( String message)  error,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String imageUrl,  List<PhoneCandidate> contactChoices)  idle,required TResult Function()  starting,required TResult Function()  connecting,required TResult Function( String interimTranscript,  String statusLabel,  String welcomeText,  String imageUrl,  List<PhoneCandidate> contactChoices)  listening,required TResult Function( String responseText,  String userTranscript,  String imageUrl,  List<PhoneCandidate> contactChoices)  speaking,required TResult Function( String message)  error,}) {final _that = this;
 switch (_that) {
 case Idle():
-return idle(_that.imageUrl);case Starting():
+return idle(_that.imageUrl,_that.contactChoices);case Starting():
 return starting();case Connecting():
 return connecting();case Listening():
-return listening(_that.interimTranscript,_that.statusLabel,_that.welcomeText,_that.imageUrl);case Speaking():
-return speaking(_that.responseText,_that.userTranscript,_that.imageUrl);case AssistantError():
+return listening(_that.interimTranscript,_that.statusLabel,_that.welcomeText,_that.imageUrl,_that.contactChoices);case Speaking():
+return speaking(_that.responseText,_that.userTranscript,_that.imageUrl,_that.contactChoices);case AssistantError():
 return error(_that.message);}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -180,14 +180,14 @@ return error(_that.message);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String imageUrl)?  idle,TResult? Function()?  starting,TResult? Function()?  connecting,TResult? Function( String interimTranscript,  String statusLabel,  String welcomeText,  String imageUrl)?  listening,TResult? Function( String responseText,  String userTranscript,  String imageUrl)?  speaking,TResult? Function( String message)?  error,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String imageUrl,  List<PhoneCandidate> contactChoices)?  idle,TResult? Function()?  starting,TResult? Function()?  connecting,TResult? Function( String interimTranscript,  String statusLabel,  String welcomeText,  String imageUrl,  List<PhoneCandidate> contactChoices)?  listening,TResult? Function( String responseText,  String userTranscript,  String imageUrl,  List<PhoneCandidate> contactChoices)?  speaking,TResult? Function( String message)?  error,}) {final _that = this;
 switch (_that) {
 case Idle() when idle != null:
-return idle(_that.imageUrl);case Starting() when starting != null:
+return idle(_that.imageUrl,_that.contactChoices);case Starting() when starting != null:
 return starting();case Connecting() when connecting != null:
 return connecting();case Listening() when listening != null:
-return listening(_that.interimTranscript,_that.statusLabel,_that.welcomeText,_that.imageUrl);case Speaking() when speaking != null:
-return speaking(_that.responseText,_that.userTranscript,_that.imageUrl);case AssistantError() when error != null:
+return listening(_that.interimTranscript,_that.statusLabel,_that.welcomeText,_that.imageUrl,_that.contactChoices);case Speaking() when speaking != null:
+return speaking(_that.responseText,_that.userTranscript,_that.imageUrl,_that.contactChoices);case AssistantError() when error != null:
 return error(_that.message);case _:
   return null;
 
@@ -200,10 +200,17 @@ return error(_that.message);case _:
 
 
 class Idle implements AssistantState {
-  const Idle({this.imageUrl = ''});
+  const Idle({this.imageUrl = '',  List<PhoneCandidate> contactChoices = const <PhoneCandidate>[]}): _contactChoices = contactChoices;
   
 
 @JsonKey() final  String imageUrl;
+ final  List<PhoneCandidate> _contactChoices;
+@JsonKey() List<PhoneCandidate> get contactChoices {
+  if (_contactChoices is EqualUnmodifiableListView) return _contactChoices;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_contactChoices);
+}
+
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
@@ -215,18 +222,18 @@ $IdleCopyWith<Idle> get copyWith => _$IdleCopyWithImpl<Idle>(this, _$identity);
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is Idle&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is Idle&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&const DeepCollectionEquality().equals(other.contactChoices, _contactChoices));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,imageUrl);
+    return Object.hash(runtimeType,imageUrl,const DeepCollectionEquality().hash(_contactChoices));
 }
 
 @override
 String toString() {
-    return 'AssistantState.idle(imageUrl: $imageUrl)';
+    return 'AssistantState.idle(imageUrl: $imageUrl, contactChoices: $contactChoices)';
 }
 
 
@@ -237,7 +244,7 @@ abstract mixin class $IdleCopyWith<$Res> implements $AssistantStateCopyWith<$Res
   factory $IdleCopyWith(Idle value, $Res Function(Idle) _then) = _$IdleCopyWithImpl;
 @useResult
 $Res call({
- String imageUrl
+ String imageUrl, List<PhoneCandidate> contactChoices
 });
 
 
@@ -254,10 +261,11 @@ class _$IdleCopyWithImpl<$Res>
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? imageUrl = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? imageUrl = null,Object? contactChoices = null,}) {
   return _then(Idle(
 imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
-as String,
+as String,contactChoices: null == contactChoices ? _self._contactChoices : contactChoices // ignore: cast_nullable_to_non_nullable
+as List<PhoneCandidate>,
   ));
 }
 
@@ -332,13 +340,20 @@ String toString() {
 
 
 class Listening implements AssistantState {
-  const Listening({this.interimTranscript = '', this.statusLabel = '', this.welcomeText = '', this.imageUrl = ''});
+  const Listening({this.interimTranscript = '', this.statusLabel = '', this.welcomeText = '', this.imageUrl = '',  List<PhoneCandidate> contactChoices = const <PhoneCandidate>[]}): _contactChoices = contactChoices;
   
 
 @JsonKey() final  String interimTranscript;
 @JsonKey() final  String statusLabel;
 @JsonKey() final  String welcomeText;
 @JsonKey() final  String imageUrl;
+ final  List<PhoneCandidate> _contactChoices;
+@JsonKey() List<PhoneCandidate> get contactChoices {
+  if (_contactChoices is EqualUnmodifiableListView) return _contactChoices;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_contactChoices);
+}
+
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
@@ -350,18 +365,18 @@ $ListeningCopyWith<Listening> get copyWith => _$ListeningCopyWithImpl<Listening>
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is Listening&&(identical(other.interimTranscript, interimTranscript) || other.interimTranscript == interimTranscript)&&(identical(other.statusLabel, statusLabel) || other.statusLabel == statusLabel)&&(identical(other.welcomeText, welcomeText) || other.welcomeText == welcomeText)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is Listening&&(identical(other.interimTranscript, interimTranscript) || other.interimTranscript == interimTranscript)&&(identical(other.statusLabel, statusLabel) || other.statusLabel == statusLabel)&&(identical(other.welcomeText, welcomeText) || other.welcomeText == welcomeText)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&const DeepCollectionEquality().equals(other.contactChoices, _contactChoices));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,interimTranscript,statusLabel,welcomeText,imageUrl);
+    return Object.hash(runtimeType,interimTranscript,statusLabel,welcomeText,imageUrl,const DeepCollectionEquality().hash(_contactChoices));
 }
 
 @override
 String toString() {
-    return 'AssistantState.listening(interimTranscript: $interimTranscript, statusLabel: $statusLabel, welcomeText: $welcomeText, imageUrl: $imageUrl)';
+    return 'AssistantState.listening(interimTranscript: $interimTranscript, statusLabel: $statusLabel, welcomeText: $welcomeText, imageUrl: $imageUrl, contactChoices: $contactChoices)';
 }
 
 
@@ -372,7 +387,7 @@ abstract mixin class $ListeningCopyWith<$Res> implements $AssistantStateCopyWith
   factory $ListeningCopyWith(Listening value, $Res Function(Listening) _then) = _$ListeningCopyWithImpl;
 @useResult
 $Res call({
- String interimTranscript, String statusLabel, String welcomeText, String imageUrl
+ String interimTranscript, String statusLabel, String welcomeText, String imageUrl, List<PhoneCandidate> contactChoices
 });
 
 
@@ -389,13 +404,14 @@ class _$ListeningCopyWithImpl<$Res>
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? interimTranscript = null,Object? statusLabel = null,Object? welcomeText = null,Object? imageUrl = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? interimTranscript = null,Object? statusLabel = null,Object? welcomeText = null,Object? imageUrl = null,Object? contactChoices = null,}) {
   return _then(Listening(
 interimTranscript: null == interimTranscript ? _self.interimTranscript : interimTranscript // ignore: cast_nullable_to_non_nullable
 as String,statusLabel: null == statusLabel ? _self.statusLabel : statusLabel // ignore: cast_nullable_to_non_nullable
 as String,welcomeText: null == welcomeText ? _self.welcomeText : welcomeText // ignore: cast_nullable_to_non_nullable
 as String,imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
-as String,
+as String,contactChoices: null == contactChoices ? _self._contactChoices : contactChoices // ignore: cast_nullable_to_non_nullable
+as List<PhoneCandidate>,
   ));
 }
 
@@ -406,12 +422,19 @@ as String,
 
 
 class Speaking implements AssistantState {
-  const Speaking({this.responseText = '', this.userTranscript = '', this.imageUrl = ''});
+  const Speaking({this.responseText = '', this.userTranscript = '', this.imageUrl = '',  List<PhoneCandidate> contactChoices = const <PhoneCandidate>[]}): _contactChoices = contactChoices;
   
 
 @JsonKey() final  String responseText;
 @JsonKey() final  String userTranscript;
 @JsonKey() final  String imageUrl;
+ final  List<PhoneCandidate> _contactChoices;
+@JsonKey() List<PhoneCandidate> get contactChoices {
+  if (_contactChoices is EqualUnmodifiableListView) return _contactChoices;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_contactChoices);
+}
+
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
@@ -423,18 +446,18 @@ $SpeakingCopyWith<Speaking> get copyWith => _$SpeakingCopyWithImpl<Speaking>(thi
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is Speaking&&(identical(other.responseText, responseText) || other.responseText == responseText)&&(identical(other.userTranscript, userTranscript) || other.userTranscript == userTranscript)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is Speaking&&(identical(other.responseText, responseText) || other.responseText == responseText)&&(identical(other.userTranscript, userTranscript) || other.userTranscript == userTranscript)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&const DeepCollectionEquality().equals(other.contactChoices, _contactChoices));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,responseText,userTranscript,imageUrl);
+    return Object.hash(runtimeType,responseText,userTranscript,imageUrl,const DeepCollectionEquality().hash(_contactChoices));
 }
 
 @override
 String toString() {
-    return 'AssistantState.speaking(responseText: $responseText, userTranscript: $userTranscript, imageUrl: $imageUrl)';
+    return 'AssistantState.speaking(responseText: $responseText, userTranscript: $userTranscript, imageUrl: $imageUrl, contactChoices: $contactChoices)';
 }
 
 
@@ -445,7 +468,7 @@ abstract mixin class $SpeakingCopyWith<$Res> implements $AssistantStateCopyWith<
   factory $SpeakingCopyWith(Speaking value, $Res Function(Speaking) _then) = _$SpeakingCopyWithImpl;
 @useResult
 $Res call({
- String responseText, String userTranscript, String imageUrl
+ String responseText, String userTranscript, String imageUrl, List<PhoneCandidate> contactChoices
 });
 
 
@@ -462,12 +485,13 @@ class _$SpeakingCopyWithImpl<$Res>
 
 /// Create a copy of AssistantState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? responseText = null,Object? userTranscript = null,Object? imageUrl = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? responseText = null,Object? userTranscript = null,Object? imageUrl = null,Object? contactChoices = null,}) {
   return _then(Speaking(
 responseText: null == responseText ? _self.responseText : responseText // ignore: cast_nullable_to_non_nullable
 as String,userTranscript: null == userTranscript ? _self.userTranscript : userTranscript // ignore: cast_nullable_to_non_nullable
 as String,imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
-as String,
+as String,contactChoices: null == contactChoices ? _self._contactChoices : contactChoices // ignore: cast_nullable_to_non_nullable
+as List<PhoneCandidate>,
   ));
 }
 

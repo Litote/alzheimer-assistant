@@ -56,13 +56,15 @@ extension AssistantEventPatterns on AssistantEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StartListening value)?  startListening,TResult Function( ErrorOccurred value)?  errorOccurred,TResult Function( ReminderOpened value)?  reminderOpened,TResult Function( AppResumed value)?  appResumed,TResult Function( LiveEventReceived value)?  liveEventReceived,TResult Function( AudioPlaybackFinished value)?  audioPlaybackFinished,TResult Function( SpeechRecognized value)?  speechRecognized,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( StartListening value)?  startListening,TResult Function( ErrorOccurred value)?  errorOccurred,TResult Function( ReminderOpened value)?  reminderOpened,TResult Function( ContactChosen value)?  contactChosen,TResult Function( ContactChoiceCancelled value)?  contactChoiceCancelled,TResult Function( AppResumed value)?  appResumed,TResult Function( LiveEventReceived value)?  liveEventReceived,TResult Function( AudioPlaybackFinished value)?  audioPlaybackFinished,TResult Function( SpeechRecognized value)?  speechRecognized,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
 return startListening(_that);case ErrorOccurred() when errorOccurred != null:
 return errorOccurred(_that);case ReminderOpened() when reminderOpened != null:
-return reminderOpened(_that);case AppResumed() when appResumed != null:
+return reminderOpened(_that);case ContactChosen() when contactChosen != null:
+return contactChosen(_that);case ContactChoiceCancelled() when contactChoiceCancelled != null:
+return contactChoiceCancelled(_that);case AppResumed() when appResumed != null:
 return appResumed(_that);case LiveEventReceived() when liveEventReceived != null:
 return liveEventReceived(_that);case AudioPlaybackFinished() when audioPlaybackFinished != null:
 return audioPlaybackFinished(_that);case SpeechRecognized() when speechRecognized != null:
@@ -84,13 +86,15 @@ return speechRecognized(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StartListening value)  startListening,required TResult Function( ErrorOccurred value)  errorOccurred,required TResult Function( ReminderOpened value)  reminderOpened,required TResult Function( AppResumed value)  appResumed,required TResult Function( LiveEventReceived value)  liveEventReceived,required TResult Function( AudioPlaybackFinished value)  audioPlaybackFinished,required TResult Function( SpeechRecognized value)  speechRecognized,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( StartListening value)  startListening,required TResult Function( ErrorOccurred value)  errorOccurred,required TResult Function( ReminderOpened value)  reminderOpened,required TResult Function( ContactChosen value)  contactChosen,required TResult Function( ContactChoiceCancelled value)  contactChoiceCancelled,required TResult Function( AppResumed value)  appResumed,required TResult Function( LiveEventReceived value)  liveEventReceived,required TResult Function( AudioPlaybackFinished value)  audioPlaybackFinished,required TResult Function( SpeechRecognized value)  speechRecognized,}){
 final _that = this;
 switch (_that) {
 case StartListening():
 return startListening(_that);case ErrorOccurred():
 return errorOccurred(_that);case ReminderOpened():
-return reminderOpened(_that);case AppResumed():
+return reminderOpened(_that);case ContactChosen():
+return contactChosen(_that);case ContactChoiceCancelled():
+return contactChoiceCancelled(_that);case AppResumed():
 return appResumed(_that);case LiveEventReceived():
 return liveEventReceived(_that);case AudioPlaybackFinished():
 return audioPlaybackFinished(_that);case SpeechRecognized():
@@ -111,13 +115,15 @@ return speechRecognized(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StartListening value)?  startListening,TResult? Function( ErrorOccurred value)?  errorOccurred,TResult? Function( ReminderOpened value)?  reminderOpened,TResult? Function( AppResumed value)?  appResumed,TResult? Function( LiveEventReceived value)?  liveEventReceived,TResult? Function( AudioPlaybackFinished value)?  audioPlaybackFinished,TResult? Function( SpeechRecognized value)?  speechRecognized,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( StartListening value)?  startListening,TResult? Function( ErrorOccurred value)?  errorOccurred,TResult? Function( ReminderOpened value)?  reminderOpened,TResult? Function( ContactChosen value)?  contactChosen,TResult? Function( ContactChoiceCancelled value)?  contactChoiceCancelled,TResult? Function( AppResumed value)?  appResumed,TResult? Function( LiveEventReceived value)?  liveEventReceived,TResult? Function( AudioPlaybackFinished value)?  audioPlaybackFinished,TResult? Function( SpeechRecognized value)?  speechRecognized,}){
 final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
 return startListening(_that);case ErrorOccurred() when errorOccurred != null:
 return errorOccurred(_that);case ReminderOpened() when reminderOpened != null:
-return reminderOpened(_that);case AppResumed() when appResumed != null:
+return reminderOpened(_that);case ContactChosen() when contactChosen != null:
+return contactChosen(_that);case ContactChoiceCancelled() when contactChoiceCancelled != null:
+return contactChoiceCancelled(_that);case AppResumed() when appResumed != null:
 return appResumed(_that);case LiveEventReceived() when liveEventReceived != null:
 return liveEventReceived(_that);case AudioPlaybackFinished() when audioPlaybackFinished != null:
 return audioPlaybackFinished(_that);case SpeechRecognized() when speechRecognized != null:
@@ -138,12 +144,14 @@ return speechRecognized(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  startListening,TResult Function( String message)?  errorOccurred,TResult Function( ReminderRef reminder)?  reminderOpened,TResult Function()?  appResumed,TResult Function( LiveEvent event)?  liveEventReceived,TResult Function()?  audioPlaybackFinished,TResult Function( String text)?  speechRecognized,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  startListening,TResult Function( String message)?  errorOccurred,TResult Function( ReminderRef reminder)?  reminderOpened,TResult Function( PhoneCandidate candidate)?  contactChosen,TResult Function()?  contactChoiceCancelled,TResult Function()?  appResumed,TResult Function( LiveEvent event)?  liveEventReceived,TResult Function()?  audioPlaybackFinished,TResult Function( String text)?  speechRecognized,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
 return startListening();case ErrorOccurred() when errorOccurred != null:
 return errorOccurred(_that.message);case ReminderOpened() when reminderOpened != null:
-return reminderOpened(_that.reminder);case AppResumed() when appResumed != null:
+return reminderOpened(_that.reminder);case ContactChosen() when contactChosen != null:
+return contactChosen(_that.candidate);case ContactChoiceCancelled() when contactChoiceCancelled != null:
+return contactChoiceCancelled();case AppResumed() when appResumed != null:
 return appResumed();case LiveEventReceived() when liveEventReceived != null:
 return liveEventReceived(_that.event);case AudioPlaybackFinished() when audioPlaybackFinished != null:
 return audioPlaybackFinished();case SpeechRecognized() when speechRecognized != null:
@@ -165,12 +173,14 @@ return speechRecognized(_that.text);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  startListening,required TResult Function( String message)  errorOccurred,required TResult Function( ReminderRef reminder)  reminderOpened,required TResult Function()  appResumed,required TResult Function( LiveEvent event)  liveEventReceived,required TResult Function()  audioPlaybackFinished,required TResult Function( String text)  speechRecognized,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  startListening,required TResult Function( String message)  errorOccurred,required TResult Function( ReminderRef reminder)  reminderOpened,required TResult Function( PhoneCandidate candidate)  contactChosen,required TResult Function()  contactChoiceCancelled,required TResult Function()  appResumed,required TResult Function( LiveEvent event)  liveEventReceived,required TResult Function()  audioPlaybackFinished,required TResult Function( String text)  speechRecognized,}) {final _that = this;
 switch (_that) {
 case StartListening():
 return startListening();case ErrorOccurred():
 return errorOccurred(_that.message);case ReminderOpened():
-return reminderOpened(_that.reminder);case AppResumed():
+return reminderOpened(_that.reminder);case ContactChosen():
+return contactChosen(_that.candidate);case ContactChoiceCancelled():
+return contactChoiceCancelled();case AppResumed():
 return appResumed();case LiveEventReceived():
 return liveEventReceived(_that.event);case AudioPlaybackFinished():
 return audioPlaybackFinished();case SpeechRecognized():
@@ -191,12 +201,14 @@ return speechRecognized(_that.text);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  startListening,TResult? Function( String message)?  errorOccurred,TResult? Function( ReminderRef reminder)?  reminderOpened,TResult? Function()?  appResumed,TResult? Function( LiveEvent event)?  liveEventReceived,TResult? Function()?  audioPlaybackFinished,TResult? Function( String text)?  speechRecognized,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  startListening,TResult? Function( String message)?  errorOccurred,TResult? Function( ReminderRef reminder)?  reminderOpened,TResult? Function( PhoneCandidate candidate)?  contactChosen,TResult? Function()?  contactChoiceCancelled,TResult? Function()?  appResumed,TResult? Function( LiveEvent event)?  liveEventReceived,TResult? Function()?  audioPlaybackFinished,TResult? Function( String text)?  speechRecognized,}) {final _that = this;
 switch (_that) {
 case StartListening() when startListening != null:
 return startListening();case ErrorOccurred() when errorOccurred != null:
 return errorOccurred(_that.message);case ReminderOpened() when reminderOpened != null:
-return reminderOpened(_that.reminder);case AppResumed() when appResumed != null:
+return reminderOpened(_that.reminder);case ContactChosen() when contactChosen != null:
+return contactChosen(_that.candidate);case ContactChoiceCancelled() when contactChoiceCancelled != null:
+return contactChoiceCancelled();case AppResumed() when appResumed != null:
 return appResumed();case LiveEventReceived() when liveEventReceived != null:
 return liveEventReceived(_that.event);case AudioPlaybackFinished() when audioPlaybackFinished != null:
 return audioPlaybackFinished();case SpeechRecognized() when speechRecognized != null:
@@ -384,6 +396,106 @@ $ReminderRefCopyWith<$Res> get reminder {
   });
 }
 }
+
+/// @nodoc
+
+
+class ContactChosen implements AssistantEvent {
+  const ContactChosen(this.candidate);
+  
+
+ final  PhoneCandidate candidate;
+
+/// Create a copy of AssistantEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ContactChosenCopyWith<ContactChosen> get copyWith => _$ContactChosenCopyWithImpl<ContactChosen>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ContactChosen&&(identical(other.candidate, candidate) || other.candidate == candidate));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,candidate);
+}
+
+@override
+String toString() {
+    return 'AssistantEvent.contactChosen(candidate: $candidate)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ContactChosenCopyWith<$Res> implements $AssistantEventCopyWith<$Res> {
+  factory $ContactChosenCopyWith(ContactChosen value, $Res Function(ContactChosen) _then) = _$ContactChosenCopyWithImpl;
+@useResult
+$Res call({
+ PhoneCandidate candidate
+});
+
+
+
+
+}
+/// @nodoc
+class _$ContactChosenCopyWithImpl<$Res>
+    implements $ContactChosenCopyWith<$Res> {
+  _$ContactChosenCopyWithImpl(this._self, this._then);
+
+  final ContactChosen _self;
+  final $Res Function(ContactChosen) _then;
+
+/// Create a copy of AssistantEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? candidate = null,}) {
+  return _then(ContactChosen(
+null == candidate ? _self.candidate : candidate // ignore: cast_nullable_to_non_nullable
+as PhoneCandidate,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ContactChoiceCancelled implements AssistantEvent {
+  const ContactChoiceCancelled();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ContactChoiceCancelled);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'AssistantEvent.contactChoiceCancelled()';
+}
+
+
+}
+
+
+
 
 /// @nodoc
 

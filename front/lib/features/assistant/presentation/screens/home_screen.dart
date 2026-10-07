@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/widgets/contact_choice_list.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/response_bubble.dart';
 
@@ -51,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     const Expanded(
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
-                        child: ResponseBubble(),
+                        child: _ResponseArea(),
                       ),
                     ),
                     const MicButton(),
@@ -76,6 +77,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Shows the proposed contacts while a call choice is pending, otherwise the
+/// agent's response.
+class _ResponseArea extends StatelessWidget {
+  const _ResponseArea();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocSelector<AssistantBloc, AssistantState, bool>(
+      selector: (state) => contactChoicesOf(state).isNotEmpty,
+      builder: (context, hasChoices) =>
+          hasChoices ? const ContactChoiceList() : const ResponseBubble(),
     );
   }
 }

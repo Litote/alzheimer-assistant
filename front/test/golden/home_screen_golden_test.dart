@@ -3,7 +3,7 @@ library;
 
 // ── Golden tests — HomeScreen (multi-device) ──────────────────────────────
 //
-// Covers 3 states × 8 devices = 24 goldens.
+// Covers 5 states × 8 devices = 40 goldens.
 //
 // Devices tested:
 //   iOS    : iPhone SE 3, iPhone 16, iPhone 16 Pro Max
@@ -457,6 +457,40 @@ void main() {
         await expectLater(
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/home_speaking_${device.id}.png'),
+        );
+      });
+    }
+  });
+
+  // ── Contact choice ──────────────────────────────────────────────────────
+  //
+  // Ambiguous call request: three candidates, two of them homonyms (number
+  // hint shown).
+
+  group('HomeScreen — contact choice', () {
+    for (final device in _devices) {
+      testWidgets(device.id, (tester) async {
+        _setDevice(tester, device);
+        addTearDown(() => _resetDevice(tester));
+
+        final bloc = _blocWith(
+          const AssistantState.speaking(
+            responseText: 'Plusieurs contacts correspondent. Lequel ?',
+            contactChoices: [
+              (displayName: 'Martin Jean', number: '+33611111111'),
+              (displayName: 'Martin Paul', number: '+33622221234'),
+              (displayName: 'Martin Paul', number: '+33633335678'),
+            ],
+          ),
+        );
+        addTearDown(bloc.close);
+
+        await tester.pumpWidget(_buildApp(bloc));
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/home_contact_choice_${device.id}.png'),
         );
       });
     }
