@@ -231,7 +231,7 @@ git push origin v1.2
 The workflow will:
 1. Import the distribution certificate into a temporary keychain
 2. Build the Flutter app (release, no codesign)
-3. Archive and export the IPA via `xcodebuild` with automatic signing (`-allowProvisioningUpdates`)
+3. Archive and export the IPA via `xcodebuild` with manual signing (distribution certificate + provisioning profile)
 4. Upload the IPA to TestFlight via `xcrun altool`
 5. Delete the temporary keychain (always, even on failure)
 
@@ -241,7 +241,7 @@ Go to **Actions → Front — TestFlight Distribution → Run workflow**.
 
 ### Signing setup
 
-The workflow uses **automatic signing** (`CODE_SIGN_STYLE=Automatic`) with an App Store Connect API key. Xcode fetches and manages provisioning profiles automatically at archive time — no manual profile management needed.
+The workflow uses **manual signing** with the provisioning profile stored in `APPLE_PROVISIONING_PROFILE_BASE64`. The signing settings (`CODE_SIGN_STYLE`, `CODE_SIGN_IDENTITY`, `PROVISIONING_PROFILE`) are written to `ios/Flutter/Signing.xcconfig` (git-ignored), included by `ios/Flutter/Release.xcconfig`, so they apply to the `Runner` target only. Do not pass them on the `xcodebuild` command line: they would apply to every target, and the plugins' Swift package targets fail with "does not support provisioning profiles".
 
 To set up signing for a new environment:
 1. Export your Apple Distribution certificate as `.p12` from Keychain Access

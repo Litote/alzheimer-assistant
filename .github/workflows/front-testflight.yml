@@ -124,6 +124,17 @@ jobs:
 
           [ -z "$PROFILE_UUID" ] && echo "ERROR: could not extract UUID from provisioning profile" && exit 1
 
+          # Signing settings go to an xcconfig used only by the Runner target:
+          # passed on the command line, they would apply to every target, and
+          # the plugins' Swift package targets reject a provisioning profile.
+          cat > ios/Flutter/Signing.xcconfig <<EOF
+          CODE_SIGN_STYLE = Manual
+          CODE_SIGN_IDENTITY = Apple Distribution
+          CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
+          PROVISIONING_PROFILE = $PROFILE_UUID
+          PROVISIONING_PROFILE_SPECIFIER =
+          EOF
+
           set -o pipefail
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
@@ -132,10 +143,6 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath /tmp/Runner.xcarchive \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
-            "CODE_SIGN_IDENTITY=Apple Distribution" \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
             2>&1 | tee /tmp/xcodebuild-archive.log | xcpretty || {
             echo "--- xcodebuild archive FAILED — error lines ---"
             grep -E "(error:|ARCHIVE FAILED|The following|build commands failed)" /tmp/xcodebuild-archive.log || true
