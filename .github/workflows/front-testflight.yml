@@ -127,7 +127,9 @@ jobs:
           # Signing settings go to an xcconfig used only by the Runner target:
           # passed on the command line, they would apply to every target, and
           # the plugins' Swift package targets reject a provisioning profile.
-          cat > ios/Flutter/Signing.xcconfig <<EOF
+          # It also restores the store app name (local builds show "Dev Alzheimer").
+          cat > ios/Flutter/Distribution.xcconfig <<EOF
+          APP_DISPLAY_NAME = Alzheimer Assistant
           CODE_SIGN_STYLE = Manual
           CODE_SIGN_IDENTITY = Apple Distribution
           CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution

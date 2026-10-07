@@ -1,2 +1,4 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+// Home screen name of local builds, to tell them apart from TestFlight ones.
+APP_DISPLAY_NAME = Dev Alzheimer
