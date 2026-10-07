@@ -118,6 +118,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   /// True once TTS has been started for the current turn.
   bool _ttsStarted = false;
 
+  /// Set as soon as `end_conversation` is received, before the BLoC handles
+  /// it, so that the server closing the session right after is not reported
+  /// as an error.
+  bool _conversationEnded = false;
+
   /// Measured average RMS during the calibration phase (first ~1 second of
   /// silence while the device is in Listening state). Used to set the
   /// interruption threshold dynamically instead of relying on the hardcoded 3500.
@@ -251,6 +256,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         _handleSessionInfo(welcome, emit);
       case LiveImageUrl(:final url):
         _handleImageUrl(url, emit);
+      case LiveEndConversation():
+        await _handleEndConversation(emit);
     }
   }
 
@@ -353,6 +360,15 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
   }
 
+  /// The user said goodbye: stop listening. The goodbye audio already queued
+  /// in the player keeps playing (the WebSocket server does not wait for it).
+  Future<void> _handleEndConversation(Emitter<AssistantState> emit) async {
+    if (state is Idle || state is AssistantError) return;
+    _logger.i('[Bloc] Conversation ended by the user');
+    await _disconnectAll();
+    emit(AssistantState.idle(imageUrl: _currentImageUrl));
+  }
+
   Future<void> _onAudioPlaybackFinished(
     AudioPlaybackFinished event,
     Emitter<AssistantState> emit,
@@ -390,12 +406,19 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   // ── Connection helpers ─────────────────────────────────────────────────────
 
+  void _onLiveEvent(LiveEvent e) {
+    _cancelResponseTimeout();
+    if (e is LiveEndConversation) _conversationEnded = true;
+    add(AssistantEvent.liveEventReceived(e));
+  }
+
   Future<void> _connect(
     Emitter<AssistantState> emit, {
     ReminderRef? reminder,
   }) async {
     emit(const AssistantState.connecting());
     _responseText = '';
+    _conversationEnded = false;
     _userTranscript = '';
     _welcomeText = '';
     _currentImageUrl = '';
@@ -417,10 +440,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         supabaseUserId: _authService?.supabaseUserId ?? '',
         reminder: reminder,
       ).listen(
-        (e) {
-          _cancelResponseTimeout();
-          add(AssistantEvent.liveEventReceived(e));
-        },
+        _onLiveEvent,
         onError: (Object e) {
           _cancelResponseTimeout();
           _logger.e('[Bloc] Live stream error: $e');
@@ -428,7 +448,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
         onDone: () {
           _cancelResponseTimeout();
-          if (state is! Idle && state is! AssistantError) {
+          if (!_conversationEnded &&
+              state is! Idle &&
+              state is! AssistantError) {
             _logger.i('[Bloc] WebSocket closed by server');
             add(const AssistantEvent.errorOccurred(_sessionEndedMessage));
           }
@@ -508,6 +530,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   Future<void> _connectWebRtc(Emitter<AssistantState> emit) async {
     emit(const AssistantState.connecting());
     _responseText = '';
+    _conversationEnded = false;
     _userTranscript = '';
     _welcomeText = '';
     _currentImageUrl = '';
@@ -521,10 +544,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
             supabaseUserId: _authService?.supabaseUserId ?? '',
           )
           .listen(
-        (e) {
-          _cancelResponseTimeout();
-          add(AssistantEvent.liveEventReceived(e));
-        },
+        _onLiveEvent,
         onError: (Object e) {
           _cancelResponseTimeout();
           _logger.e('[Bloc] LiveKit stream error: $e');
@@ -532,7 +552,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
         onDone: () {
           _cancelResponseTimeout();
-          if (state is! Idle && state is! AssistantError) {
+          if (!_conversationEnded &&
+              state is! Idle &&
+              state is! AssistantError) {
             _logger.i('[Bloc] LiveKit room closed by server');
             add(const AssistantEvent.errorOccurred(_sessionEndedMessage));
           }
@@ -556,6 +578,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   }) async {
     emit(const AssistantState.connecting());
     _responseText = '';
+    _conversationEnded = false;
     _userTranscript = '';
     _ttsStarted = false;
     _currentImageUrl = '';
@@ -570,10 +593,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
             reminder: reminder,
           )
           .listen(
-        (e) {
-          _cancelResponseTimeout();
-          add(AssistantEvent.liveEventReceived(e));
-        },
+        _onLiveEvent,
         onError: (Object e) {
           _cancelResponseTimeout();
           _logger.e('[Bloc] Live stream error (text mode): $e');
@@ -581,7 +601,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
         onDone: () {
           _cancelResponseTimeout();
-          if (state is! Idle && state is! AssistantError) {
+          if (!_conversationEnded &&
+              state is! Idle &&
+              state is! AssistantError) {
             _logger.i('[Bloc] Connection closed by server (text mode)');
             add(const AssistantEvent.errorOccurred(_sessionEndedMessage));
           }
@@ -715,6 +737,8 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _responseText = '';
     final newTextMode = await _settingsService.getUseTextMode();
     final newUseElevenLabs = await _settingsService.getUseElevenLabs();
+    // end_conversation may have been handled while the settings were read.
+    if (_conversationEnded) return;
     if (newTextMode != _textMode || newUseElevenLabs != _useElevenLabs) {
       _logger.i('[Bloc] Settings changed after turn — reconnecting');
       await _disconnectAll();

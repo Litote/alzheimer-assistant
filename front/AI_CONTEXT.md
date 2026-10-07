@@ -154,6 +154,16 @@ Gemini detected that the user spoke over the agent (barge-in) and stopped genera
 }
 ```
 
+### End of conversation (server → client)
+
+```json
+{ "end_conversation": true }
+```
+
+The user asked to stop ("au revoir", "c'est tout", "tu peux arrêter"): the agent called its `end_conversation` tool and said goodbye. The message is sent right after the goodbye turn's `turn_complete`, then the server closes the session (WebSocket close code 1000, or LiveKit room shutdown once the goodbye audio has played out).
+
+The front parses it as `LiveEvent.endConversation()` and goes back to `Idle` (mic stopped, connection closed) instead of `Listening`. The goodbye audio already queued in the PCM player keeps playing. `AssistantBloc` flags the event as soon as it arrives so the server close that follows is not reported as "Session terminée.". Live modes only (Audio WS, LiveKit): the text agent has no `end_conversation` tool.
+
 ### `call_phone` Flow
 
 When the agent sends a `call_phone` tool call, the front:
@@ -222,7 +232,7 @@ Tool response (same format as WebSocket):
 
 ### Server → client (Data Messages)
 
-Same JSON format as the WebSocket transport: `server_content`, `tool_call`, `output_transcription`, `input_transcription`, `tool_status`, `session_info`, `image_url`.
+Same JSON format as the WebSocket transport: `server_content`, `tool_call`, `output_transcription`, `input_transcription`, `tool_status`, `session_info`, `image_url`, `end_conversation`.
 
 **Audio chunks are NOT sent via Data Messages** — audio flows via `RemoteAudioTrack`.
 

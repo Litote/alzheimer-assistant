@@ -123,6 +123,18 @@ void main() {
     expect(parser.parse(raw), const LiveEvent.imageUrl('https://example.com/img.png'));
   });
 
+  // ── endConversation ────────────────────────────────────────────────────────
+
+  test('parses end_conversation', () {
+    final raw = jsonEncode({'end_conversation': true});
+    expect(parser.parse(raw), const LiveEvent.endConversation());
+  });
+
+  test('ignores end_conversation false', () {
+    final raw = jsonEncode({'end_conversation': false});
+    expect(parser.parse(raw), isNull);
+  });
+
   // ── unknown / malformed ───────────────────────────────────────────────────
 
   test('returns null for unrecognized message', () {

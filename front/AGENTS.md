@@ -98,6 +98,8 @@ liveEventReceived(callPhone)    → calls PhoneCallService, sends tool response 
 liveEventReceived(turnComplete) → if hasChunks: playAndClear → AudioPlaybackFinished → Idle
                                   else: → Idle immediately
 
+liveEventReceived(endConversation) → disconnect → Idle (server then closes the session;
+                                  queued goodbye audio keeps playing)
 audioPlaybackFinished           → Idle
 errorOccurred                   → AssistantError
 appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)

@@ -56,7 +56,7 @@ extension LiveEventPatterns on LiveEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( LiveAudioChunk value)?  audioChunk,TResult Function( LiveTextDelta value)?  textDelta,TResult Function( LiveCallPhone value)?  callPhone,TResult Function( LiveTurnComplete value)?  turnComplete,TResult Function( LiveInterrupted value)?  interrupted,TResult Function( LiveInputTranscription value)?  inputTranscription,TResult Function( LiveOutputTranscription value)?  outputTranscription,TResult Function( LiveToolStatus value)?  toolStatus,TResult Function( LiveSessionInfo value)?  sessionInfo,TResult Function( LiveSessionEstablished value)?  sessionEstablished,TResult Function( LiveImageUrl value)?  imageUrl,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( LiveAudioChunk value)?  audioChunk,TResult Function( LiveTextDelta value)?  textDelta,TResult Function( LiveCallPhone value)?  callPhone,TResult Function( LiveTurnComplete value)?  turnComplete,TResult Function( LiveInterrupted value)?  interrupted,TResult Function( LiveInputTranscription value)?  inputTranscription,TResult Function( LiveOutputTranscription value)?  outputTranscription,TResult Function( LiveToolStatus value)?  toolStatus,TResult Function( LiveSessionInfo value)?  sessionInfo,TResult Function( LiveSessionEstablished value)?  sessionEstablished,TResult Function( LiveImageUrl value)?  imageUrl,TResult Function( LiveEndConversation value)?  endConversation,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
@@ -70,7 +70,8 @@ return outputTranscription(_that);case LiveToolStatus() when toolStatus != null:
 return toolStatus(_that);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that);case LiveImageUrl() when imageUrl != null:
-return imageUrl(_that);case _:
+return imageUrl(_that);case LiveEndConversation() when endConversation != null:
+return endConversation(_that);case _:
   return orElse();
 
 }
@@ -88,7 +89,7 @@ return imageUrl(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( LiveAudioChunk value)  audioChunk,required TResult Function( LiveTextDelta value)  textDelta,required TResult Function( LiveCallPhone value)  callPhone,required TResult Function( LiveTurnComplete value)  turnComplete,required TResult Function( LiveInterrupted value)  interrupted,required TResult Function( LiveInputTranscription value)  inputTranscription,required TResult Function( LiveOutputTranscription value)  outputTranscription,required TResult Function( LiveToolStatus value)  toolStatus,required TResult Function( LiveSessionInfo value)  sessionInfo,required TResult Function( LiveSessionEstablished value)  sessionEstablished,required TResult Function( LiveImageUrl value)  imageUrl,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( LiveAudioChunk value)  audioChunk,required TResult Function( LiveTextDelta value)  textDelta,required TResult Function( LiveCallPhone value)  callPhone,required TResult Function( LiveTurnComplete value)  turnComplete,required TResult Function( LiveInterrupted value)  interrupted,required TResult Function( LiveInputTranscription value)  inputTranscription,required TResult Function( LiveOutputTranscription value)  outputTranscription,required TResult Function( LiveToolStatus value)  toolStatus,required TResult Function( LiveSessionInfo value)  sessionInfo,required TResult Function( LiveSessionEstablished value)  sessionEstablished,required TResult Function( LiveImageUrl value)  imageUrl,required TResult Function( LiveEndConversation value)  endConversation,}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk():
@@ -102,7 +103,8 @@ return outputTranscription(_that);case LiveToolStatus():
 return toolStatus(_that);case LiveSessionInfo():
 return sessionInfo(_that);case LiveSessionEstablished():
 return sessionEstablished(_that);case LiveImageUrl():
-return imageUrl(_that);}
+return imageUrl(_that);case LiveEndConversation():
+return endConversation(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -116,7 +118,7 @@ return imageUrl(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( LiveAudioChunk value)?  audioChunk,TResult? Function( LiveTextDelta value)?  textDelta,TResult? Function( LiveCallPhone value)?  callPhone,TResult? Function( LiveTurnComplete value)?  turnComplete,TResult? Function( LiveInterrupted value)?  interrupted,TResult? Function( LiveInputTranscription value)?  inputTranscription,TResult? Function( LiveOutputTranscription value)?  outputTranscription,TResult? Function( LiveToolStatus value)?  toolStatus,TResult? Function( LiveSessionInfo value)?  sessionInfo,TResult? Function( LiveSessionEstablished value)?  sessionEstablished,TResult? Function( LiveImageUrl value)?  imageUrl,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( LiveAudioChunk value)?  audioChunk,TResult? Function( LiveTextDelta value)?  textDelta,TResult? Function( LiveCallPhone value)?  callPhone,TResult? Function( LiveTurnComplete value)?  turnComplete,TResult? Function( LiveInterrupted value)?  interrupted,TResult? Function( LiveInputTranscription value)?  inputTranscription,TResult? Function( LiveOutputTranscription value)?  outputTranscription,TResult? Function( LiveToolStatus value)?  toolStatus,TResult? Function( LiveSessionInfo value)?  sessionInfo,TResult? Function( LiveSessionEstablished value)?  sessionEstablished,TResult? Function( LiveImageUrl value)?  imageUrl,TResult? Function( LiveEndConversation value)?  endConversation,}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
@@ -130,7 +132,8 @@ return outputTranscription(_that);case LiveToolStatus() when toolStatus != null:
 return toolStatus(_that);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that);case LiveImageUrl() when imageUrl != null:
-return imageUrl(_that);case _:
+return imageUrl(_that);case LiveEndConversation() when endConversation != null:
+return endConversation(_that);case _:
   return null;
 
 }
@@ -147,7 +150,7 @@ return imageUrl(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Uint8List bytes)?  audioChunk,TResult Function( String text)?  textDelta,TResult Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult Function()?  turnComplete,TResult Function()?  interrupted,TResult Function( String text)?  inputTranscription,TResult Function( String text)?  outputTranscription,TResult Function( String label)?  toolStatus,TResult Function( String welcome)?  sessionInfo,TResult Function( String sessionId)?  sessionEstablished,TResult Function( String url)?  imageUrl,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Uint8List bytes)?  audioChunk,TResult Function( String text)?  textDelta,TResult Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult Function()?  turnComplete,TResult Function()?  interrupted,TResult Function( String text)?  inputTranscription,TResult Function( String text)?  outputTranscription,TResult Function( String label)?  toolStatus,TResult Function( String welcome)?  sessionInfo,TResult Function( String sessionId)?  sessionEstablished,TResult Function( String url)?  imageUrl,TResult Function()?  endConversation,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that.bytes);case LiveTextDelta() when textDelta != null:
@@ -160,7 +163,8 @@ return outputTranscription(_that.text);case LiveToolStatus() when toolStatus != 
 return toolStatus(_that.label);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that.welcome);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that.sessionId);case LiveImageUrl() when imageUrl != null:
-return imageUrl(_that.url);case _:
+return imageUrl(_that.url);case LiveEndConversation() when endConversation != null:
+return endConversation();case _:
   return orElse();
 
 }
@@ -178,7 +182,7 @@ return imageUrl(_that.url);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Uint8List bytes)  audioChunk,required TResult Function( String text)  textDelta,required TResult Function( String callId,  String contactName,  bool exactMatch)  callPhone,required TResult Function()  turnComplete,required TResult Function()  interrupted,required TResult Function( String text)  inputTranscription,required TResult Function( String text)  outputTranscription,required TResult Function( String label)  toolStatus,required TResult Function( String welcome)  sessionInfo,required TResult Function( String sessionId)  sessionEstablished,required TResult Function( String url)  imageUrl,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Uint8List bytes)  audioChunk,required TResult Function( String text)  textDelta,required TResult Function( String callId,  String contactName,  bool exactMatch)  callPhone,required TResult Function()  turnComplete,required TResult Function()  interrupted,required TResult Function( String text)  inputTranscription,required TResult Function( String text)  outputTranscription,required TResult Function( String label)  toolStatus,required TResult Function( String welcome)  sessionInfo,required TResult Function( String sessionId)  sessionEstablished,required TResult Function( String url)  imageUrl,required TResult Function()  endConversation,}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk():
 return audioChunk(_that.bytes);case LiveTextDelta():
@@ -191,7 +195,8 @@ return outputTranscription(_that.text);case LiveToolStatus():
 return toolStatus(_that.label);case LiveSessionInfo():
 return sessionInfo(_that.welcome);case LiveSessionEstablished():
 return sessionEstablished(_that.sessionId);case LiveImageUrl():
-return imageUrl(_that.url);}
+return imageUrl(_that.url);case LiveEndConversation():
+return endConversation();}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -205,7 +210,7 @@ return imageUrl(_that.url);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Uint8List bytes)?  audioChunk,TResult? Function( String text)?  textDelta,TResult? Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult? Function()?  turnComplete,TResult? Function()?  interrupted,TResult? Function( String text)?  inputTranscription,TResult? Function( String text)?  outputTranscription,TResult? Function( String label)?  toolStatus,TResult? Function( String welcome)?  sessionInfo,TResult? Function( String sessionId)?  sessionEstablished,TResult? Function( String url)?  imageUrl,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Uint8List bytes)?  audioChunk,TResult? Function( String text)?  textDelta,TResult? Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult? Function()?  turnComplete,TResult? Function()?  interrupted,TResult? Function( String text)?  inputTranscription,TResult? Function( String text)?  outputTranscription,TResult? Function( String label)?  toolStatus,TResult? Function( String welcome)?  sessionInfo,TResult? Function( String sessionId)?  sessionEstablished,TResult? Function( String url)?  imageUrl,TResult? Function()?  endConversation,}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that.bytes);case LiveTextDelta() when textDelta != null:
@@ -218,7 +223,8 @@ return outputTranscription(_that.text);case LiveToolStatus() when toolStatus != 
 return toolStatus(_that.label);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that.welcome);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that.sessionId);case LiveImageUrl() when imageUrl != null:
-return imageUrl(_that.url);case _:
+return imageUrl(_that.url);case LiveEndConversation() when endConversation != null:
+return endConversation();case _:
   return null;
 
 }
@@ -905,5 +911,37 @@ as String,
 
 
 }
+
+/// @nodoc
+
+
+class LiveEndConversation implements LiveEvent {
+  const LiveEndConversation();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveEndConversation);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'LiveEvent.endConversation()';
+}
+
+
+}
+
+
+
 
 // dart format on

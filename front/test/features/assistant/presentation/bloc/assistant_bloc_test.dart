@@ -192,12 +192,14 @@ class _ThrowingMicService implements MicrophoneStreamService {
 }
 
 class _FakeMicService implements MicrophoneStreamService {
+  int stopCount = 0;
+
   @override
   Future<Stream<Uint8List>> startStreaming() async =>
       Stream.value(Uint8List(16));
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async => stopCount++;
 
   @override
   Future<void> dispose() async {}
@@ -226,6 +228,15 @@ class _FakeSettingsService implements SettingsService {
 
   @override
   Future<void> setUseLiveKit(bool value) async {}
+}
+
+/// Settings whose reads take a while, like real disk-backed preferences.
+class _SlowFakeSettingsService extends _FakeSettingsService {
+  @override
+  Future<bool> getUseTextMode() async {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    return false;
+  }
 }
 
 class _MutableFakeSettingsService implements SettingsService {
@@ -1424,6 +1435,91 @@ void main() {
     await bloc.close();
   });
 
+  // ── LiveEvent: endConversation ────────────────────────────────────────────
+
+  test(
+      'endConversation then server close → Idle (no error), '
+      'goodbye audio keeps playing', () async {
+    final live = _ControllableRepository();
+    final mic = _FakeMicService();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      audioRepository: live,
+      textRepository: live,
+      micService: mic,
+      audioPlayer: player,
+      settingsService: _FakeSettingsService(),
+    );
+
+    final states = <AssistantState>[];
+    final sub = bloc.stream.listen(states.add);
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.turnComplete());
+    // The server sends end_conversation and closes the WebSocket right away.
+    live.emit(const LiveEvent.endConversation());
+    live.done();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(bloc.state, const AssistantState.idle());
+    expect(states.whereType<AssistantError>(), isEmpty);
+    expect(mic.stopCount, greaterThan(0));
+    verifyNever(() => player.stop());
+
+    await sub.cancel();
+    await bloc.close();
+  });
+
+  test(
+      'endConversation handled while the previous turnComplete is still '
+      'reading settings → stays Idle', () async {
+    final live = _ControllableRepository();
+    final player = MockStreamingAudioPlayerService();
+    when(() => player.addChunk(any())).thenReturn(null);
+    when(() => player.stop()).thenAnswer((_) async {});
+    when(() => player.dispose()).thenAnswer((_) async {});
+    when(() => player.playAndClear(onComplete: any(named: 'onComplete')))
+        .thenAnswer((_) async {});
+
+    final bloc = AssistantBloc(
+      audioRepository: live,
+      textRepository: live,
+      micService: _FakeMicService(),
+      audioPlayer: player,
+      settingsService: _SlowFakeSettingsService(),
+    );
+
+    bloc.add(const AssistantEvent.startListening());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    live.emit(LiveEvent.audioChunk(_kAudioChunk));
+    live.emit(const LiveEvent.turnComplete());
+    live.emit(const LiveEvent.endConversation());
+    live.done();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(bloc.state, const AssistantState.idle());
+    await bloc.close();
+  });
+
+  blocTest<AssistantBloc, AssistantState>(
+    'liveEventReceived(endConversation) while Idle → no state change',
+    build: () => _makeBloc(audioPlayer: audioPlayer),
+    act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+      LiveEvent.endConversation(),
+    )),
+    expect: () => [],
+  );
+
   // ── LiveEvent: inputTranscription ─────────────────────────────────────────
 
   blocTest<AssistantBloc, AssistantState>(
@@ -2335,6 +2431,42 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(bloc.state, isA<Listening>());
+      await bloc.close();
+    });
+
+    test('endConversation in WebRTC mode → Idle and leaves the room', () async {
+      final live = _ControllableRepository();
+      when(
+        () => webRtcRepository.connect(
+          useElevenLabs: any(named: 'useElevenLabs'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      ).thenAnswer((_) => live.connect());
+
+      final bloc = AssistantBloc(
+        textRepository: _EmptyRepository(),
+        webRtcRepository: webRtcRepository,
+        micService: _FakeMicService(),
+        settingsService: _FakeLiveKitSettingsService(),
+        enableWakelock: () async {},
+        disableWakelock: () async {},
+      );
+
+      final states = <AssistantState>[];
+      bloc.stream.listen(states.add);
+
+      bloc.add(const AssistantEvent.startListening());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      live.emit(const LiveEvent.outputTranscription('Au revoir !'));
+      live.emit(const LiveEvent.turnComplete());
+      // The agent then shuts the room down.
+      live.emit(const LiveEvent.endConversation());
+      live.done();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state, isA<Idle>());
+      expect(states.whereType<AssistantError>(), isEmpty);
+      verify(() => webRtcRepository.disconnect()).called(greaterThan(0));
       await bloc.close();
     });
 

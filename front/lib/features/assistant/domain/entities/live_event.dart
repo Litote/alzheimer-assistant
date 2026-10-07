@@ -52,4 +52,8 @@ sealed class LiveEvent with _$LiveEvent {
 
   /// A URL pointing to an image the agent wants to display to the user.
   const factory LiveEvent.imageUrl(String url) = LiveImageUrl;
+
+  /// The user asked to end the conversation. Sent after the goodbye turn;
+  /// the server then closes the session, so the assistant stops listening.
+  const factory LiveEvent.endConversation() = LiveEndConversation;
 }

@@ -24,7 +24,8 @@ class LiveMessageParser {
           _parseToolCall(json) ??
           _parseSessionInfo(json) ??
           _parseToolStatus(json) ??
-          _parseImageUrl(json);
+          _parseImageUrl(json) ??
+          _parseEndConversation(json);
       if (event == null) {
         _logger.w('[Parser] unrecognized message — keys: ${json.keys.toList()}');
       }
@@ -144,5 +145,11 @@ class LiveMessageParser {
       return LiveEvent.imageUrl(url);
     }
     return null;
+  }
+
+  LiveEvent? _parseEndConversation(Map<String, dynamic> json) {
+    if (json['end_conversation'] != true) return null;
+    _logger.i('[Parser] ← end_conversation');
+    return const LiveEvent.endConversation();
   }
 }
