@@ -5,10 +5,11 @@ name: Front — Update Golden Screenshots
 on:
   workflow_dispatch:
 
-# Permission to write to the repository and open PRs
+# Permission to write to the repository, open PRs and dispatch CI
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 defaults:
   run:
@@ -55,9 +56,6 @@ jobs:
       - name: Commit & open PR with goldens
         working-directory: .
         env:
-          # PAT: used to trigger CI via gh workflow run (GITHUB_TOKEN cannot
-          # trigger other workflow runs — GitHub restriction).
-          GH_TOKEN: ${{ secrets.GH_PAT }}
           # GITHUB_TOKEN: used for commit creation (GitHub auto-signs → Verified)
           # and PR creation (author = github-actions[bot], not zigzago).
           GH_TOKEN_GITHUB: ${{ github.token }}
@@ -112,7 +110,7 @@ jobs:
               -f "parents[]=${PARENT}" \
               --jq '.sha')
 
-            # Create the branch ref (PAT or GITHUB_TOKEN — attribution doesn't matter here)
+            # Create the branch ref
             GH_TOKEN="$GH_TOKEN_GITHUB" gh api "repos/${REPO}/git/refs" \
               --method POST \
               -f "ref=refs/heads/${BRANCH}" \
@@ -127,11 +125,10 @@ jobs:
               --base "$ORIGIN" \
               --head "$BRANCH"
 
-            # Trigger CI on the new branch using the PAT.
-            # GITHUB_TOKEN cannot trigger other workflow runs (GitHub restriction),
-            # so CI would not run automatically on the PR created above.
-            # front-ci.yml has workflow_dispatch for exactly this purpose.
-            gh workflow run front-ci.yml --ref "$BRANCH"
+            # Trigger CI on the new branch. Events created with GITHUB_TOKEN do not
+            # start workflow runs (so the PR above won't trigger pull_request CI),
+            # except workflow_dispatch — front-ci.yml has it for exactly this purpose.
+            GH_TOKEN="$GH_TOKEN_GITHUB" gh workflow run front-ci.yml --ref "$BRANCH"
 
             echo "✅ ${CHANGED} golden(s) committed (verified), PR opened, CI triggered."
           fi
