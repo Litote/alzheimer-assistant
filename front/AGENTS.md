@@ -46,23 +46,26 @@ lib/
 ├── main.dart                  # Entry point — validates secrets, locks portrait
 ├── app/
 │   ├── app.dart               # Root widget, BlocProvider setup
-│   ├── router.dart            # GoRouter (single route: '/' → HomeScreen)
+│   ├── router.dart            # GoRouter ('/', login, '/settings', onboarding; auth redirect)
 │   └── theme.dart             # Material 3, accessibility-first color palette
 ├── core/
-│   └── constants/             # API URLs, dart-define config (AppConstants)
-├── features/assistant/
-│   ├── domain/
-│   │   ├── entities/          # LiveEvent sealed union (audioChunk, textDelta, callPhone, turnComplete)
-│   │   └── repositories/      # Abstract LiveRepository interface
-│   ├── data/
-│   │   └── repositories/      # LiveRepositoryImpl — WebSocket bidi streaming
-│   └── presentation/
-│       ├── bloc/              # AssistantBloc, AssistantEvent, AssistantState
-│       ├── screens/           # HomeScreen
-│       └── widgets/           # MicButton, ResponseBubble, ContactChoiceList
+│   ├── constants/             # API URLs, dart-define config (AppConstants)
+│   └── network/               # AccessTokenProvider
+├── features/
+│   ├── assistant/
+│   │   ├── domain/
+│   │   │   ├── entities/      # LiveEvent sealed union
+│   │   │   └── repositories/  # AudioRepository, TextRepository, WebRtcRepository interfaces
+│   │   ├── data/
+│   │   │   └── repositories/  # WsAudioRepository, SseTextRepository, LiveKitAudioRepository, LiveMessageParser
+│   │   └── presentation/
+│   │       ├── bloc/          # AssistantBloc, AssistantEvent, AssistantState
+│   │       ├── screens/       # HomeScreen
+│   │       └── widgets/       # MicButton, ResponseBubble, ContactChoiceList
+│   ├── auth/ · onboarding/ · settings/ · reminders/
 └── shared/services/
     ├── microphone_stream_service.dart         # PCM mic capture (16kHz, record package)
-    ├── streaming_audio_player_service.dart    # PCM chunk buffer → WAV → audioplayers
+    ├── streaming_audio_player_service.dart    # Player interface (PCM streaming / buffered WAV implementations)
     └── phone_call_service.dart               # Contact lookup + direct call
 ```
 
@@ -79,6 +82,7 @@ lib/
 **States** (sealed Freezed union):
 ```
 Idle            — waiting for user input
+Starting        — after tap, before the connection is established
 Connecting      — WebSocket being established
 Listening       — mic streaming, waiting for agent response
 Speaking        — agent responding (text + audio)
@@ -87,41 +91,44 @@ AssistantError  — unrecoverable error, shows message
 
 **Events → States flow:**
 ```
-StartListening (from Idle)      → Connecting → Listening
+StartListening (from Idle)      → Starting → Connecting → Listening
 StartListening (from Listening) → Idle (cancel, disconnect)
 StartListening (from Speaking)  → Idle (interrupt, stop audio)
 StartListening (from Error)     → Idle (reset)
 
 liveEventReceived(textDelta)    → Speaking(responseText accumulated)
-liveEventReceived(audioChunk)   → Speaking (chunk buffered, state emitted once)
+liveEventReceived(audioChunk)   → Speaking (chunk queued; playback starts on the first chunk)
 liveEventReceived(callPhone)    → calls PhoneCallService, sends tool response; if ambiguous,
                                   re-emits the current state with contactChoices
 contactChosen                   → callByNumber, choices cleared, disconnect → Idle
 contactChoiceCancelled          → choices cleared (same state)
-liveEventReceived(turnComplete) → if hasChunks: playAndClear → AudioPlaybackFinished → Idle
-                                  else: → Idle immediately
+liveEventReceived(turnComplete) → audio/LiveKit: Listening (connection stays open)
+                                  text: TTS of the accumulated text → AudioPlaybackFinished
 
 liveEventReceived(endConversation) → disconnect → Idle (server then closes the session;
                                   queued goodbye audio keeps playing)
 audioPlaybackFinished           → Idle
 errorOccurred                   → AssistantError
 appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)
+reminderOpened                  → closes any session, reconnects with the reminder (agent speaks first)
+speechRecognized                → text mode: sends the recognized text to the agent
 ```
 
-**Key rule:** All state is immutable (Freezed sealed union types). No mutable fields outside services.
+Full dialog flow per mode: [`DIALOG_FLOW.md`](DIALOG_FLOW.md).
+
+**Key rule:** States, events, and data classes are immutable (Freezed sealed union types). Session bookkeeping lives in private fields of the BLoC and services.
 
 ---
 
 ## Conventions
 
 **Immutability:**
-- Use `final` for all fields
+- Prefer `final` fields
 - Use Freezed for all data classes, events, and states
 - Use `const` constructors for stateless widgets
 
 **Visibility:**
 - Private by convention: `_prefixName` for internal fields and methods
-- No explicit `public` keyword (Dart default)
 
 **Imports:** Single imports only — no `show X, Y` patterns
 
@@ -141,27 +148,14 @@ appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)
 - **New logic:** always add a corresponding test
 - **Mocking:** use `mocktail` (not `mockito`)
 - **BLoC tests:** use `bloc_test` package (`blocTest<>` helper)
-- **Repository tests:** mock Dio with in-memory interceptors (see existing tests for pattern)
 - **E2E fake services:** `FakeLiveRepository`, `FakeMicrophoneStreamService`, `ManualFakeStreamingAudioPlayerService` — reuse, don't duplicate
-- **Repository tests:** use `_FakeChannel` (implements `WebSocketChannel`) — see `live_repository_impl_test.dart`
+- **Repository tests:** use `_FakeChannel` (implements `WebSocketChannel`) — see `ws_audio_repository_test.dart`
 
 ---
 
 ## Key Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `flutter_bloc` | BLoC state management |
-| `go_router` | Declarative routing |
-| `freezed` | Immutable data classes + sealed union types |
-| `json_serializable` | JSON serialization |
-| `web_socket_channel` | WebSocket bidi transport for Live API |
-| `record` | Microphone PCM capture (16kHz 16-bit mono) |
-| `audioplayers` | WAV playback of buffered PCM chunks |
-| `path_provider` | Temp directory for WAV files |
-| `flutter_contacts` | Contact lookup |
-| `flutter_phone_direct_caller` | Initiate phone calls |
-| `bloc_test` + `mocktail` | Testing utilities |
+See `pubspec.yaml`, where dependencies are grouped under comments by purpose. Testing uses `bloc_test` + `mocktail`.
 
 
 ## SonarCloud Workflow
@@ -169,6 +163,6 @@ appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)
 To check the quality gate from an agent session:
 
 1. Run `./gradlew allSonar` from the repo root (runs all checks with coverage then uploads results).
-2. Use the `sonarqube` MCP server (configured in Claude Code) to query the gate status —
-3. The gate passes when `new_coverage ≥ 80%`, `new_duplicated_lines_density ≤ 3%`, ratings all A, hotspots reviewed 100%.
+2. Use the `sonarqube` MCP server (configured in Claude Code) to query the gate status.
+3. The gate criteria are listed in the Definition of Done of [`../AGENTS.md`](../AGENTS.md).
 ---

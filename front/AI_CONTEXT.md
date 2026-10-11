@@ -18,11 +18,11 @@ Three transport modes are available, selected at runtime via `SettingsService`:
 
 ## API Contract: `front/` ↔ `agent/`
 
-### Transport — WebSocket (modes Audio WS and Text SSE)
+### Transport — WebSocket (Audio WS mode)
 
 WebSocket bidi streaming via `ws(s)://<ADK_BASE_URL>/run_live`.
 
-The Flutter app opens a single WebSocket connection per interaction and closes it when the agent's turn completes (`turn_complete: true`).
+The Flutter app opens one WebSocket connection per session and keeps it open across turns; it closes when the user stops the session or after `end_conversation`.
 
 ### Setup (client → server, first message)
 
@@ -30,12 +30,16 @@ The Flutter app opens a single WebSocket connection per interaction and closes i
 {
   "setup": {
     "app_name": "alzheimerassistant",
-    "access_token": "<Supabase JWT>"
+    "user_id": "<ADK user id>",
+    "use_elevenlabs": false,
+    "supabase_user_id": "<Supabase user id>",
+    "access_token": "<Supabase JWT>",
+    "reminder": { "event_id": "…", "date": "2026-10-01" }
   }
 }
 ```
 
-`access_token` is the Supabase access token of the signed-in user (`AuthService.accessToken`), omitted when signed out. It is sent in the setup message rather than the URL so it does not appear in access logs.
+`access_token` is the Supabase access token of the signed-in user (`AuthService.accessToken`), omitted when signed out. `reminder` is only present when the session is opened from a reminder notification (see [Reminders](#reminders-proactive-notifications)). The token is sent in the setup message rather than the URL so it does not appear in access logs.
 
 ### Authentication (all transports)
 
@@ -124,7 +128,7 @@ Partial text responses are accumulated into the `Speaking` state's `responseText
 }
 ```
 
-PCM chunks (24kHz, 16-bit, mono) buffered client-side. On `turn_complete`, all chunks are assembled into a WAV file and played via `audioplayers`.
+PCM chunks (24kHz, 16-bit, mono) are played as they arrive by `PcmStreamingAudioPlayerService`; playback starts on the first chunk.
 
 ### Turn complete (server → client)
 
@@ -132,7 +136,7 @@ PCM chunks (24kHz, 16-bit, mono) buffered client-side. On `turn_complete`, all c
 { "server_content": { "turn_complete": true } }
 ```
 
-Signals the end of the agent's response. The client disconnects and starts audio playback.
+Signals the end of the agent's response. The client returns to Listening; the connection stays open.
 
 ### Interrupted (server → client)
 
@@ -245,7 +249,7 @@ turn_complete DM   → back to Listening state (connection stays open)
 User re-speaks     → VAD (server-side, livekit-agents) detects speech → new agent turn
 ```
 
-Unlike WebSocket mode, the connection **stays open** between turns. `turn_complete` returns to `Listening`, not `Idle`.
+As in WebSocket mode, the connection **stays open** between turns. `turn_complete` returns to `Listening`, not `Idle`.
 
 ### VAD
 
@@ -255,24 +259,11 @@ Voice Activity Detection is handled server-side by the `livekit-agents` framewor
 
 ## Expected ADK server behavior for LiveKit mode
 
-The ADK server must expose two new endpoints/processes:
+The ADK server exposes one endpoint and runs one worker process:
 
 ### 1. `GET /livekit-token`
 
 Returns a signed LiveKit JWT for the Flutter client to join the room.
-
-```python
-from livekit.api import AccessToken, VideoGrants
-
-@app.get("/livekit-token")
-def livekit_token():
-    token = (
-        AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-        .with_grants(VideoGrants(room_join=True, room="alzheimer-room"))
-        .to_jwt()
-    )
-    return {"url": LIVEKIT_URL, "token": token, "room": "alzheimer-room"}
-```
 
 `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL` must be set as Cloud Run secrets. They are **never** sent to the Flutter client.
 
@@ -288,21 +279,6 @@ A `livekit-agents` Python worker that:
 6. Receives text/tool events from Gemini → publishes as Data Messages (same JSON format as the existing WebSocket protocol)
 7. On `turn_complete`: publishes `{ "server_content": { "turn_complete": true } }` as a Data Message, then stays connected for the next turn
 
-```python
-from livekit.agents import WorkerOptions, cli, JobContext
-from livekit.agents.voice import VoiceAgent
-
-async def entrypoint(ctx: JobContext):
-    await ctx.connect()
-    # Bridge: LiveKit audio ↔ Gemini Live API
-    agent = VoiceAgent(...)
-    agent.start(ctx.room)
-    # Forward Gemini tool_call / transcription / turn_complete as Data Messages
-    # using the same JSON keys as the existing WebSocket protocol
-
-cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
-```
-
 ### Key differences from WebSocket mode
 
 | Aspect | WebSocket mode | LiveKit WebRTC mode |
@@ -310,9 +286,9 @@ cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
 | Audio client → server | Base64 PCM over JSON | WebRTC LocalAudioTrack |
 | Audio server → client | Base64 PCM over JSON | WebRTC RemoteAudioTrack |
 | Text/tool events | Same WebSocket | Data Messages (same JSON) |
-| Connection lifetime | One connection per turn | Persistent across turns |
+| Connection lifetime | Persistent across turns | Persistent across turns |
 | VAD | Gemini server-side | livekit-agents server-side |
-| Turn end | Client disconnects | Client stays, returns to Listening |
+| Turn end | Client stays, returns to Listening | Client stays, returns to Listening |
 
 ---
 
@@ -334,7 +310,9 @@ Injected at build time via `--dart-define-from-file=secrets.json`. See `secrets.
 
 | Key | Used by |
 |-----|---------|
-| `ADK_BASE_URL` | Base URL for all ADK endpoints : `/run_live` (WebSocket audio), `/run_sse` (text), `/livekit-token` (LiveKit token fetch) |
+| `ADK_BASE_URL` | Base URL for all ADK endpoints : `/run_live` (WebSocket audio), `/run_sse` (text), `/livekit-token` (LiveKit token fetch), `/reminders/upcoming` (reminders) |
+| `SUPABASE_URL` | Supabase project URL (auth) |
+| `SUPABASE_ANON_KEY` | Supabase anonymous key (auth) |
 | `ELEVENLABS_API_KEY` | ElevenLabs client-side TTS (text mode only) |
 | `ELEVENLABS_VOICE_ID` | ElevenLabs voice identifier |
 

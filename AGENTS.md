@@ -2,8 +2,8 @@
 
 > **Purpose**: Instructions for AI agents working on this codebase.
 > For installation, configuration, and usage, see [`README.md`](README.md).
-> For contributing guidelines and project architecture, see (MANDATORY!) [`CONTRIBUTING.md`](CONTRIBUTING.md).
-> For a project analysis, see (MANDATORY!) [`AI_CONTEXT.md`](AI_CONTEXT.md).
+> For contributing guidelines and project architecture, read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+> For a project analysis, read [`AI_CONTEXT.md`](AI_CONTEXT.md).
 
 ---
 
@@ -16,7 +16,7 @@
 | **Dependencies** | Add/upgrade dependencies without explicit request, change version catalogs       |
 | **Security**     | Log secrets/API keys, expose environment variables, commit credentials           |
 | **Scope**        | Mass refactors, rename symbols unnecessarily, formatting-only changes            |
-| **Commit**       | NEVER commit changes if you are not in a Pull Request Context                    |
+| **Commit**       | Commit changes unless the user explicitly asks you to                            |
 
 ### ALWAYS Do
 
@@ -35,60 +35,36 @@
 ## Definition of Done
 
 A change is complete when:
--
+
 - [ ] Only relevant files are modified
 - [ ] Type safety is preserved
 - [ ] Architecture boundaries are respected
 - [ ] Tests are added for new logic
 - [ ] IDE diagnostics (Problems panel) report zero errors
 - [ ] SonarCloud quality gate passes (coverage ≥ 80%, 0 hotspots to review, 0 bugs, 0 vulnerabilities) — run `./gradlew allSonar` from the repo root
-- [ ] If any widget, theme, text, layout, or state rendering changed: golden screenshots regenerated locally on macOS (`flutter test test/golden/ --update-goldens --tags golden` in `front/`) and the updated `.png` files committed
+- [ ] If any widget, theme, text, layout, or state rendering changed: golden screenshots regenerated on macOS (locally with `flutter test test/golden/ --update-goldens --tags golden` in `front/`, or with the "Front — Update Golden Screenshots" GitHub workflow) and the updated `.png` files committed
 
 ---
 
-## Sub-Agent Structure
+## Components
 
-Each component has a dedicated agent with a strict scope boundary. An orchestrator coordinates cross-component work without writing component code directly.
+Each component is self-contained; keep a change inside one component unless the task spans several.
 
-### orchestrator
-- **Scope:** root files only (`README.md`, `AI_CONTEXT.md`, `AGENTS.md`, `CONTRIBUTING.md`)
-- **Role:** decompose cross-component tasks, delegate to sub-agents, verify contracts between components
-- **Must not:** write code inside `front/`, `agent/`, or `infra/`
+| Component | Stack | Entry context |
+|-----------|-------|---------------|
+| `front/` | Flutter / Dart | [`front/AGENTS.md`](front/AGENTS.md) |
+| `agent/` | Python / Google ADK / Cloud Run | `agent/AGENTS.md` _(to be created when component is bootstrapped)_ |
+| `infra/` | Terraform / GCP | `infra/AGENTS.md` _(to be created when component is bootstrapped)_ |
 
-### flutter-agent
-- **Scope:** `front/` exclusively
-- **Entry context:** [`front/AGENT.md`](front/CLAUDE.md)
-- **Stack:** Flutter / Dart
-- **Must not touch:** `agent/`, `infra/`
+In `infra/`, always plan before apply, and never destroy without explicit confirmation.
 
-### backend-agent
-- **Scope:** `agent/` exclusively
-- **Entry context:** `agent/AGENT.md` _(to be created when component is bootstrapped)_
-- **Stack:** Python / Google ADK / Cloud Run
-- **Must not touch:** `front/`, `infra/`
-
-### infra-agent
-- **Scope:** `infra/` exclusively
-- **Entry context:** `infra/AGENT.md` _(to be created when component is bootstrapped)_
-- **Stack:** Terraform / GCP
-- **Must not touch:** `front/`, `agent/`
-- **Extra caution:** always plan before apply, never destroy without explicit confirmation
-
-### Cross-component tasks
-When a task spans multiple components (e.g. "add an endpoint and update the front"):
-1. **orchestrator** reads `AI_CONTEXT.md` to understand the current contract
-2. Delegates each component change to the relevant sub-agent independently
-3. Verifies that the updated contract is reflected in `AI_CONTEXT.md` before closing the task
+When a task changes the contract between components (e.g. "add an endpoint and update the front"), read the current contract in `AI_CONTEXT.md` first and update it before closing the task.
 
 ---
 
 ## Agent Behavior Guidelines
 
-**When generating code:**
-- Be minimal — change only what's necessary
-- Be conservative — preserve existing patterns
-- Be explicit — no hidden side effects
-- Preserve type safety and determinism
+Match existing patterns, and avoid hidden side effects.
 
 **When uncertain:**
 - Prefer no change over speculative change

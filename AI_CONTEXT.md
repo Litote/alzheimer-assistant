@@ -58,7 +58,7 @@ Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ─�
 ### `agent/` — Conversational AI Agent
 - **Platform:** Google Cloud Run
 - **Framework:** Google ADK (Agent Development Kit)
-- **Status:** Not yet implemented
+- **Status:** Implemented in a separate repository; will be migrated into `agent/`
 
 ### `infra/` — Infrastructure as Code
 - **Stack:** Terraform / GCP
@@ -70,7 +70,7 @@ Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ─�
 
 See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format specification.
 
-**WebSocket transport:** `ws(s)://<ADK_BASE_URL>/run_live`. Single connection per turn, closed on `turn_complete`.
+**WebSocket transport:** `ws(s)://<ADK_BASE_URL>/run_live`. The connection stays open across turns; it closes when the user stops the session or after `end_conversation`.
 
 **LiveKit transport:** Flutter fetches a token via `GET <ADK_BASE_URL>/livekit-token`, joins the LiveKit Cloud room, exchanges audio via WebRTC tracks, and non-audio events via Data Messages (same JSON format as the WebSocket protocol).
 
@@ -86,17 +86,17 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 
 | Term | Definition |
 |------|-----------|
-| **Live API** | Google GenAI bidi streaming API. Single WebSocket per turn — mic in, PCM + text out. |
+| **Live API** | Google GenAI bidi streaming API. One WebSocket per session — mic in, PCM + text out. |
 | **VAD** | Voice Activity Detection. Handled server-side (Gemini in WS mode, livekit-agents in WebRTC mode). |
 | **PCM** | Pulse-Code Modulation. Raw uncompressed audio. Input: 16kHz 16-bit mono. Output: 24kHz 16-bit mono. |
-| **`turnComplete`** | Server signal that the agent has finished its response turn. In WS mode: triggers playback + disconnect. In LiveKit mode: returns to Listening (connection stays open). |
+| **`turnComplete`** | Server signal that the agent has finished its response turn. In WS and LiveKit modes: returns to Listening (connection stays open). In Text SSE mode: triggers TTS of the accumulated text. |
 | **Reminder** | Agenda event occurrence notified on the phone. `Reminder` (server payload, with `notifyAt`) and `ReminderRef` (`eventId` + `date`, sent back to the agent) in `features/reminders/domain/entities/reminder.dart`. |
-| **`LiveEvent`** | Sealed Dart union emitted by any repository: `audioChunk`, `outputTranscription`, `inputTranscription`, `callPhone`, `turnComplete`, `toolStatus`, `sessionInfo`, `sessionEstablished`, `imageUrl`, `endConversation`. |
+| **`LiveEvent`** | Sealed Dart union emitted by any repository: `audioChunk`, `textDelta`, `interrupted`, `outputTranscription`, `inputTranscription`, `callPhone`, `turnComplete`, `toolStatus`, `sessionInfo`, `sessionEstablished`, `imageUrl`, `endConversation`. |
 | **`LiveMessageParser`** | Shared JSON parser used by both `WsAudioRepository` and `LiveKitAudioRepository`. Located in `data/repositories/live_message_parser.dart`. |
 | **`WebRtcRepository`** | Domain interface for LiveKit transport. Distinct from `AudioRepository`: no `sendAudio()`, no mic streaming in the BLoC. |
 | **`call_phone` action** | An ADK function call returned by the agent when the user requests a phone call. |
 | **Disambiguation** | Flow triggered when a contact name matches multiple contacts — tool response sent back to agent, and the candidates shown on screen (`contactChoices` state field, `ContactChoiceList`) so the user can tap one or answer by voice. |
-| **Golden test** | Screenshot regression test. 40 images (5 home screen states × 8 device sizes). macOS only. |
+| **Golden test** | Screenshot regression test (home screen states and permission onboarding, 8 device sizes each). macOS only. |
 | **LiveKit Cloud** | SaaS WebRTC infrastructure (signalling + media relay). Intelligence stays on the ADK server. |
 | **livekit-agents** | Python SDK for building LiveKit agent workers. Handles VAD and bridges WebRTC ↔ Gemini Live API. |
 
