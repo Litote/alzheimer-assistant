@@ -53,7 +53,7 @@ Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ─�
   - Text SSE: device STT → HTTP SSE → client TTS
   - Handles `call_phone` tool calls: resolves contacts, initiates phone calls; on ambiguity, shows the candidates as tappable cards
   - Schedules agenda reminders as local notifications; tapping one opens a session where the agent announces the event
-- See [`front/CLAUDE.md`](front/CLAUDE.md) and [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for full details
+- See [`front/AGENTS.md`](front/AGENTS.md) and [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for full details
 
 ### `agent/` — Conversational AI Agent
 - **Platform:** Google Cloud Run

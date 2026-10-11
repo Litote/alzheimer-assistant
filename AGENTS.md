@@ -42,7 +42,7 @@ A change is complete when:
 - [ ] Tests are added for new logic
 - [ ] IDE diagnostics (Problems panel) report zero errors
 - [ ] SonarCloud quality gate passes (coverage ≥ 80%, 0 hotspots to review, 0 bugs, 0 vulnerabilities) — run `./gradlew allSonar` from the repo root
-- [ ] If any widget, theme, text, layout, or state rendering changed: golden screenshots regenerated on macOS (locally with `flutter test test/golden/ --update-goldens --tags golden` in `front/`, or with the "Front — Update Golden Screenshots" GitHub workflow) and the updated `.png` files committed
+- [ ] If any widget, theme, text, layout, or state rendering changed: golden screenshots regenerated on macOS (locally with `flutter test test/golden/ --update-goldens --tags golden` in `front/`, or with the "Front — Update Golden Screenshots" GitHub workflow) and the updated `.png` files included in the change
 
 ---
 
@@ -53,7 +53,7 @@ Each component is self-contained; keep a change inside one component unless the 
 | Component | Stack | Entry context |
 |-----------|-------|---------------|
 | `front/` | Flutter / Dart | [`front/AGENTS.md`](front/AGENTS.md) |
-| `agent/` | Python / Google ADK / Cloud Run | `agent/AGENTS.md` _(to be created when component is bootstrapped)_ |
+| `agent/` | Python / Google ADK / Cloud Run | `agent/AGENTS.md` _(to be created when the agent is migrated into this repo)_ |
 | `infra/` | Terraform / GCP | `infra/AGENTS.md` _(to be created when component is bootstrapped)_ |
 
 In `infra/`, always plan before apply, and never destroy without explicit confirmation.
