@@ -60,7 +60,7 @@ dependencies:
 
   # Auth
   supabase_flutter: 2.17.2
-  app_links: 7.2.1
+  app_links: 7.2.2
 
   # Utilities
   logger: 2.8.0
