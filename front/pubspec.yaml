@@ -26,7 +26,7 @@ dependencies:
   google_fonts: 9.0.0
   cupertino_icons: 1.0.9
   wakelock_plus: 1.8.1
-  livekit_client: 2.13.0
+  livekit_client: 2.13.1
 
   # Voice input
   speech_to_text: 7.5.0
