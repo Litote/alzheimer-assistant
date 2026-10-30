@@ -27,6 +27,7 @@ alzheimer-assistant/
 
 ### `front/`
 Flutter application — voice interface for patients.
+Minimum supported versions: **Android 7.0 (API 24)** and **iOS 15.0**.
 See [`front/README.md`](front/README.md) for details.
 
 ### `agent/`

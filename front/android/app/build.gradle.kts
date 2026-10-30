@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "org.litote.alzheimer_assistant"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37 // Required by permission_handler_android 14.x (Flutter default is 36)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,7 +21,7 @@ android {
          applicationId = "org.litote.alzheimer_assistant"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24 // Android 7.0 — pinned so a Flutter upgrade cannot change it silently (see README)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
