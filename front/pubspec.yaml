@@ -57,7 +57,7 @@ dependencies:
   permission_handler: 13.0.2
 
   # Auth
-  supabase_flutter: 2.17.2
+  supabase_flutter: 2.18.3
   app_links: 7.2.2
 
   # Utilities
