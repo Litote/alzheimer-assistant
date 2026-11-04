@@ -18,7 +18,7 @@ on:
 
 concurrency:
   group: front-sonar-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
