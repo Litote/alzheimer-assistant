@@ -27,6 +27,7 @@ sonar {
             "sonar.host.url",
             providers.gradleProperty("sonar.host.url").orElse("https://sonarcloud.io").get(),
         )
+        property("sonar.qualitygate.wait", true)
 
         // The root project owns GitHub Actions YAML files directly so the IaC
         // GitHub Actions sensor can find them (sensors only see files declared

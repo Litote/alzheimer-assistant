@@ -57,7 +57,7 @@ Get your token at [sonarcloud.io](https://sonarcloud.io) → My Account → Secu
 ./gradlew allSonar
 ```
 
-This runs all checks (analyze + tests with coverage) across all components, then uploads results to SonarCloud.
+This runs all checks (analyze + tests with coverage) across all components, uploads results to SonarCloud, then waits for the quality gate and fails if it is not OK.
 
 ## Contributing to front
 
