@@ -48,7 +48,7 @@ jobs:
           restore-keys: pub-${{ runner.os }}-
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Generate golden files
         run: flutter test test/golden/ --update-goldens --tags golden
