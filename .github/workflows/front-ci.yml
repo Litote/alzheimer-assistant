@@ -8,9 +8,6 @@ on:
       - '.github/workflows/front-ci.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'front/**'
-      - '.github/workflows/front-ci.yml'
   # Allows triggering CI manually on a branch (used by front-update-goldens.yml
   # to run checks on the golden PR branch, which was created with GITHUB_TOKEN
   # and therefore would not auto-trigger pull_request events).
@@ -28,9 +25,34 @@ defaults:
     working-directory: front
 
 jobs:
+  # Replaces a paths filter on pull_request: a workflow that does not start leaves its required
+  # checks pending forever, whereas a skipped job counts as successful.
+  scope:
+    name: Detect PR scope
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ github.event_name != 'pull_request' || steps.detect-changes.outputs.has-code-changes == 'true' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: Litote/ci/.github/actions/detect-changes@fbeb51096c741360965275ed62a9011598259013 # v0.2.0
+        if: github.event_name == 'pull_request'
+        id: detect-changes
+        with:
+          pattern: '^front/|^\.github/workflows/front-ci\.yml$'
+
   # ── Unit & widget tests ───────────────────────────────────────────────────
   test:
     name: Tests (unit + widget)
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
 
     steps:
