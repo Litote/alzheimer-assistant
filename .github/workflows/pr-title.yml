@@ -1,0 +1,14 @@
+name: PR title
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  pr-title:
+    permissions:
+      pull-requests: read
+    uses: Litote/ci/.github/workflows/pr-title.yml@b9071d15015f6816259c2170baae5aed063414a8 # v0.1.0
