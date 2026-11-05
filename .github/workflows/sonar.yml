@@ -61,7 +61,7 @@ jobs:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Setup Flutter
-        uses: $/.github/actions/setup-flutter
+        uses: Litote/ci/.github/actions/setup-flutter@731f25b65744afb6ed50783472a6746193353272 # v0.6.0
         with:
           working-directory: front
 
