@@ -219,6 +219,8 @@ Five GitHub Actions workflows are defined under `.github/workflows/`:
 
 ## TestFlight releases
 
+The job runs in the `testflight` environment, restricted to `main` and the `v*` tags. The Apple and App Store Connect secrets belong to this environment, and only an administrator can create a `v*` tag.
+
 ### Automated (recommended)
 
 Push a tag matching `v*.*` to trigger the `front-testflight` workflow automatically:

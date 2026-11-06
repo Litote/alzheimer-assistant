@@ -19,6 +19,8 @@ jobs:
     name: Build & Upload to TestFlight
     runs-on: macos-26
     timeout-minutes: 60
+    # restricted to main and the v* tags by a deployment policy
+    environment: testflight
     permissions:
       contents: read
 
