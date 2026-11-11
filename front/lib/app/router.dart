@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/screens/home_screen.dart';
 import 'package:alzheimer_assistant/features/auth/presentation/screens/login_screen.dart';
+import 'package:alzheimer_assistant/features/life_stories/domain/repositories/life_story_settings_repository.dart';
 import 'package:alzheimer_assistant/features/onboarding/presentation/screens/permission_onboarding_screen.dart';
 import 'package:alzheimer_assistant/features/settings/presentation/screens/settings_screen.dart';
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
@@ -64,6 +65,8 @@ GoRouter createAppRouter({
         builder: (context, state) => SettingsScreen(
           settingsService: context.read<SettingsService>(),
           authService: context.read<AuthService>(),
+          lifeStorySettingsRepository: context
+              .read<LifeStorySettingsRepository>(),
         ),
       ),
       GoRoute(

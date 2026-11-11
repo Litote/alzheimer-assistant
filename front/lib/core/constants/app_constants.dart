@@ -31,6 +31,10 @@ class AppConstants {
 
   /// Upcoming event notifications to schedule on the device.
   static String get adkRemindersUrl => '$adkBaseUrl/reminders/upcoming';
+
+  /// Life story consent of the user (read and change).
+  static String get adkLifeStorySettingsUrl =>
+      '$adkBaseUrl/life-stories/settings';
   static String elevenLabsTtsUrl(String voiceId) =>
       'https://api.elevenlabs.io/v1/text-to-speech/$voiceId';
 }

@@ -3,6 +3,11 @@
 Voice assistant for Alzheimer's patients.
 **This is a POC**
 
+Besides everyday help (calls, agenda reminders, finding objects at home), the user can tell
+the assistant about their life as conversations go. The assistant keeps these memories, tells
+them back on request ("qu'est-ce que je t'ai raconté sur mon mariage ?"), and relatives can
+read and listen to them. Nothing is kept until it is enabled, by a caregiver in the back-office or by the user in the app settings.
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Litote_alzheimer-assistant&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Litote_alzheimer-assistant)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Litote_alzheimer-assistant&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Litote_alzheimer-assistant)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Litote_alzheimer-assistant&metric=bugs)](https://sonarcloud.io/summary/new_code?id=Litote_alzheimer-assistant)

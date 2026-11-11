@@ -7,6 +7,8 @@ import 'package:alzheimer_assistant/features/assistant/data/repositories/livekit
 import 'package:alzheimer_assistant/features/assistant/data/repositories/sse_text_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/ws_audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
+import 'package:alzheimer_assistant/features/life_stories/data/repositories/http_life_story_settings_repository.dart';
+import 'package:alzheimer_assistant/features/life_stories/domain/repositories/life_story_settings_repository.dart';
 import 'package:alzheimer_assistant/features/reminders/data/reminder_repository.dart';
 import 'package:alzheimer_assistant/features/reminders/presentation/reminder_listener.dart';
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
@@ -94,6 +96,12 @@ class App extends StatelessWidget {
       providers: [
         RepositoryProvider<SettingsService>.value(value: _settingsService),
         RepositoryProvider<AuthService>.value(value: _authService),
+        RepositoryProvider<LifeStorySettingsRepository>(
+          create: (_) => HttpLifeStorySettingsRepository(
+            accessTokenProvider: () => _authService.accessToken,
+            supabaseUserIdProvider: () => _authService.supabaseUserId,
+          ),
+        ),
       ],
       child: Builder(
         builder: (context) => BlocProvider(

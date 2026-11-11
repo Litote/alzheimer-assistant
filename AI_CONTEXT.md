@@ -8,6 +8,8 @@
 
 Voice assistant for Alzheimer's patients. The user speaks a request, the app transcribes it, sends it to an AI agent, and reads the response aloud. The app can also initiate phone calls to contacts on behalf of the user.
 
+The user can also tell their life as conversations go ("life stories"): the agent keeps these memories, tells them back on request, and relatives read and listen to them in the caregiver back-office.
+
 **Target users:** French-speaking elderly patients with Alzheimer's disease. UX must prioritize simplicity, large UI elements, and forgiving error handling.
 
 ---
@@ -53,6 +55,7 @@ Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ─�
   - Text SSE: device STT → HTTP SSE → client TTS
   - Handles `call_phone` tool calls: resolves contacts, initiates phone calls; on ambiguity, shows the candidates as tappable cards
   - Schedules agenda reminders as local notifications; tapping one opens a session where the agent announces the event
+  - Settings screen: lets the user turn the keeping of their life stories, and of their voice, on and off
 - See [`front/AGENTS.md`](front/AGENTS.md) and [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for full details
 
 ### `agent/` — Conversational AI Agent
@@ -76,7 +79,9 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 
 **Reminders:** `GET <ADK_BASE_URL>/reminders/upcoming` returns the notifications to schedule; a tapped notification opens a session with `reminder: {event_id, date}` (WS `setup` or SSE body) so that the agent speaks first. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md#reminders-proactive-notifications).
 
-**End of conversation:** in live modes (WS, LiveKit), when the user says goodbye the agent sends `{"end_conversation": true}` after the goodbye turn, then closes the session; the app returns to Idle. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md#end-of-conversation-server--client).
+**End of conversation:** in live modes (WS, LiveKit), when the user says goodbye the agent sends `{"end_conversation": true}` after the goodbye turn, then closes the session; the app returns to Idle. The agent does the same, without a goodbye, when nobody has spoken for 3 minutes. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md#end-of-conversation-server--client).
+
+**Life stories:** the app has no dedicated screen or session message; its settings screen reads and changes the consent through `GET` / `PUT <ADK_BASE_URL>/life-stories/settings` (`{capture_enabled, keep_audio}`), the same settings the caregiver changes in the back-office. In live modes (WS, LiveKit) the agent keeps the transcript of the session and, when the session ends, extracts the memories the user told into the Supabase table `life_stories`; with the caregiver's consent the matching microphone audio is stored server-side as well. The transcript is also saved as the session goes (`life_story_drafts`), so that a session that never closes properly is extracted later, without the audio. Capture is opt-in per user (`life_story_settings`) and read when a session opens, so a change applies to the next session; when enabled, the `session_info` welcome text lists "Vos souvenirs". The agent reads memories back through its `recall_life_stories` tool in every mode. In WebSocket mode only, when the user asks to hear their own voice again, its `play_life_story_recording` tool sends the stored recording as ordinary `audio/pcm;rate=24000` chunks, like the assistant voice (the app needs no change), with the mic muted meanwhile; it plays nothing when the voice consent is off. Text SSE mode does not capture.
 
 **Authentication:** every transport sends the Supabase access token of the signed-in user (`Authorization: Bearer` header for HTTP, `access_token` in the WebSocket `setup` message). The agent verifies it and derives the user id from it. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md).
 
@@ -91,6 +96,7 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 | **PCM** | Pulse-Code Modulation. Raw uncompressed audio. Input: 16kHz 16-bit mono. Output: 24kHz 16-bit mono. |
 | **`turnComplete`** | Server signal that the agent has finished its response turn. In WS and LiveKit modes: returns to Listening (connection stays open). In Text SSE mode: triggers TTS of the accumulated text. |
 | **Reminder** | Agenda event occurrence notified on the phone. `Reminder` (server payload, with `notifyAt`) and `ReminderRef` (`eventId` + `date`, sent back to the agent) in `features/reminders/domain/entities/reminder.dart`. |
+| **Life story** | A memory of their life told by the user ("souvenir"). Extracted by the agent at the end of a live session (title, summary, user's own words, the exchange with the assistant's questions, optional voice recording); a retelling is linked to the original (`duplicate_of`). Stored in Supabase, not in the app. |
 | **`LiveEvent`** | Sealed Dart union emitted by any repository: `audioChunk`, `textDelta`, `interrupted`, `outputTranscription`, `inputTranscription`, `callPhone`, `turnComplete`, `toolStatus`, `sessionInfo`, `sessionEstablished`, `imageUrl`, `endConversation`. |
 | **`LiveMessageParser`** | Shared JSON parser used by both `WsAudioRepository` and `LiveKitAudioRepository`. Located in `data/repositories/live_message_parser.dart`. |
 | **`WebRtcRepository`** | Domain interface for LiveKit transport. Distinct from `AudioRepository`: no `sendAudio()`, no mic streaming in the BLoC. |
