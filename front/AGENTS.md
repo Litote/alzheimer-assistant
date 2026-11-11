@@ -62,7 +62,7 @@ lib/
 │   │       ├── bloc/          # AssistantBloc, AssistantEvent, AssistantState
 │   │       ├── screens/       # HomeScreen
 │   │       └── widgets/       # MicButton, ResponseBubble, ContactChoiceList
-│   ├── auth/ · onboarding/ · settings/ · reminders/
+│   ├── auth/ · onboarding/ · settings/ · reminders/ · life_stories/ (consent settings)
 └── shared/services/
     ├── microphone_stream_service.dart         # PCM mic capture (16kHz, record package)
     ├── streaming_audio_player_service.dart    # Player interface (PCM streaming / buffered WAV implementations)

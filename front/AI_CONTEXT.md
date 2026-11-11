@@ -51,6 +51,7 @@ The ADK server verifies the Supabase access token and uses the user id it carrie
 | Text `POST /run_sse` | `Authorization: Bearer <token>` header |
 | LiveKit `GET /livekit-token` | `Authorization: Bearer <token>` header |
 | Reminders `GET /reminders/upcoming` | `Authorization: Bearer <token>` header |
+| Life story settings `GET` / `PUT /life-stories/settings` | `Authorization: Bearer <token>` header |
 
 Repositories receive an `AccessTokenProvider` (`core/network/access_token_provider.dart`), wired to `AuthService.accessToken` in `app.dart`. The token is read on every request, never cached, because the Supabase SDK refreshes it in the background.
 
@@ -166,6 +167,8 @@ Gemini detected that the user spoke over the agent (barge-in) and stopped genera
 
 The user asked to stop ("au revoir", "c'est tout", "tu peux arrêter"): the agent called its `end_conversation` tool and said goodbye. The message is sent right after the goodbye turn's `turn_complete`, then the server closes the session (WebSocket close code 1000, or LiveKit room shutdown once the goodbye audio has played out).
 
+The server also sends it on its own, with no goodbye turn before it, when nobody has spoken for 3 minutes (agent setting `SESSION_IDLE_TIMEOUT_S`): the user may have put the phone down.
+
 The front parses it as `LiveEvent.endConversation()` and goes back to `Idle` (mic stopped, connection closed) instead of `Listening`. The goodbye audio already queued in the PCM player keeps playing. `AssistantBloc` flags the event as soon as it arrives so the server close that follows is not reported as "Session terminée.". Live modes only (Audio WS, LiveKit): the text agent has no `end_conversation` tool.
 
 ### `call_phone` Flow
@@ -240,6 +243,21 @@ Same JSON format as the WebSocket transport: `server_content`, `tool_call`, `out
 
 **Audio chunks are NOT sent via Data Messages** — audio flows via `RemoteAudioTrack`.
 
+### Life story settings (consent)
+
+The agent keeps the memories the user tells during live sessions only when this is enabled (see the root [`AI_CONTEXT.md`](../AI_CONTEXT.md)). The settings screen shows two toggles, "Garder mes souvenirs" and "Conserver aussi ma voix", backed by the server, not by `SettingsService`:
+
+```
+GET <ADK_BASE_URL>/life-stories/settings   → {"capture_enabled": false, "keep_audio": false}
+PUT <ADK_BASE_URL>/life-stories/settings   ← same body → the settings as stored
+```
+
+- `LifeStorySettingsRepository` (domain interface) / `HttpLifeStorySettingsRepository` (data), provided in `app.dart`; entity `LifeStorySettings`.
+- The caregiver back-office changes the same row: the screen fetches on every opening and never caches.
+- The server turns `keep_audio` off when `capture_enabled` is off; the voice toggle is disabled in that case.
+- A toggle shows the new value at once, then what the server returned; if the save fails the previous value is restored and a snackbar says so. If the fetch fails both toggles are disabled and a message is shown; the local settings still work.
+- A change applies to the next session.
+
 ### Turn lifecycle in LiveKit mode
 
 ```
@@ -310,7 +328,7 @@ Injected at build time via `--dart-define-from-file=secrets.json`. See `secrets.
 
 | Key | Used by |
 |-----|---------|
-| `ADK_BASE_URL` | Base URL for all ADK endpoints : `/run_live` (WebSocket audio), `/run_sse` (text), `/livekit-token` (LiveKit token fetch), `/reminders/upcoming` (reminders) |
+| `ADK_BASE_URL` | Base URL for all ADK endpoints : `/run_live` (WebSocket audio), `/run_sse` (text), `/livekit-token` (LiveKit token fetch), `/reminders/upcoming` (reminders), `/life-stories/settings` (life story consent) |
 | `SUPABASE_URL` | Supabase project URL (auth) |
 | `SUPABASE_ANON_KEY` | Supabase anonymous key (auth) |
 | `ELEVENLABS_API_KEY` | ElevenLabs client-side TTS (text mode only) |

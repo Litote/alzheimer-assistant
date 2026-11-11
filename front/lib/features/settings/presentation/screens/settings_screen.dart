@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:alzheimer_assistant/features/life_stories/domain/entities/life_story_settings.dart';
+import 'package:alzheimer_assistant/features/life_stories/domain/repositories/life_story_settings_repository.dart';
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
 
@@ -7,10 +9,12 @@ class SettingsScreen extends StatefulWidget {
     super.key,
     required this.settingsService,
     required this.authService,
+    required this.lifeStorySettingsRepository,
   });
 
   final SettingsService settingsService;
   final AuthService authService;
+  final LifeStorySettingsRepository lifeStorySettingsRepository;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -21,6 +25,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _useTextMode = false;
   bool _useLiveKit = false;
   bool _loaded = false;
+
+  /// Life story consent, stored on the server: null until fetched.
+  LifeStorySettings? _lifeStories;
+  bool _lifeStoriesUnavailable = false;
+  bool _savingLifeStories = false;
 
   @override
   void initState() {
@@ -38,11 +47,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _useLiveKit = liveKit;
       _loaded = true;
     });
+    // The local settings are shown without waiting for the server.
+    await _loadLifeStories();
+  }
+
+  Future<void> _loadLifeStories() async {
+    try {
+      final settings = await widget.lifeStorySettingsRepository.fetch();
+      if (!mounted) return;
+      setState(() => _lifeStories = settings);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _lifeStoriesUnavailable = true);
+    }
+  }
+
+  /// Shows [wanted] at once, then what the server stored; restores the
+  /// previous value when the change could not be saved.
+  Future<void> _saveLifeStories(LifeStorySettings wanted) async {
+    final previous = _lifeStories;
+    if (previous == null || _savingLifeStories) return;
+    setState(() {
+      _lifeStories = wanted;
+      _savingLifeStories = true;
+    });
+    try {
+      final saved = await widget.lifeStorySettingsRepository.save(wanted);
+      if (!mounted) return;
+      setState(() {
+        _lifeStories = saved;
+        _savingLifeStories = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _lifeStories = previous;
+        _savingLifeStories = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Le réglage n\'a pas pu être enregistré.'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final lifeStories = _lifeStories ?? const LifeStorySettings();
+    final lifeStoriesReady = _lifeStories != null && !_savingLifeStories;
 
     return Scaffold(
       appBar: AppBar(
@@ -97,6 +151,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     await widget.settingsService.setUseLiveKit(value);
                     setState(() => _useLiveKit = value);
                   },
+                ),
+                const SizedBox(height: 24),
+                if (_lifeStoriesUnavailable) ...[
+                  Text(
+                    'Les réglages des souvenirs sont indisponibles pour le moment.',
+                    key: const Key('life-stories-unavailable'),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _SettingCard(
+                  title: 'Garder mes souvenirs',
+                  description:
+                      'L\'assistant retient les souvenirs de votre vie que vous '
+                      'lui racontez, pour vous les redire et les partager avec '
+                      'vos proches.\n\n'
+                      'Prend effet à la prochaine conversation.',
+                  value: lifeStories.captureEnabled,
+                  enabled: lifeStoriesReady,
+                  theme: theme,
+                  onToggle: (value) => _saveLifeStories(
+                    LifeStorySettings(
+                      captureEnabled: value,
+                      keepAudio: value && lifeStories.keepAudio,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _SettingCard(
+                  title: 'Conserver aussi ma voix',
+                  description:
+                      'L\'enregistrement de votre voix est gardé avec chaque '
+                      'souvenir, pour que vos proches puissent vous réécouter.\n\n'
+                      'Nécessite « Garder mes souvenirs ».',
+                  value: lifeStories.keepAudio,
+                  enabled: lifeStoriesReady && lifeStories.captureEnabled,
+                  theme: theme,
+                  onToggle: (value) =>
+                      _saveLifeStories(lifeStories.copyWith(keepAudio: value)),
                 ),
                 const SizedBox(height: 48),
                 _SignOutButton(authService: widget.authService),
@@ -264,11 +359,15 @@ class _SettingCard extends StatelessWidget {
     required this.value,
     required this.theme,
     required this.onToggle,
+    this.enabled = true,
   });
 
   final String title;
   final String description;
   final bool value;
+
+  /// When false the card is dimmed and cannot be toggled.
+  final bool enabled;
   final ThemeData theme;
   final Future<void> Function(bool) onToggle;
 
@@ -288,7 +387,7 @@ class _SettingCard extends StatelessWidget {
       // Required so the InkWell ripple respects the rounded corners.
       clipBehavior: Clip.hardEdge,
       child: InkWell(
-        onTap: () => onToggle(!value),
+        onTap: enabled ? () => onToggle(!value) : null,
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -302,13 +401,15 @@ class _SettingCard extends StatelessWidget {
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
+                        color: enabled
+                            ? theme.colorScheme.onSurface
+                            : theme.colorScheme.onSurface.withAlpha(97),
                       ),
                     ),
                   ),
                   Switch(
                     value: value,
-                    onChanged: onToggle,
+                    onChanged: enabled ? onToggle : null,
                   ),
                 ],
               ),
