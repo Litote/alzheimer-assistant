@@ -4,6 +4,8 @@ import 'package:alzheimer_assistant/features/life_stories/domain/repositories/li
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
 
+const _appliesNextSession = 'Prend effet à la prochaine conversation.';
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -114,8 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Voix Haute Qualité',
                   description:
                       'Utilise une voix de synthèse très naturelle et chaleureuse '
-                      '(ElevenLabs) au lieu de la voix standard du téléphone.\n\n'
-                      'Prend effet à la prochaine conversation.',
+                      '(ElevenLabs) au lieu de la voix standard du téléphone.\n\n$_appliesNextSession',
                   value: _useElevenLabs,
                   theme: theme,
                   onToggle: (value) async {
@@ -143,8 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Mode WebRTC (LiveKit)',
                   description:
                       'Utilise LiveKit pour la communication audio en temps réel. '
-                      'Nécessite que le serveur supporte LiveKit.\n\n'
-                      'Prend effet à la prochaine conversation.',
+                      'Nécessite que le serveur supporte LiveKit.\n\n$_appliesNextSession',
                   value: _useLiveKit,
                   theme: theme,
                   onToggle: (value) async {
@@ -168,8 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   description:
                       'L\'assistant retient les souvenirs de votre vie que vous '
                       'lui racontez, pour vous les redire et les partager avec '
-                      'vos proches.\n\n'
-                      'Prend effet à la prochaine conversation.',
+                      'vos proches.\n\n$_appliesNextSession',
                   value: lifeStories.captureEnabled,
                   enabled: lifeStoriesReady,
                   theme: theme,
