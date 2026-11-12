@@ -252,7 +252,7 @@ WebSocket mode only, app in the foreground (the screen is kept on during a sessi
    {"tool_response": {"function_responses": [{"id": "<call_id>", "name": "get_location", "response": {"lat": 46.52, "lng": 6.63, "accuracy": 8.0}}]}}
    {"tool_response": {"function_responses": [{"id": "<call_id>", "name": "get_location", "response": {"status": "unavailable"}}]}}
    ```
-2. **Step** (server → client) — sent when the walk starts, at every new step, and when a session resumes a walk in progress. `instruction` is the text of the routing service, except that the server replaces the compass point of a departure ("Prendre la direction nord") with the street to head for ("Avancez vers Av. Sainte-Luce"); `maneuver` is its manoeuvre code (`TURN_LEFT`, `TURN_RIGHT`, `UTURN_LEFT`, `DEPART`…).
+2. **Step** (server → client) — sent when the walk starts, at every new step, and when a session resumes a walk in progress. `instruction` is the text of the routing service, except that the server replaces the compass point of a departure ("Prendre la direction nord") with the street to head for ("Avancez vers Av. Sainte-Luce"); When the user walks the wrong way, the step becomes `"instruction": "Faites demi-tour"` with `"maneuver": "UTURN_LEFT"` and `"distance_m": 0` until they have turned round. `maneuver` is its manoeuvre code (`TURN_LEFT`, `TURN_RIGHT`, `UTURN_LEFT`, `DEPART`…).
    ```json
    {"guidance": {"active": true, "destination": "Boulangerie", "instruction": "Tourner à droite sur Rue du Four", "maneuver": "TURN_RIGHT", "distance_m": 100}}
    ```
