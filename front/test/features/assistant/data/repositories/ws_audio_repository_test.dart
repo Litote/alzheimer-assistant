@@ -297,6 +297,43 @@ void main() {
     expect(response['response']['status'], 'Maman appelée.');
   });
 
+  // ── sendLocation ──────────────────────────────────────────────────────────
+
+  test('sendLocation() with a call id answers get_location', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    repo.connect().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    repo.sendLocation(
+      latitude: 46.52,
+      longitude: 6.63,
+      accuracyMeters: 8,
+      callId: 'loc-1',
+    );
+
+    final msg = jsonDecode(channel.sent[1] as String) as Map;
+    final response =
+        (msg['tool_response']['function_responses'] as List).first as Map;
+    expect(response['id'], 'loc-1');
+    expect(response['name'], 'get_location');
+    expect(response['response'], {'lat': 46.52, 'lng': 6.63, 'accuracy': 8.0});
+  });
+
+  test('sendLocation() without a call id sends a position on the way', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    repo.connect().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    repo.sendLocation(latitude: 46.52, longitude: 6.63);
+
+    final msg = jsonDecode(channel.sent[1] as String) as Map;
+    expect(msg, {
+      'location': {'lat': 46.52, 'lng': 6.63},
+    });
+  });
+
   // ── sessionInfo ──────────────────────────────────────────────────────────
 
   test('server session_info → LiveSessionInfo', () async {

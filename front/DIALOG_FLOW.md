@@ -163,3 +163,26 @@ asks its question.
 The agent's system prompt is responsible for interpreting these messages,
 formulating appropriate responses in French, and using exact display names
 after a disambiguation.
+
+
+---
+
+## Walking guidance
+
+Audio WebSocket mode only. The agent decides every instruction; the app reports the position of the phone and shows the step.
+
+```
+User: « Emmène-moi à la boulangerie »
+  agent → tool_call get_location            app: permission, position → tool_response
+  agent → guidance {active: true, step 1}   app: GuidanceCard, starts sending positions
+  agent says step 1
+  app   → location … location …             (every few metres)
+  agent → guidance {step 2} + says it       when the user reaches the end of step 1
+  …
+  agent → guidance {active: false}          arrival, stop, or timeout: positions stop
+```
+
+- Position unavailable (permission refused, location off): the app answers `unavailable`; the agent says so and offers to call a relative. No direction is ever given without a route.
+- The user leaves the route: the agent computes a new one and announces it; the second time, or when the user does not move forward for 2 minutes, it offers to call a relative.
+- A contact choice (after `call_phone`) takes over the screen during a guidance; the step comes back once the choice is made or dismissed.
+- The session drops during a walk: the step disappears; when the user opens a session again the agent resumes the walk and sends the current step.

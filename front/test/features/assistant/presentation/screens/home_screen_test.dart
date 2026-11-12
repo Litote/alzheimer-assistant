@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:alzheimer_assistant/app/theme.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_bloc.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/screens/home_screen.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/contact_choice_list.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/widgets/guidance_card.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/response_bubble.dart';
 
@@ -60,5 +62,46 @@ void main() {
     expect(find.text('Martin Paul'), findsOneWidget);
     // The user can still answer by voice.
     expect(find.byType(MicButton), findsOneWidget);
+  });
+
+  const guidance = Guidance(
+    destination: 'Boulangerie',
+    instruction: 'Tourner à droite sur Rue du Four',
+    maneuver: 'TURN_RIGHT',
+    distanceMeters: 100,
+  );
+
+  testWidgets('guidance in progress → shows the step instead of the response',
+      (tester) async {
+    await _pump(
+      tester,
+      const AssistantState.speaking(
+        responseText: 'Tournez à gauche.',
+        guidance: guidance,
+      ),
+    );
+
+    expect(find.byType(GuidanceCard), findsOneWidget);
+    expect(find.text('Tourner à droite sur Rue du Four'), findsOneWidget);
+    // The direction on screen is the one of the server, not the model's words.
+    expect(find.byType(ResponseBubble), findsNothing);
+    expect(find.byType(MicButton), findsOneWidget);
+  });
+
+  testWidgets('a call choice during a guidance takes over the screen',
+      (tester) async {
+    await _pump(
+      tester,
+      const AssistantState.listening(
+        guidance: guidance,
+        contactChoices: [
+          (displayName: 'Martin Jean', number: '+33611111111'),
+          (displayName: 'Martin Paul', number: '+33622222222'),
+        ],
+      ),
+    );
+
+    expect(find.byType(ContactChoiceList), findsOneWidget);
+    expect(find.byType(GuidanceCard), findsNothing);
   });
 }

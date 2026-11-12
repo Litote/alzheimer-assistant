@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:alzheimer_assistant/features/assistant/data/repositories/live_message_parser.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 
 void main() {
@@ -133,6 +134,61 @@ void main() {
   test('ignores end_conversation false', () {
     final raw = jsonEncode({'end_conversation': false});
     expect(parser.parse(raw), isNull);
+  });
+
+  // ── walking guidance ──────────────────────────────────────────────────────
+
+  test('parses a get_location tool_call', () {
+    final raw = jsonEncode({
+      'tool_call': {
+        'function_calls': [
+          {'id': 'loc-1', 'name': 'get_location', 'args': <String, dynamic>{}},
+        ],
+      },
+    });
+    expect(parser.parse(raw), const LiveEvent.locationRequested('loc-1'));
+  });
+
+  test('parses a guidance step', () {
+    final raw = jsonEncode({
+      'guidance': {
+        'active': true,
+        'destination': 'Boulangerie',
+        'instruction': 'Tourner à droite sur Rue du Four',
+        'maneuver': 'TURN_RIGHT',
+        'distance_m': 100,
+      },
+    });
+    expect(
+      parser.parse(raw),
+      const LiveEvent.guidanceChanged(
+        Guidance(
+          destination: 'Boulangerie',
+          instruction: 'Tourner à droite sur Rue du Four',
+          maneuver: 'TURN_RIGHT',
+          distanceMeters: 100,
+        ),
+      ),
+    );
+  });
+
+  test('parses a guidance step without optional fields', () {
+    final raw = jsonEncode({
+      'guidance': {'active': true, 'instruction': 'Continuer'},
+    });
+    expect(
+      parser.parse(raw),
+      const LiveEvent.guidanceChanged(
+        Guidance(destination: '', instruction: 'Continuer'),
+      ),
+    );
+  });
+
+  test('parses the end of a guidance', () {
+    final raw = jsonEncode({
+      'guidance': {'active': false, 'destination': 'Boulangerie'},
+    });
+    expect(parser.parse(raw), const LiveEvent.guidanceChanged(null));
   });
 
   // ── unknown / malformed ───────────────────────────────────────────────────

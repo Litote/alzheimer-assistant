@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 
 /// Parses raw JSON strings from any live transport (WebSocket, LiveKit data
@@ -25,6 +26,7 @@ class LiveMessageParser {
           _parseSessionInfo(json) ??
           _parseToolStatus(json) ??
           _parseImageUrl(json) ??
+          _parseGuidance(json) ??
           _parseEndConversation(json);
       if (event == null) {
         _logger.w('[Parser] unrecognized message — keys: ${json.keys.toList()}');
@@ -94,6 +96,9 @@ class LiveMessageParser {
     final call = calls.first as Map<String, dynamic>?;
     final name = call?['name'] as String?;
     _logger.i('[Parser] ← tool_call: name="$name" args=${call?['args']}');
+    if (name == 'get_location') {
+      return LiveEvent.locationRequested(call!['id'] as String? ?? '');
+    }
     if (name != 'call_phone') return null;
     final callId = call!['id'] as String? ?? '';
     final args = call['args'] as Map<String, dynamic>?;
@@ -109,6 +114,25 @@ class LiveMessageParser {
     }
     _logger.w('[Parser] ← call_phone with null contactName — args: $args');
     return null;
+  }
+
+  LiveEvent? _parseGuidance(Map<String, dynamic> json) {
+    final guidance = json['guidance'];
+    if (guidance is! Map<String, dynamic>) return null;
+    final instruction = guidance['instruction'] as String?;
+    if (guidance['active'] != true || instruction == null) {
+      _logger.i('[Parser] ← guidance over');
+      return const LiveEvent.guidanceChanged(null);
+    }
+    _logger.i('[Parser] ← guidance step');
+    return LiveEvent.guidanceChanged(
+      Guidance(
+        destination: guidance['destination'] as String? ?? '',
+        instruction: instruction,
+        maneuver: guidance['maneuver'] as String? ?? '',
+        distanceMeters: (guidance['distance_m'] as num?)?.round() ?? 0,
+      ),
+    );
   }
 
   LiveEvent? _parseSessionInfo(Map<String, dynamic> json) {

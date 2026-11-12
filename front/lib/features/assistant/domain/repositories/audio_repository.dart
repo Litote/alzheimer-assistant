@@ -12,4 +12,15 @@ abstract interface class AudioRepository implements ConversationRepository {
 
   /// Sends an interruption signal to stop the current agent turn.
   void sendInterruption();
+
+  /// Sends the position of the phone (walking guidance).
+  ///
+  /// With [callId], it answers the `get_location` request of the agent;
+  /// without, it is a position on the way.
+  void sendLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    String? callId,
+  });
 }

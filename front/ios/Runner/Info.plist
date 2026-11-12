@@ -16,6 +16,8 @@
 	<key>NSContactsUsageDescription</key>
 	<string>L'application accède aux contacts pour lancer des appels téléphoniques.</string>
 	<!-- Microphone permission for speech recognition and WebRTC -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>L'application utilise votre position pour vous guider à pied vers un lieu familier.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>L'application a besoin du microphone pour vous écouter et vous aider.</string>
 	<!-- Local network access for WebRTC / LiveKit -->
