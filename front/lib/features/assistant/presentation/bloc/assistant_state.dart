@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 
 part 'assistant_state.freezed.dart';
@@ -7,6 +8,9 @@ part 'assistant_state.freezed.dart';
 /// [contactChoices]: the contacts proposed on screen after an ambiguous
 /// `call_phone` request. Empty when no choice is pending. They persist across
 /// states so the user can tap one or answer by voice.
+///
+/// Listening and speaking also carry [Guidance]: the step of the walking
+/// guidance in progress, `null` when there is none.
 @freezed
 sealed class AssistantState with _$AssistantState {
   /// Idle — mic button available, no active connection.
@@ -30,6 +34,7 @@ sealed class AssistantState with _$AssistantState {
     @Default('') String welcomeText,
     @Default('') String imageUrl,
     @Default(<PhoneCandidate>[]) List<PhoneCandidate> contactChoices,
+    Guidance? guidance,
   }) = Listening;
 
   /// Agent is responding — audio buffer is filling, text is streaming in.
@@ -40,6 +45,7 @@ sealed class AssistantState with _$AssistantState {
     @Default('') String userTranscript,
     @Default('') String imageUrl,
     @Default(<PhoneCandidate>[]) List<PhoneCandidate> contactChoices,
+    Guidance? guidance,
   }) = Speaking;
 
   /// Error — displays a message and returns to Idle on next tap.

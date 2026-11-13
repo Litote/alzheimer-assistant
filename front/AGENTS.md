@@ -61,12 +61,13 @@ lib/
 │   │   └── presentation/
 │   │       ├── bloc/          # AssistantBloc, AssistantEvent, AssistantState
 │   │       ├── screens/       # HomeScreen
-│   │       └── widgets/       # MicButton, ResponseBubble, ContactChoiceList
+│   │       └── widgets/       # MicButton, ResponseBubble, ContactChoiceList, GuidanceCard
 │   ├── auth/ · onboarding/ · settings/ · reminders/ · life_stories/ (consent settings)
 └── shared/services/
     ├── microphone_stream_service.dart         # PCM mic capture (16kHz, record package)
     ├── streaming_audio_player_service.dart    # Player interface (PCM streaming / buffered WAV implementations)
-    └── phone_call_service.dart               # Contact lookup + direct call
+    ├── phone_call_service.dart               # Contact lookup + direct call
+    └── location_service.dart                 # Position of the phone (walking guidance)
 ```
 
 **Layer rules:**
@@ -107,6 +108,9 @@ liveEventReceived(turnComplete) → audio/LiveKit: Listening (connection stays o
 
 liveEventReceived(endConversation) → disconnect → Idle (server then closes the session;
                                   queued goodbye audio keeps playing)
+liveEventReceived(locationRequested) → reads the position (asks the permission), answers the agent
+liveEventReceived(guidanceChanged) → re-emits the current state with the guidance step;
+                                  positions are sent to the agent while a guidance is in progress
 audioPlaybackFinished           → Idle
 errorOccurred                   → AssistantError
 appResumed (while Speaking)     → Idle (handles Android dialer backgrounding)

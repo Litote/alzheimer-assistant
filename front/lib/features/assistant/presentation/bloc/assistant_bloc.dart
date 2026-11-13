@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/conversation_repository.dart';
@@ -13,6 +14,7 @@ import 'package:alzheimer_assistant/features/assistant/domain/repositories/webrt
 import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 import 'package:alzheimer_assistant/shared/services/auth_service.dart';
 import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
+import 'package:alzheimer_assistant/shared/services/location_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/pcm_streaming_audio_player_service.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
@@ -34,6 +36,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     required MicrophoneStreamService micService,
     StreamingAudioPlayerService? audioPlayer,
     PhoneCallService? phoneCallService,
+    LocationService? locationService,
     SettingsService? settingsService,
     SpeechRecognitionService? speechService,
     ClientTtsService? elevenLabsTtsService,
@@ -49,6 +52,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         _micService = micService,
         _audioPlayer = audioPlayer,
         _phoneCallService = phoneCallService ?? PhoneCallService(),
+        _locationService = locationService ?? GeolocatorLocationService(),
         _settingsService = settingsService ?? SettingsService(),
         _speechService = speechService ?? SpeechRecognitionService(),
         _elevenLabsTtsService = elevenLabsTtsService,
@@ -78,6 +82,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   // mode connect, to avoid touching the iOS audio session in text mode.
   StreamingAudioPlayerService? _audioPlayer;
   final PhoneCallService _phoneCallService;
+  final LocationService _locationService;
   final SettingsService _settingsService;
   final SpeechRecognitionService _speechService;
   final ClientTtsService? _elevenLabsTtsService;
@@ -91,6 +96,11 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
   StreamSubscription<LiveEvent>? _liveSubscription;
   StreamSubscription<Uint8List>? _micSubscription;
+  StreamSubscription<DevicePosition>? _positionSubscription;
+
+  /// Step of the walking guidance in progress, `null` when there is none.
+  /// While set, the positions of the phone are sent to the agent.
+  Guidance? _guidance;
   Timer? _responseTimeoutTimer;
 
   /// Accumulated agent response text for the current Speaking state.
@@ -229,6 +239,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     // Show a "thinking" label while waiting for the server's first response.
     // The BLoC will transition to Speaking when the first transcription arrives.
     emit(AssistantState.listening(
+      guidance: _guidance,
       contactChoices: _contactChoices,
       interimTranscript: _userTranscript,
       statusLabel: 'Je réfléchis...',
@@ -272,6 +283,10 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         _handleImageUrl(url, emit);
       case LiveEndConversation():
         await _handleEndConversation(emit);
+      case LiveLocationRequested(:final callId):
+        await _handleLocationRequested(callId);
+      case LiveGuidanceChanged(:final guidance):
+        await _handleGuidanceChanged(guidance, emit);
     }
   }
 
@@ -287,7 +302,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       _welcomeText = '';
       _currentImageUrl = '';
       _logger.i('[Bloc] → first chunk: emitting Speaking + calling playAndClear');
-      emit(AssistantState.speaking(contactChoices: _contactChoices, responseText: _responseText));
+      emit(AssistantState.speaking(guidance: _guidance, contactChoices: _contactChoices, responseText: _responseText));
       _audioPlayer!.playAndClear(onComplete: () {
         _logger.i('[Bloc] playAndClear onComplete fired');
       });
@@ -298,6 +313,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _userRepliedToChoices = true;
     if (_showTranscription || _textMode) {
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         interimTranscript: text,
         imageUrl: _currentImageUrl,
@@ -325,6 +341,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     }
     if (current is Speaking && current.imageUrl.isNotEmpty) return;
     emit(AssistantState.speaking(
+      guidance: _guidance,
       contactChoices: _contactChoices,
       responseText: _responseText,
       imageUrl: _currentImageUrl,
@@ -347,6 +364,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
   void _handleToolStatus(String label, Emitter<AssistantState> emit) {
     if (state case Listening(:final interimTranscript)) {
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         interimTranscript: interimTranscript,
         statusLabel: label,
@@ -360,6 +378,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _welcomeText = welcome;
     if (state case Listening(:final interimTranscript, :final statusLabel)) {
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         interimTranscript: interimTranscript,
         statusLabel: statusLabel,
@@ -375,7 +394,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     if (current is Speaking) {
       emit(current.copyWith(imageUrl: _currentImageUrl));
     } else {
-      emit(AssistantState.speaking(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
+      emit(AssistantState.speaking(guidance: _guidance, contactChoices: _contactChoices, imageUrl: _currentImageUrl));
     }
   }
 
@@ -398,6 +417,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
       } else {
         emit(AssistantState.listening(
+          guidance: _guidance,
           contactChoices: _contactChoices,
           welcomeText: _welcomeText,
           imageUrl: _currentImageUrl,
@@ -523,6 +543,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
 
       await _setupMicStreaming(audioRepo);
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
@@ -626,6 +647,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
       );
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
@@ -676,7 +698,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
         },
       );
 
-      emit(AssistantState.listening(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
+      emit(AssistantState.listening(guidance: _guidance, contactChoices: _contactChoices, imageUrl: _currentImageUrl));
       _startResponseTimeout();
       // The agent speaks first: the user answers with the mic button.
       if (reminder != null) return;
@@ -739,6 +761,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _responseText = '';
     if (state is Speaking) {
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
@@ -758,6 +781,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       } else if (_webRtcMode) {
         _responseText = '';
         emit(AssistantState.listening(
+          guidance: _guidance,
           contactChoices: _contactChoices,
           welcomeText: _welcomeText,
           imageUrl: _currentImageUrl,
@@ -818,6 +842,7 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       emit(AssistantState.idle(contactChoices: _contactChoices, imageUrl: _currentImageUrl));
     } else {
       emit(AssistantState.listening(
+        guidance: _guidance,
         contactChoices: _contactChoices,
         welcomeText: _welcomeText,
         imageUrl: _currentImageUrl,
@@ -855,6 +880,67 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     );
   }
 
+  /// Answers the `get_location` request that starts a walking guidance.
+  Future<void> _handleLocationRequested(String callId) async {
+    final repo = _audioRepository;
+    if (repo == null || _textMode || _webRtcMode) return;
+    final position = await _locationService.current();
+    if (position == null) {
+      repo.sendToolResponse(
+        callId: callId,
+        functionName: 'get_location',
+        result: 'unavailable',
+      );
+      return;
+    }
+    _sendPosition(repo, position, callId: callId);
+  }
+
+  /// Shows the step of the guidance and sends positions while it lasts.
+  Future<void> _handleGuidanceChanged(
+    Guidance? guidance,
+    Emitter<AssistantState> emit,
+  ) async {
+    _guidance = guidance;
+    final repo = _audioRepository;
+    if (guidance == null) {
+      await _stopSendingPositions();
+    } else if (_positionSubscription == null && repo != null && !_textMode && !_webRtcMode) {
+      _positionSubscription = _locationService.positions().listen(
+            (position) => _sendPosition(repo, position),
+            onError: (Object e) =>
+                _logger.w('[Bloc] position stream error: ${e.runtimeType}'),
+          );
+    }
+    final current = state;
+    switch (current) {
+      case Listening():
+        emit(current.copyWith(guidance: guidance));
+      case Speaking():
+        emit(current.copyWith(guidance: guidance));
+      default:
+        break;
+    }
+  }
+
+  void _sendPosition(
+    AudioRepository repo,
+    DevicePosition position, {
+    String? callId,
+  }) {
+    repo.sendLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyMeters: position.accuracyMeters,
+      callId: callId,
+    );
+  }
+
+  Future<void> _stopSendingPositions() async {
+    await _positionSubscription?.cancel();
+    _positionSubscription = null;
+  }
+
   void _startResponseTimeout() {
     _responseTimeoutTimer = Timer(_responseTimeout, () {
       if (state is Listening || state is Connecting) {
@@ -872,6 +958,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
     _cancelResponseTimeout();
     await _micSubscription?.cancel();
     _micSubscription = null;
+    // The guidance is shown again if the next session resumes it.
+    await _stopSendingPositions();
+    _guidance = null;
     await _micService.stop();
     await _speechService.stopListening();
     await _liveSubscription?.cancel();

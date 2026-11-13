@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 
 part 'live_event.freezed.dart';
 
@@ -56,4 +57,14 @@ sealed class LiveEvent with _$LiveEvent {
   /// The user asked to end the conversation. Sent after the goodbye turn;
   /// the server then closes the session, so the assistant stops listening.
   const factory LiveEvent.endConversation() = LiveEndConversation;
+
+  /// The agent needs the position of the phone to start a walking guidance.
+  /// [callId] must be echoed back with the position.
+  const factory LiveEvent.locationRequested(String callId) =
+      LiveLocationRequested;
+
+  /// The walking guidance changed: the step to show, or `null` once it is over.
+  /// While a guidance is in progress the app sends the positions of the phone.
+  const factory LiveEvent.guidanceChanged(Guidance? guidance) =
+      LiveGuidanceChanged;
 }

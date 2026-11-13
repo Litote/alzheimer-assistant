@@ -56,7 +56,7 @@ extension LiveEventPatterns on LiveEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( LiveAudioChunk value)?  audioChunk,TResult Function( LiveTextDelta value)?  textDelta,TResult Function( LiveCallPhone value)?  callPhone,TResult Function( LiveTurnComplete value)?  turnComplete,TResult Function( LiveInterrupted value)?  interrupted,TResult Function( LiveInputTranscription value)?  inputTranscription,TResult Function( LiveOutputTranscription value)?  outputTranscription,TResult Function( LiveToolStatus value)?  toolStatus,TResult Function( LiveSessionInfo value)?  sessionInfo,TResult Function( LiveSessionEstablished value)?  sessionEstablished,TResult Function( LiveImageUrl value)?  imageUrl,TResult Function( LiveEndConversation value)?  endConversation,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( LiveAudioChunk value)?  audioChunk,TResult Function( LiveTextDelta value)?  textDelta,TResult Function( LiveCallPhone value)?  callPhone,TResult Function( LiveTurnComplete value)?  turnComplete,TResult Function( LiveInterrupted value)?  interrupted,TResult Function( LiveInputTranscription value)?  inputTranscription,TResult Function( LiveOutputTranscription value)?  outputTranscription,TResult Function( LiveToolStatus value)?  toolStatus,TResult Function( LiveSessionInfo value)?  sessionInfo,TResult Function( LiveSessionEstablished value)?  sessionEstablished,TResult Function( LiveImageUrl value)?  imageUrl,TResult Function( LiveEndConversation value)?  endConversation,TResult Function( LiveLocationRequested value)?  locationRequested,TResult Function( LiveGuidanceChanged value)?  guidanceChanged,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
@@ -71,7 +71,9 @@ return toolStatus(_that);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that);case LiveImageUrl() when imageUrl != null:
 return imageUrl(_that);case LiveEndConversation() when endConversation != null:
-return endConversation(_that);case _:
+return endConversation(_that);case LiveLocationRequested() when locationRequested != null:
+return locationRequested(_that);case LiveGuidanceChanged() when guidanceChanged != null:
+return guidanceChanged(_that);case _:
   return orElse();
 
 }
@@ -89,7 +91,7 @@ return endConversation(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( LiveAudioChunk value)  audioChunk,required TResult Function( LiveTextDelta value)  textDelta,required TResult Function( LiveCallPhone value)  callPhone,required TResult Function( LiveTurnComplete value)  turnComplete,required TResult Function( LiveInterrupted value)  interrupted,required TResult Function( LiveInputTranscription value)  inputTranscription,required TResult Function( LiveOutputTranscription value)  outputTranscription,required TResult Function( LiveToolStatus value)  toolStatus,required TResult Function( LiveSessionInfo value)  sessionInfo,required TResult Function( LiveSessionEstablished value)  sessionEstablished,required TResult Function( LiveImageUrl value)  imageUrl,required TResult Function( LiveEndConversation value)  endConversation,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( LiveAudioChunk value)  audioChunk,required TResult Function( LiveTextDelta value)  textDelta,required TResult Function( LiveCallPhone value)  callPhone,required TResult Function( LiveTurnComplete value)  turnComplete,required TResult Function( LiveInterrupted value)  interrupted,required TResult Function( LiveInputTranscription value)  inputTranscription,required TResult Function( LiveOutputTranscription value)  outputTranscription,required TResult Function( LiveToolStatus value)  toolStatus,required TResult Function( LiveSessionInfo value)  sessionInfo,required TResult Function( LiveSessionEstablished value)  sessionEstablished,required TResult Function( LiveImageUrl value)  imageUrl,required TResult Function( LiveEndConversation value)  endConversation,required TResult Function( LiveLocationRequested value)  locationRequested,required TResult Function( LiveGuidanceChanged value)  guidanceChanged,}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk():
@@ -104,7 +106,9 @@ return toolStatus(_that);case LiveSessionInfo():
 return sessionInfo(_that);case LiveSessionEstablished():
 return sessionEstablished(_that);case LiveImageUrl():
 return imageUrl(_that);case LiveEndConversation():
-return endConversation(_that);}
+return endConversation(_that);case LiveLocationRequested():
+return locationRequested(_that);case LiveGuidanceChanged():
+return guidanceChanged(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -118,7 +122,7 @@ return endConversation(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( LiveAudioChunk value)?  audioChunk,TResult? Function( LiveTextDelta value)?  textDelta,TResult? Function( LiveCallPhone value)?  callPhone,TResult? Function( LiveTurnComplete value)?  turnComplete,TResult? Function( LiveInterrupted value)?  interrupted,TResult? Function( LiveInputTranscription value)?  inputTranscription,TResult? Function( LiveOutputTranscription value)?  outputTranscription,TResult? Function( LiveToolStatus value)?  toolStatus,TResult? Function( LiveSessionInfo value)?  sessionInfo,TResult? Function( LiveSessionEstablished value)?  sessionEstablished,TResult? Function( LiveImageUrl value)?  imageUrl,TResult? Function( LiveEndConversation value)?  endConversation,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( LiveAudioChunk value)?  audioChunk,TResult? Function( LiveTextDelta value)?  textDelta,TResult? Function( LiveCallPhone value)?  callPhone,TResult? Function( LiveTurnComplete value)?  turnComplete,TResult? Function( LiveInterrupted value)?  interrupted,TResult? Function( LiveInputTranscription value)?  inputTranscription,TResult? Function( LiveOutputTranscription value)?  outputTranscription,TResult? Function( LiveToolStatus value)?  toolStatus,TResult? Function( LiveSessionInfo value)?  sessionInfo,TResult? Function( LiveSessionEstablished value)?  sessionEstablished,TResult? Function( LiveImageUrl value)?  imageUrl,TResult? Function( LiveEndConversation value)?  endConversation,TResult? Function( LiveLocationRequested value)?  locationRequested,TResult? Function( LiveGuidanceChanged value)?  guidanceChanged,}){
 final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
@@ -133,7 +137,9 @@ return toolStatus(_that);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that);case LiveImageUrl() when imageUrl != null:
 return imageUrl(_that);case LiveEndConversation() when endConversation != null:
-return endConversation(_that);case _:
+return endConversation(_that);case LiveLocationRequested() when locationRequested != null:
+return locationRequested(_that);case LiveGuidanceChanged() when guidanceChanged != null:
+return guidanceChanged(_that);case _:
   return null;
 
 }
@@ -150,7 +156,7 @@ return endConversation(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Uint8List bytes)?  audioChunk,TResult Function( String text)?  textDelta,TResult Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult Function()?  turnComplete,TResult Function()?  interrupted,TResult Function( String text)?  inputTranscription,TResult Function( String text)?  outputTranscription,TResult Function( String label)?  toolStatus,TResult Function( String welcome)?  sessionInfo,TResult Function( String sessionId)?  sessionEstablished,TResult Function( String url)?  imageUrl,TResult Function()?  endConversation,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( Uint8List bytes)?  audioChunk,TResult Function( String text)?  textDelta,TResult Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult Function()?  turnComplete,TResult Function()?  interrupted,TResult Function( String text)?  inputTranscription,TResult Function( String text)?  outputTranscription,TResult Function( String label)?  toolStatus,TResult Function( String welcome)?  sessionInfo,TResult Function( String sessionId)?  sessionEstablished,TResult Function( String url)?  imageUrl,TResult Function()?  endConversation,TResult Function( String callId)?  locationRequested,TResult Function( Guidance? guidance)?  guidanceChanged,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that.bytes);case LiveTextDelta() when textDelta != null:
@@ -164,7 +170,9 @@ return toolStatus(_that.label);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that.welcome);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that.sessionId);case LiveImageUrl() when imageUrl != null:
 return imageUrl(_that.url);case LiveEndConversation() when endConversation != null:
-return endConversation();case _:
+return endConversation();case LiveLocationRequested() when locationRequested != null:
+return locationRequested(_that.callId);case LiveGuidanceChanged() when guidanceChanged != null:
+return guidanceChanged(_that.guidance);case _:
   return orElse();
 
 }
@@ -182,7 +190,7 @@ return endConversation();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Uint8List bytes)  audioChunk,required TResult Function( String text)  textDelta,required TResult Function( String callId,  String contactName,  bool exactMatch)  callPhone,required TResult Function()  turnComplete,required TResult Function()  interrupted,required TResult Function( String text)  inputTranscription,required TResult Function( String text)  outputTranscription,required TResult Function( String label)  toolStatus,required TResult Function( String welcome)  sessionInfo,required TResult Function( String sessionId)  sessionEstablished,required TResult Function( String url)  imageUrl,required TResult Function()  endConversation,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( Uint8List bytes)  audioChunk,required TResult Function( String text)  textDelta,required TResult Function( String callId,  String contactName,  bool exactMatch)  callPhone,required TResult Function()  turnComplete,required TResult Function()  interrupted,required TResult Function( String text)  inputTranscription,required TResult Function( String text)  outputTranscription,required TResult Function( String label)  toolStatus,required TResult Function( String welcome)  sessionInfo,required TResult Function( String sessionId)  sessionEstablished,required TResult Function( String url)  imageUrl,required TResult Function()  endConversation,required TResult Function( String callId)  locationRequested,required TResult Function( Guidance? guidance)  guidanceChanged,}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk():
 return audioChunk(_that.bytes);case LiveTextDelta():
@@ -196,7 +204,9 @@ return toolStatus(_that.label);case LiveSessionInfo():
 return sessionInfo(_that.welcome);case LiveSessionEstablished():
 return sessionEstablished(_that.sessionId);case LiveImageUrl():
 return imageUrl(_that.url);case LiveEndConversation():
-return endConversation();}
+return endConversation();case LiveLocationRequested():
+return locationRequested(_that.callId);case LiveGuidanceChanged():
+return guidanceChanged(_that.guidance);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -210,7 +220,7 @@ return endConversation();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Uint8List bytes)?  audioChunk,TResult? Function( String text)?  textDelta,TResult? Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult? Function()?  turnComplete,TResult? Function()?  interrupted,TResult? Function( String text)?  inputTranscription,TResult? Function( String text)?  outputTranscription,TResult? Function( String label)?  toolStatus,TResult? Function( String welcome)?  sessionInfo,TResult? Function( String sessionId)?  sessionEstablished,TResult? Function( String url)?  imageUrl,TResult? Function()?  endConversation,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( Uint8List bytes)?  audioChunk,TResult? Function( String text)?  textDelta,TResult? Function( String callId,  String contactName,  bool exactMatch)?  callPhone,TResult? Function()?  turnComplete,TResult? Function()?  interrupted,TResult? Function( String text)?  inputTranscription,TResult? Function( String text)?  outputTranscription,TResult? Function( String label)?  toolStatus,TResult? Function( String welcome)?  sessionInfo,TResult? Function( String sessionId)?  sessionEstablished,TResult? Function( String url)?  imageUrl,TResult? Function()?  endConversation,TResult? Function( String callId)?  locationRequested,TResult? Function( Guidance? guidance)?  guidanceChanged,}) {final _that = this;
 switch (_that) {
 case LiveAudioChunk() when audioChunk != null:
 return audioChunk(_that.bytes);case LiveTextDelta() when textDelta != null:
@@ -224,7 +234,9 @@ return toolStatus(_that.label);case LiveSessionInfo() when sessionInfo != null:
 return sessionInfo(_that.welcome);case LiveSessionEstablished() when sessionEstablished != null:
 return sessionEstablished(_that.sessionId);case LiveImageUrl() when imageUrl != null:
 return imageUrl(_that.url);case LiveEndConversation() when endConversation != null:
-return endConversation();case _:
+return endConversation();case LiveLocationRequested() when locationRequested != null:
+return locationRequested(_that.callId);case LiveGuidanceChanged() when guidanceChanged != null:
+return guidanceChanged(_that.guidance);case _:
   return null;
 
 }
@@ -943,5 +955,153 @@ String toString() {
 
 
 
+
+/// @nodoc
+
+
+class LiveLocationRequested implements LiveEvent {
+  const LiveLocationRequested(this.callId);
+  
+
+ final  String callId;
+
+/// Create a copy of LiveEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$LiveLocationRequestedCopyWith<LiveLocationRequested> get copyWith => _$LiveLocationRequestedCopyWithImpl<LiveLocationRequested>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveLocationRequested&&(identical(other.callId, callId) || other.callId == callId));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,callId);
+}
+
+@override
+String toString() {
+    return 'LiveEvent.locationRequested(callId: $callId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $LiveLocationRequestedCopyWith<$Res> implements $LiveEventCopyWith<$Res> {
+  factory $LiveLocationRequestedCopyWith(LiveLocationRequested value, $Res Function(LiveLocationRequested) _then) = _$LiveLocationRequestedCopyWithImpl;
+@useResult
+$Res call({
+ String callId
+});
+
+
+
+
+}
+/// @nodoc
+class _$LiveLocationRequestedCopyWithImpl<$Res>
+    implements $LiveLocationRequestedCopyWith<$Res> {
+  _$LiveLocationRequestedCopyWithImpl(this._self, this._then);
+
+  final LiveLocationRequested _self;
+  final $Res Function(LiveLocationRequested) _then;
+
+/// Create a copy of LiveEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? callId = null,}) {
+  return _then(LiveLocationRequested(
+null == callId ? _self.callId : callId // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class LiveGuidanceChanged implements LiveEvent {
+  const LiveGuidanceChanged(this.guidance);
+  
+
+ final  Guidance? guidance;
+
+/// Create a copy of LiveEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$LiveGuidanceChangedCopyWith<LiveGuidanceChanged> get copyWith => _$LiveGuidanceChangedCopyWithImpl<LiveGuidanceChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is LiveGuidanceChanged&&(identical(other.guidance, guidance) || other.guidance == guidance));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,guidance);
+}
+
+@override
+String toString() {
+    return 'LiveEvent.guidanceChanged(guidance: $guidance)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $LiveGuidanceChangedCopyWith<$Res> implements $LiveEventCopyWith<$Res> {
+  factory $LiveGuidanceChangedCopyWith(LiveGuidanceChanged value, $Res Function(LiveGuidanceChanged) _then) = _$LiveGuidanceChangedCopyWithImpl;
+@useResult
+$Res call({
+ Guidance? guidance
+});
+
+
+$GuidanceCopyWith<$Res>? get guidance;
+
+}
+/// @nodoc
+class _$LiveGuidanceChangedCopyWithImpl<$Res>
+    implements $LiveGuidanceChangedCopyWith<$Res> {
+  _$LiveGuidanceChangedCopyWithImpl(this._self, this._then);
+
+  final LiveGuidanceChanged _self;
+  final $Res Function(LiveGuidanceChanged) _then;
+
+/// Create a copy of LiveEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? guidance = freezed,}) {
+  return _then(LiveGuidanceChanged(
+freezed == guidance ? _self.guidance : guidance // ignore: cast_nullable_to_non_nullable
+as Guidance?,
+  ));
+}
+
+/// Create a copy of LiveEvent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$GuidanceCopyWith<$Res>? get guidance {
+    if (_self.guidance == null) {
+    return null;
+  }
+
+  return $GuidanceCopyWith<$Res>(_self.guidance!, (value) {
+    return _then(_self.copyWith(guidance: value));
+  });
+}
+}
 
 // dart format on

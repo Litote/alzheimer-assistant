@@ -5,6 +5,7 @@ import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assista
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_event.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/contact_choice_list.dart';
+import 'package:alzheimer_assistant/features/assistant/presentation/widgets/guidance_card.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/mic_button.dart';
 import 'package:alzheimer_assistant/features/assistant/presentation/widgets/response_bubble.dart';
 
@@ -81,17 +82,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
-/// Shows the proposed contacts while a call choice is pending, otherwise the
-/// agent's response.
+enum _Area { contactChoices, guidance, response }
+
+/// Shows the proposed contacts while a call choice is pending, else the step
+/// of the walking guidance in progress, otherwise the agent's response.
 class _ResponseArea extends StatelessWidget {
   const _ResponseArea();
 
   @override
   Widget build(BuildContext context) {
-    return BlocSelector<AssistantBloc, AssistantState, bool>(
-      selector: (state) => contactChoicesOf(state).isNotEmpty,
-      builder: (context, hasChoices) =>
-          hasChoices ? const ContactChoiceList() : const ResponseBubble(),
+    return BlocSelector<AssistantBloc, AssistantState, _Area>(
+      selector: (state) {
+        if (contactChoicesOf(state).isNotEmpty) return _Area.contactChoices;
+        if (guidanceOf(state) != null) return _Area.guidance;
+        return _Area.response;
+      },
+      builder: (context, area) => switch (area) {
+        _Area.contactChoices => const ContactChoiceList(),
+        _Area.guidance => const GuidanceCard(),
+        _Area.response => const ResponseBubble(),
+      },
     );
   }
 }

@@ -243,6 +243,37 @@ Same JSON format as the WebSocket transport: `server_content`, `tool_call`, `out
 
 **Audio chunks are NOT sent via Data Messages** — audio flows via `RemoteAudioTrack`.
 
+### Walking guidance
+
+WebSocket mode only, app in the foreground (the screen is kept on during a session). The user asks the agent to be guided on foot to a familiar place; the agent decides everything, the app only reports where the phone is and shows the step.
+
+1. **Start** — the agent sends a `tool_call` named `get_location` (same envelope as `call_phone`, empty `args`). The app asks the location permission if needed and answers with the position, or with `status: "unavailable"` when it cannot (permission refused, location off, no fix within 10 s). The agent gives up after 15 s without an answer.
+   ```json
+   {"tool_response": {"function_responses": [{"id": "<call_id>", "name": "get_location", "response": {"lat": 46.52, "lng": 6.63, "accuracy": 8.0}}]}}
+   {"tool_response": {"function_responses": [{"id": "<call_id>", "name": "get_location", "response": {"status": "unavailable"}}]}}
+   ```
+2. **Step** (server → client) — sent when the walk starts, at every new step, and when a session resumes a walk in progress. `instruction` is the text of the routing service, except that the server replaces the compass point of a departure ("Prendre la direction nord") with the street to head for ("Avancez vers Av. Sainte-Luce"); When the user walks the wrong way, the step becomes `"instruction": "Faites demi-tour"` with `"maneuver": "UTURN_LEFT"` and `"distance_m": 0` until they have turned round. `maneuver` is its manoeuvre code (`TURN_LEFT`, `TURN_RIGHT`, `UTURN_LEFT`, `DEPART`…).
+   ```json
+   {"guidance": {"active": true, "destination": "Boulangerie", "instruction": "Tourner à droite sur Rue du Four", "maneuver": "TURN_RIGHT", "distance_m": 100}}
+   ```
+3. **Positions** (client → server) — while a guidance is active, one message every few metres walked (`accuracy` in metres, optional). The server ignores positions less accurate than 50 m.
+   ```json
+   {"location": {"lat": 46.5218, "lng": 6.6301, "accuracy": 8.0}}
+   ```
+4. **End** (server → client) — arrival, the user asked to stop, no progress for 10 minutes, or the walk lasted more than 45 minutes. The app stops sending positions.
+   ```json
+   {"guidance": {"active": false, "destination": "Boulangerie"}}
+   ```
+
+Front side:
+- `LiveEvent.locationRequested(callId)` and `LiveEvent.guidanceChanged(Guidance?)` (`null` = over), parsed by `LiveMessageParser`.
+- `LocationService` (`shared/services/location_service.dart`, implementation on `geolocator`), injected into the BLoC. The permission is asked at the first guidance, not during onboarding.
+- `AudioRepository.sendLocation(...)`: with a `callId` it answers `get_location`, without it is a position on the way.
+- `AssistantBloc` keeps the step in `_guidance`, carried by the `Listening` and `Speaking` states (`guidance` field), and subscribes to the positions while it is set. Disconnecting stops the positions and clears the step; if the walk is still in progress the next session receives it again.
+- `GuidanceCard` replaces the response bubble during a guidance (a pending contact choice takes over): the direction on screen never depends on the model's words.
+
+The agent announces each instruction by voice on its own, including when the user is silent. A walk in progress keeps the session open (the 3-minute idle close does not apply); the server watches its own clock, since a user who stops sends no more positions: it offers to call a relative after 2 minutes without progress and gives the walk up after 10.
+
 ### Life story settings (consent)
 
 The agent keeps the memories the user tells during live sessions only when this is enabled (see the root [`AI_CONTEXT.md`](../AI_CONTEXT.md)). The settings screen shows two toggles, "Garder mes souvenirs" and "Conserver aussi ma voix", backed by the server, not by `SettingsService`:

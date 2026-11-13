@@ -90,6 +90,14 @@ class FakeLiveRepository implements AudioRepository, TextRepository {
   void sendInterruption() {}
 
   @override
+  void sendLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    String? callId,
+  }) {}
+
+  @override
   Future<void> disconnect() async {
     _disconnected = true;
     if (_disconnectCompleter != null && !_disconnectCompleter!.isCompleted) {

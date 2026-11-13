@@ -123,6 +123,31 @@ class WsAudioRepository implements AudioRepository {
   }
 
   @override
+  void sendLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    String? callId,
+  }) {
+    final location = {
+      'lat': latitude,
+      'lng': longitude,
+      'accuracy': ?accuracyMeters,
+    };
+    if (callId == null) {
+      _sendJson({'location': location});
+      return;
+    }
+    _sendJson({
+      'tool_response': {
+        'function_responses': [
+          {'id': callId, 'name': 'get_location', 'response': location},
+        ],
+      },
+    });
+  }
+
+  @override
   void sendToolResponse({
     required String callId,
     required String functionName,

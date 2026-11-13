@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:alzheimer_assistant/features/assistant/domain/entities/guidance.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/entities/live_event.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/audio_repository.dart';
 import 'package:alzheimer_assistant/features/assistant/domain/repositories/text_repository.dart';
@@ -13,6 +14,7 @@ import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assista
 import 'package:alzheimer_assistant/features/assistant/presentation/bloc/assistant_state.dart';
 import 'package:alzheimer_assistant/features/reminders/domain/entities/reminder.dart';
 import 'package:alzheimer_assistant/shared/services/client_tts_service.dart';
+import 'package:alzheimer_assistant/shared/services/location_service.dart';
 import 'package:alzheimer_assistant/shared/services/microphone_stream_service.dart';
 import 'package:alzheimer_assistant/shared/services/phone_call_service.dart';
 import 'package:alzheimer_assistant/shared/services/settings_service.dart';
@@ -53,6 +55,8 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   ReminderRef? lastConnectedReminder;
   int connectCount = 0;
   final List<String> sentTexts = [];
+  final List<(double, double, double?, String?)> sentLocations = [];
+  final List<(String, String, String)> toolResponses = [];
 
   void emit(LiveEvent event) => _controller.add(event);
   void done() => _controller.close();
@@ -80,11 +84,21 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   void sendInterruption() => sendInterruptionCount++;
 
   @override
+  void sendLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    String? callId,
+  }) =>
+      sentLocations.add((latitude, longitude, accuracyMeters, callId));
+
+  @override
   void sendToolResponse({
     required String callId,
     required String functionName,
     required String result,
-  }) {}
+  }) =>
+      toolResponses.add((callId, functionName, result));
 
   @override
   Future<void> disconnect() async {
@@ -113,6 +127,14 @@ class _EmptyRepository implements AudioRepository, TextRepository {
 
   @override
   void sendInterruption() {}
+
+  @override
+  void sendLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    String? callId,
+  }) {}
 
   @override
   void sendToolResponse({
@@ -150,6 +172,14 @@ class _PersistentRepository implements AudioRepository, TextRepository {
 
   @override
   void sendInterruption() {}
+
+  @override
+  void sendLocation({
+    required double latitude,
+    required double longitude,
+    double? accuracyMeters,
+    String? callId,
+  }) {}
 
   @override
   void sendToolResponse({
@@ -376,6 +406,7 @@ AssistantBloc _makeBloc({
   MicrophoneStreamService? micService,
   StreamingAudioPlayerService? audioPlayer,
   PhoneCallService? phoneCallService,
+  LocationService? locationService,
   SettingsService? settingsService,
   bool showTranscription = false,
 }) {
@@ -387,6 +418,7 @@ AssistantBloc _makeBloc({
     audioPlayer: audioPlayer ?? MockStreamingAudioPlayerService(),
     showTranscription: showTranscription,
     phoneCallService: phoneCallService,
+    locationService: locationService,
     settingsService: settingsService ?? _FakeSettingsService(),
     elevenLabsTtsService: _NoOpClientTtsService(),
     nativeTtsService: _NoOpClientTtsService(),
@@ -414,7 +446,47 @@ AssistantBloc _makeBlocWithTimeout({
   );
 }
 
+/// Location service whose current position and position stream are scripted.
+class _FakeLocationService implements LocationService {
+  DevicePosition? currentPosition;
+  final _positions = StreamController<DevicePosition>.broadcast();
+  int listeners = 0;
+
+  /// Highest number of simultaneous listeners (the BLoC unsubscribes on close).
+  int peakListeners = 0;
+
+  void walkTo(DevicePosition position) => _positions.add(position);
+
+  @override
+  Future<DevicePosition?> current() async => currentPosition;
+
+  @override
+  Stream<DevicePosition> positions() {
+    late StreamController<DevicePosition> relay;
+    StreamSubscription<DevicePosition>? source;
+    relay = StreamController<DevicePosition>(
+      onListen: () {
+        listeners++;
+        if (listeners > peakListeners) peakListeners = listeners;
+        source = _positions.stream.listen(relay.add);
+      },
+      onCancel: () async {
+        listeners--;
+        await source?.cancel();
+      },
+    );
+    return relay.stream;
+  }
+}
+
 // ── Test data ──────────────────────────────────────────────────────────────
+
+const _kGuidance = Guidance(
+  destination: 'Boulangerie',
+  instruction: 'Tourner à droite sur Rue du Four',
+  maneuver: 'TURN_RIGHT',
+  distanceMeters: 100,
+);
 
 const _kText = 'Vos médicaments sont sur la table de nuit.';
 final _kAudioChunk = Uint8List.fromList([1, 2, 3, 4]);
@@ -2837,5 +2909,170 @@ void main() {
 
       await bloc.close();
     });
+  });
+
+  group('walking guidance', () {
+    late _ControllableRepository repo;
+    late _FakeLocationService location;
+
+    setUp(() {
+      repo = _ControllableRepository();
+      location = _FakeLocationService();
+    });
+
+    AssistantBloc build() => _makeBloc(
+          audioRepository: repo,
+          audioPlayer: audioPlayer,
+          locationService: location,
+        );
+
+    Future<void> settle() => Future<void>.delayed(Duration.zero);
+
+    blocTest<AssistantBloc, AssistantState>(
+      'locationRequested → answers the agent with the position of the phone',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) {
+        location.currentPosition = const DevicePosition(
+          latitude: 46.52,
+          longitude: 6.63,
+          accuracyMeters: 8,
+        );
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.locationRequested('loc-1'),
+        ));
+      },
+      expect: () => <AssistantState>[],
+      verify: (_) {
+        expect(repo.sentLocations, [(46.52, 6.63, 8.0, 'loc-1')]);
+        expect(repo.toolResponses, isEmpty);
+      },
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'locationRequested without permission → tells the agent it is unavailable',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) => bloc.add(const AssistantEvent.liveEventReceived(
+        LiveEvent.locationRequested('loc-2'),
+      )),
+      expect: () => <AssistantState>[],
+      verify: (_) {
+        expect(repo.sentLocations, isEmpty);
+        expect(repo.toolResponses, [('loc-2', 'get_location', 'unavailable')]);
+      },
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'guidanceChanged → shows the step and sends the positions on the way',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(_kGuidance),
+        ));
+        await settle();
+        location.walkTo(const DevicePosition(latitude: 1, longitude: 2, accuracyMeters: 5));
+        location.walkTo(const DevicePosition(latitude: 3, longitude: 4));
+        await settle();
+      },
+      expect: () => [const AssistantState.listening(guidance: _kGuidance)],
+      verify: (_) {
+        expect(repo.sentLocations, [(1.0, 2.0, 5.0, null), (3.0, 4.0, null, null)]);
+      },
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'a new step does not subscribe to the positions twice',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(_kGuidance),
+        ));
+        bloc.add(AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(_kGuidance.copyWith(instruction: 'Continuer')),
+        ));
+        await settle();
+        location.walkTo(const DevicePosition(latitude: 1, longitude: 2));
+        await settle();
+      },
+      skip: 1,
+      expect: () => [
+        AssistantState.listening(
+          guidance: _kGuidance.copyWith(instruction: 'Continuer'),
+        ),
+      ],
+      verify: (_) {
+        expect(location.peakListeners, 1);
+        expect(repo.sentLocations, hasLength(1));
+      },
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'the step stays on screen while the agent speaks',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(_kGuidance),
+        ));
+        bloc.add(AssistantEvent.liveEventReceived(
+          LiveEvent.audioChunk(_kAudioChunk),
+        ));
+        await settle();
+      },
+      skip: 1,
+      expect: () => [
+        isA<Speaking>().having((s) => s.guidance, 'guidance', _kGuidance),
+      ],
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'guidance over → hides the step and stops sending positions',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(_kGuidance),
+        ));
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(null),
+        ));
+        await settle();
+        location.walkTo(const DevicePosition(latitude: 1, longitude: 2));
+        await settle();
+      },
+      expect: () => [
+        const AssistantState.listening(guidance: _kGuidance),
+        const AssistantState.listening(),
+      ],
+      verify: (_) {
+        expect(location.listeners, 0);
+        expect(repo.sentLocations, isEmpty);
+      },
+    );
+
+    blocTest<AssistantBloc, AssistantState>(
+      'stopping the session stops sending positions',
+      build: build,
+      seed: () => const AssistantState.listening(),
+      act: (bloc) async {
+        bloc.add(const AssistantEvent.liveEventReceived(
+          LiveEvent.guidanceChanged(_kGuidance),
+        ));
+        await settle();
+        bloc.add(const AssistantEvent.startListening());
+        await settle();
+        location.walkTo(const DevicePosition(latitude: 1, longitude: 2));
+        await settle();
+      },
+      skip: 1,
+      expect: () => [const AssistantState.idle()],
+      verify: (_) {
+        expect(location.listeners, 0);
+        expect(repo.sentLocations, isEmpty);
+      },
+    );
   });
 }
