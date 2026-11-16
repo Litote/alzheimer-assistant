@@ -94,25 +94,15 @@ jobs:
           persist-credentials: false
 
       # The project targets Java 17 (see build.gradle.kts)
-      - name: Setup Java 17
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: Litote/ci/.github/actions/setup-gradle@510461dc1f569a7c12735a6cad12e88a6cb533ad # v0.10.0
         with:
-          distribution: temurin
           java-version: '17'
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Setup Flutter
         uses: Litote/ci/.github/actions/setup-flutter@510461dc1f569a7c12735a6cad12e88a6cb533ad # v0.10.0
         with:
           working-directory: front
-
-      - name: Cache Gradle
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('front/android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-
 
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
