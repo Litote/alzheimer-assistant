@@ -4,16 +4,26 @@ import 'package:geolocator/geolocator.dart';
 import 'package:alzheimer_assistant/core/utils/app_logger.dart';
 
 /// A position of the phone. [accuracyMeters] is the radius of uncertainty.
+///
+/// [headingDegrees] is the direction of the walk measured by the GPS (degrees
+/// clockwise from north), not the compass: the phone may be in a pocket. It
+/// and [speedMetersPerSecond] are `null` when the phone did not measure them.
 class DevicePosition {
   const DevicePosition({
     required this.latitude,
     required this.longitude,
     this.accuracyMeters,
+    this.headingDegrees,
+    this.headingAccuracyDegrees,
+    this.speedMetersPerSecond,
   });
 
   final double latitude;
   final double longitude;
   final double? accuracyMeters;
+  final double? headingDegrees;
+  final double? headingAccuracyDegrees;
+  final double? speedMetersPerSecond;
 }
 
 /// Position of the phone, used only during a walking guidance while the app is
@@ -81,9 +91,24 @@ class GeolocatorLocationService implements LocationService {
         .map(_toDevicePosition);
   }
 
-  DevicePosition _toDevicePosition(Position position) => DevicePosition(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracyMeters: position.accuracy,
-      );
+  DevicePosition _toDevicePosition(Position position) {
+    // iOS reports an invalid course as a negative value, or with a negative
+    // accuracy; Android leaves out what it did not measure (0.0 placeholders).
+    final headingAccuracyValid =
+        !position.hasHeadingAccuracy || position.headingAccuracy >= 0;
+    final headingValid =
+        position.hasHeading && position.heading >= 0 && headingAccuracyValid;
+    return DevicePosition(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyMeters: position.accuracy,
+      headingDegrees: headingValid ? position.heading : null,
+      headingAccuracyDegrees:
+          headingValid && position.hasHeadingAccuracy && position.headingAccuracy > 0
+              ? position.headingAccuracy
+              : null,
+      speedMetersPerSecond:
+          position.hasSpeed && position.speed >= 0 ? position.speed : null,
+    );
+  }
 }

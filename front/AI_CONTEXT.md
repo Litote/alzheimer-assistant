@@ -252,13 +252,13 @@ WebSocket mode only, app in the foreground (the screen is kept on during a sessi
    {"tool_response": {"function_responses": [{"id": "<call_id>", "name": "get_location", "response": {"lat": 46.52, "lng": 6.63, "accuracy": 8.0}}]}}
    {"tool_response": {"function_responses": [{"id": "<call_id>", "name": "get_location", "response": {"status": "unavailable"}}]}}
    ```
-2. **Step** (server → client) — sent when the walk starts, at every new step, and when a session resumes a walk in progress. `instruction` is the text of the routing service, except that the server replaces the compass point of a departure ("Prendre la direction nord") with the street to head for ("Avancez vers Av. Sainte-Luce"); When the user walks the wrong way, the step becomes `"instruction": "Faites demi-tour"` with `"maneuver": "UTURN_LEFT"` and `"distance_m": 0` until they have turned round. `maneuver` is its manoeuvre code (`TURN_LEFT`, `TURN_RIGHT`, `UTURN_LEFT`, `DEPART`…).
+2. **Step** (server → client) — sent when the walk starts, at every new step, and when a session resumes a walk in progress. `instruction` is the text of the routing service, except that the server replaces the compass point of a departure ("Prendre la direction nord") with the street to head for ("Avancez vers Av. Sainte-Luce"). When the user walks the wrong way, the step becomes `"instruction": "Faites demi-tour"` with `"maneuver": "UTURN_LEFT"` and `"distance_m": 0` until they have turned round. When the first position is not accurate enough to compute a route (out of the metro, typically), the walk starts with `"instruction": "Je cherche où vous êtes…"`, `"maneuver": ""` and `"distance_m": 0`: the app shows it like any step and sends positions; the first real step follows once the server has an accurate position. `maneuver` is its manoeuvre code (`TURN_LEFT`, `TURN_RIGHT`, `UTURN_LEFT`, `DEPART`…).
    ```json
    {"guidance": {"active": true, "destination": "Boulangerie", "instruction": "Tourner à droite sur Rue du Four", "maneuver": "TURN_RIGHT", "distance_m": 100}}
    ```
-3. **Positions** (client → server) — while a guidance is active, one message every few metres walked (`accuracy` in metres, optional). The server ignores positions less accurate than 50 m.
+3. **Positions** (client → server) — while a guidance is active, one message every few metres walked (`accuracy` in metres, optional). The server ignores positions less accurate than 50 m. `heading` is the direction of the walk measured by the GPS (degrees clockwise from north, not the compass), `heading_accuracy` its accuracy in degrees and `speed` in m/s; each is left out when the phone did not measure it. The server uses the heading only while the user walks, to tell the wrong way within a few metres.
    ```json
-   {"location": {"lat": 46.5218, "lng": 6.6301, "accuracy": 8.0}}
+   {"location": {"lat": 46.5218, "lng": 6.6301, "accuracy": 8.0, "heading": 92.5, "heading_accuracy": 15.0, "speed": 1.3}}
    ```
 4. **End** (server → client) — arrival, the user asked to stop, no progress for 10 minutes, or the walk lasted more than 45 minutes. The app stops sending positions.
    ```json
@@ -268,7 +268,7 @@ WebSocket mode only, app in the foreground (the screen is kept on during a sessi
 Front side:
 - `LiveEvent.locationRequested(callId)` and `LiveEvent.guidanceChanged(Guidance?)` (`null` = over), parsed by `LiveMessageParser`.
 - `LocationService` (`shared/services/location_service.dart`, implementation on `geolocator`), injected into the BLoC. The permission is asked at the first guidance, not during onboarding.
-- `AudioRepository.sendLocation(...)`: with a `callId` it answers `get_location`, without it is a position on the way.
+- `AudioRepository.sendLocation(...)`: with a `callId` it answers `get_location`, without it is a position on the way. `DevicePosition` carries the heading and speed only when the platform measured them (`Position.hasHeading` / `hasSpeed`, and a non-negative course on iOS).
 - `AssistantBloc` keeps the step in `_guidance`, carried by the `Listening` and `Speaking` states (`guidance` field), and subscribes to the positions while it is set. Disconnecting stops the positions and clears the step; if the walk is still in progress the next session receives it again.
 - `GuidanceCard` replaces the response bubble during a guidance (a pending contact choice takes over): the direction on screen never depends on the model's words.
 
