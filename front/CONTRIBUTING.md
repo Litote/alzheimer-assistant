@@ -191,7 +191,7 @@ To run only the front checks and sonar upload:
 
 ## CI/CD
 
-Five GitHub Actions workflows are defined under `.github/workflows/`:
+Six GitHub Actions workflows are defined under `.github/workflows/`:
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
@@ -200,6 +200,7 @@ Five GitHub Actions workflows are defined under `.github/workflows/`:
 | `front-update-goldens` | Manual | Regenerates golden screenshots and commits them |
 | `sonar` | push/PR on `front/**` or `.github/**` | SonarCloud analysis (Dart coverage + GitHub Actions IaC) |
 | `front-testflight` | push on `v*.*` tags or manual | Build signed iOS IPA and upload to TestFlight |
+| `front-android-distribution` | push on `v*.*` tags or manual | Build signed Android APK and upload to Firebase App Distribution |
 
 ### GitHub Secrets required
 
@@ -214,6 +215,14 @@ Five GitHub Actions workflows are defined under `.github/workflows/`:
 | `APP_STORE_CONNECT_API_KEY_BASE64` | front-testflight | App Store Connect API key (.p8, base64-encoded) |
 | `APP_STORE_CONNECT_ISSUER_ID` | front-testflight | App Store Connect issuer ID |
 | `APPLE_TEAM_ID` | front-testflight | Apple Developer Team ID |
+| `ANDROID_KEYSTORE_BASE64` | front-android-distribution | Upload keystore (.jks, base64-encoded) |
+| `ANDROID_KEYSTORE_PASSWORD` | front-android-distribution | Password of the keystore |
+| `ANDROID_KEY_ALIAS` | front-android-distribution | Alias of the key in the keystore |
+| `ANDROID_KEY_PASSWORD` | front-android-distribution | Password of the key |
+| `FIREBASE_ANDROID_APP_ID` | front-android-distribution | Firebase Android app ID (`1:…:android:…`) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | front-android-distribution | Service account key (JSON) with the Firebase App Distribution Admin role |
+
+The `front-android-distribution` workflow also reads the `FIREBASE_TESTER_GROUPS` variable (comma-separated group aliases, default `testers`).
 
 ---
 
@@ -251,6 +260,24 @@ To set up signing for a new environment:
 3. Add `APPLE_CERTIFICATE_BASE64` and `APPLE_CERTIFICATE_PASSWORD` as GitHub secrets
 4. Create an App Store Connect API key (Admin role) at [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Users and Access → Keys
 5. Base64-encode the `.p8` key file and add `APP_STORE_CONNECT_API_KEY_BASE64`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID` as secrets
+
+---
+
+## Android releases (Firebase App Distribution)
+
+The job runs in the `android-distribution` environment, restricted to `main` and the `v*` tags like `testflight`; the Android and Firebase secrets belong to this environment. The same `v*.*` tag triggers both the TestFlight and the Android workflows; each can also be run by hand from **Actions**.
+
+The workflow writes `android/key.properties` (git-ignored), which switches the release build of `android/app/build.gradle.kts` to the upload key and names the app `Alzheimer Assistant`. Without this file, release builds are signed with the debug keys and named `Dev Alzheimer`, so `flutter run --release` and the `front-ci` build need no secret. The versionCode is the workflow run number, so that each upload installs as an update.
+
+To set up distribution for a new environment:
+1. Create the upload keystore once, and keep it safe — an app signed with another key cannot update the installed one:
+   `keytool -genkeypair -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`
+2. Add `ANDROID_KEYSTORE_BASE64` (`base64 -w0 upload.jks`), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` as secrets
+3. In the [Firebase console](https://console.firebase.google.com), add an Android app with the package name `org.litote.alzheimer_assistant` (no `google-services.json` is needed), and copy its app ID into `FIREBASE_ANDROID_APP_ID`
+4. In **App Distribution → Testers & Groups**, create a group (alias `testers`, or set `FIREBASE_TESTER_GROUPS`) and add the testers' e-mails
+5. In Google Cloud **IAM → Service accounts**, create a service account with the **Firebase App Distribution Admin** role, create a JSON key and store its content in `FIREBASE_SERVICE_ACCOUNT_JSON`
+
+Testers receive an e-mail per release; on first install, Android asks them to allow installing apps from this source.
 
 ---
 
