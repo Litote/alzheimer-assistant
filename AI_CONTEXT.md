@@ -41,9 +41,9 @@ Flutter App
 Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ──→ Flutter (TTS)
 ```
 
-**Phone call (prototype, no app involved)**
+**Phone calls (prototype, no app involved)**
 ```
-Agent ──→ Telnyx Call Control (dial) ──→ landline of the user
+Cloud Scheduler ──→ POST /phone/calls/run ──→ Agent ──→ Telnyx Call Control (dial) ──→ landline of the user
 Telnyx ──→ WebSocket /phone_stream (media stream) ──→ same live session as /run_live
 ```
 
@@ -92,7 +92,7 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 
 **Walking guidance:** in WebSocket mode only, the user can ask to be guided on foot to a place the caregiver allowed (`places.guidance_enabled`, set in the back-office). The agent's `start_guidance` tool asks the app for the position of the phone (`tool_call` `get_location`), computes a walking route (Google Routes API) and sends `{"guidance": {active, destination, instruction, maneuver, distance_m}}`; while `active`, the app sends `{"location": {lat, lng, accuracy}}` as the user walks. The server alone decides when the next instruction is due and what it says: the model only repeats it, and the app shows the server's text. Positions are never stored. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md#walking-guidance).
 
-**Morning phone call (prototype):** the agent can call the user on their landline through Telnyx, to say the day and date and the programme of the day, then talk as in the app. Telnyx streams the call audio to the agent's `WS /phone_stream` (enabled by `ENABLE_PHONE=true`, user named by a signed token that travels in the call's Telnyx `client_state`, never in the URL), which runs the same live session as `/run_live`; `call_phone` and walking guidance are unavailable on a call. No contract with `front/`: the app is not involved. Calls are dialled by hand for now (`scripts/morning_call.py` in the agent repository). See the agent README, « Appel du matin ».
+**Phone calls (prototype):** the agent can call the user on their landline through Telnyx: a morning call (day, date, programme of the day) and reminder calls for the events the caregiver flagged (`events.phone_call`, at the time of the event's reminder), then talk as in the app. The caregiver sets them in the back-office (Events page): consent and number, optional morning call time and days — no time, no morning call (`phone_call_settings`); every call is logged in `phone_call_log`, which also keeps a call from being placed twice. Cloud Scheduler asks the agent every 5 minutes for the calls due (`POST /phone/calls/run`); the back-office can ask for a test call through `alzheimer-assistant-backagent` (`POST /phone/calls/test`), both behind a shared secret. Telnyx streams the call audio to the agent's `WS /phone_stream` (enabled by `ENABLE_PHONE=true`; a signed token in the call's Telnyx `client_state`, never in the URL, names the user and why they are called), which runs the same live session as `/run_live`; `call_phone` and walking guidance are unavailable on a call. No contract with `front/`: the app is not involved. See the agent README, « Appels téléphoniques ».
 
 **Authentication:** every transport sends the Supabase access token of the signed-in user (`Authorization: Bearer` header for HTTP, `access_token` in the WebSocket `setup` message). The agent verifies it and derives the user id from it. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md).
 
