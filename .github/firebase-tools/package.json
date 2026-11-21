@@ -1,0 +1,8 @@
+{
+  "name": "firebase-tools-ci",
+  "private": true,
+  "description": "Firebase CLI used by the front-android-distribution workflow",
+  "dependencies": {
+    "firebase-tools": "15.35.0"
+  }
+}

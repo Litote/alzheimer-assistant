@@ -92,10 +92,11 @@ jobs:
             --dart-define-from-file=secrets.json
 
       # ── Upload to Firebase App Distribution ──────────────────────────────────
-      # --ignore-scripts: the dependencies' install scripts never run; the CLI
-      # does not need them.
+      # Pinned by .github/firebase-tools/package-lock.json. --ignore-scripts:
+      # the dependencies' install scripts never run; the CLI does not need them.
       - name: Install Firebase CLI
-        run: npm install --global --ignore-scripts --no-audit --no-fund firebase-tools@15.35.0
+        working-directory: .github/firebase-tools
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Upload to Firebase App Distribution
         env:
@@ -107,7 +108,7 @@ jobs:
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
-          firebase appdistribution:distribute \
+          "$GITHUB_WORKSPACE/.github/firebase-tools/node_modules/.bin/firebase" appdistribution:distribute \
             build/app/outputs/flutter-apk/app-release.apk \
             --app "$FIREBASE_ANDROID_APP_ID" \
             --groups "$FIREBASE_TESTER_GROUPS" \
