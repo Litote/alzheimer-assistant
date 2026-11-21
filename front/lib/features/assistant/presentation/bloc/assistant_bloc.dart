@@ -932,6 +932,9 @@ class AssistantBloc extends Bloc<AssistantEvent, AssistantState> {
       latitude: position.latitude,
       longitude: position.longitude,
       accuracyMeters: position.accuracyMeters,
+      headingDegrees: position.headingDegrees,
+      headingAccuracyDegrees: position.headingAccuracyDegrees,
+      speedMetersPerSecond: position.speedMetersPerSecond,
       callId: callId,
     );
   }

@@ -16,11 +16,16 @@ abstract interface class AudioRepository implements ConversationRepository {
   /// Sends the position of the phone (walking guidance).
   ///
   /// With [callId], it answers the `get_location` request of the agent;
-  /// without, it is a position on the way.
+  /// without, it is a position on the way. [headingDegrees] is the direction
+  /// of the walk measured by the GPS; it and the speed are left out when the
+  /// phone did not measure them.
   void sendLocation({
     required double latitude,
     required double longitude,
     double? accuracyMeters,
+    double? headingDegrees,
+    double? headingAccuracyDegrees,
+    double? speedMetersPerSecond,
     String? callId,
   });
 }

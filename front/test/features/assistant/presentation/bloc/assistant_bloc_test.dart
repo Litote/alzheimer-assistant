@@ -56,6 +56,7 @@ class _ControllableRepository implements AudioRepository, TextRepository {
   int connectCount = 0;
   final List<String> sentTexts = [];
   final List<(double, double, double?, String?)> sentLocations = [];
+  final List<(double?, double?, double?)> sentMotions = [];
   final List<(String, String, String)> toolResponses = [];
 
   void emit(LiveEvent event) => _controller.add(event);
@@ -88,9 +89,14 @@ class _ControllableRepository implements AudioRepository, TextRepository {
     required double latitude,
     required double longitude,
     double? accuracyMeters,
+    double? headingDegrees,
+    double? headingAccuracyDegrees,
+    double? speedMetersPerSecond,
     String? callId,
-  }) =>
-      sentLocations.add((latitude, longitude, accuracyMeters, callId));
+  })  {
+    sentLocations.add((latitude, longitude, accuracyMeters, callId));
+    sentMotions.add((headingDegrees, headingAccuracyDegrees, speedMetersPerSecond));
+  }
 
   @override
   void sendToolResponse({
@@ -133,6 +139,9 @@ class _EmptyRepository implements AudioRepository, TextRepository {
     required double latitude,
     required double longitude,
     double? accuracyMeters,
+    double? headingDegrees,
+    double? headingAccuracyDegrees,
+    double? speedMetersPerSecond,
     String? callId,
   }) {}
 
@@ -178,6 +187,9 @@ class _PersistentRepository implements AudioRepository, TextRepository {
     required double latitude,
     required double longitude,
     double? accuracyMeters,
+    double? headingDegrees,
+    double? headingAccuracyDegrees,
+    double? speedMetersPerSecond,
     String? callId,
   }) {}
 
@@ -2972,13 +2984,22 @@ void main() {
           LiveEvent.guidanceChanged(_kGuidance),
         ));
         await settle();
-        location.walkTo(const DevicePosition(latitude: 1, longitude: 2, accuracyMeters: 5));
+        location.walkTo(const DevicePosition(
+          latitude: 1,
+          longitude: 2,
+          accuracyMeters: 5,
+          headingDegrees: 92.5,
+          headingAccuracyDegrees: 15,
+          speedMetersPerSecond: 1.3,
+        ));
         location.walkTo(const DevicePosition(latitude: 3, longitude: 4));
         await settle();
       },
       expect: () => [const AssistantState.listening(guidance: _kGuidance)],
       verify: (_) {
         expect(repo.sentLocations, [(1.0, 2.0, 5.0, null), (3.0, 4.0, null, null)]);
+        // The server tells the wrong way sooner from the direction of the walk.
+        expect(repo.sentMotions, [(92.5, 15.0, 1.3), (null, null, null)]);
       },
     );
 

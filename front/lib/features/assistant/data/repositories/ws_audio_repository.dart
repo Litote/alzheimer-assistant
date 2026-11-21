@@ -127,12 +127,18 @@ class WsAudioRepository implements AudioRepository {
     required double latitude,
     required double longitude,
     double? accuracyMeters,
+    double? headingDegrees,
+    double? headingAccuracyDegrees,
+    double? speedMetersPerSecond,
     String? callId,
   }) {
     final location = {
       'lat': latitude,
       'lng': longitude,
       'accuracy': ?accuracyMeters,
+      'heading': ?headingDegrees,
+      'heading_accuracy': ?headingAccuracyDegrees,
+      'speed': ?speedMetersPerSecond,
     };
     if (callId == null) {
       _sendJson({'location': location});

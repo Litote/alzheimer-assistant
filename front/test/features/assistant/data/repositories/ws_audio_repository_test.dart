@@ -320,6 +320,37 @@ void main() {
     expect(response['response'], {'lat': 46.52, 'lng': 6.63, 'accuracy': 8.0});
   });
 
+  test('sendLocation() sends the direction and speed of the walk when known', () async {
+    final channel = _FakeChannel();
+    final repo = _makeRepo(channel);
+
+    repo.connect().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    repo.sendLocation(
+      latitude: 46.52,
+      longitude: 6.63,
+      accuracyMeters: 8,
+      headingDegrees: 92.5,
+      headingAccuracyDegrees: 15,
+      speedMetersPerSecond: 1.3,
+    );
+    repo.sendLocation(latitude: 46.52, longitude: 6.63, speedMetersPerSecond: 0);
+
+    expect(jsonDecode(channel.sent[1] as String), {
+      'location': {
+        'lat': 46.52,
+        'lng': 6.63,
+        'accuracy': 8.0,
+        'heading': 92.5,
+        'heading_accuracy': 15.0,
+        'speed': 1.3,
+      },
+    });
+    expect(jsonDecode(channel.sent[2] as String), {
+      'location': {'lat': 46.52, 'lng': 6.63, 'speed': 0.0},
+    });
+  });
+
   test('sendLocation() without a call id sends a position on the way', () async {
     final channel = _FakeChannel();
     final repo = _makeRepo(channel);

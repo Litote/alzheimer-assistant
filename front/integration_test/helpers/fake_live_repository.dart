@@ -94,6 +94,9 @@ class FakeLiveRepository implements AudioRepository, TextRepository {
     required double latitude,
     required double longitude,
     double? accuracyMeters,
+    double? headingDegrees,
+    double? headingAccuracyDegrees,
+    double? speedMetersPerSecond,
     String? callId,
   }) {}
 

@@ -21,6 +21,30 @@ Position _position(double latitude, double longitude, {double accuracy = 8}) =>
       speedAccuracy: 0,
     );
 
+Position _moving({
+  required double heading,
+  required double speed,
+  double headingAccuracy = 0,
+  bool hasHeading = true,
+  bool hasHeadingAccuracy = true,
+  bool hasSpeed = true,
+}) =>
+    Position(
+      latitude: 46.52,
+      longitude: 6.63,
+      accuracy: 8,
+      timestamp: DateTime.utc(2026, 11, 21),
+      altitude: 0,
+      altitudeAccuracy: 0,
+      heading: heading,
+      headingAccuracy: headingAccuracy,
+      speed: speed,
+      speedAccuracy: 0,
+      hasHeading: hasHeading,
+      hasHeadingAccuracy: hasHeadingAccuracy,
+      hasSpeed: hasSpeed,
+    );
+
 void main() {
   late MockGeolocator geolocator;
   late GeolocatorLocationService service;
@@ -103,6 +127,46 @@ void main() {
           )).captured.single as LocationSettings;
       expect(settings.accuracy, LocationAccuracy.high);
       expect(settings.distanceFilter, 3);
+    });
+
+    test('carries the direction and speed of the walk when measured', () async {
+      when(() => geolocator.getPositionStream(
+            locationSettings: any(named: 'locationSettings'),
+          )).thenAnswer(
+        (_) => Stream.fromIterable([
+          _moving(heading: 92.5, headingAccuracy: 15, speed: 1.3),
+          // Android without bearing accuracy (before API 26).
+          _moving(heading: 270, speed: 1.1, hasHeadingAccuracy: false),
+        ]),
+      );
+
+      final positions = await service.positions().toList();
+
+      expect(
+        positions.map((p) => (p.headingDegrees, p.headingAccuracyDegrees, p.speedMetersPerSecond)),
+        [(92.5, 15.0, 1.3), (270.0, null, 1.1)],
+      );
+    });
+
+    test('leaves out a direction or speed that was not measured', () async {
+      when(() => geolocator.getPositionStream(
+            locationSettings: any(named: 'locationSettings'),
+          )).thenAnswer(
+        (_) => Stream.fromIterable([
+          // Android: no bearing, no speed (0.0 placeholders).
+          _moving(heading: 0, speed: 0, hasHeading: false, hasHeadingAccuracy: false, hasSpeed: false),
+          // iOS: an invalid course is -1, or comes with a negative accuracy.
+          _moving(heading: -1, headingAccuracy: -1, speed: 0.4),
+          _moving(heading: 45, headingAccuracy: -1, speed: 0.4),
+        ]),
+      );
+
+      final positions = await service.positions().toList();
+
+      expect(
+        positions.map((p) => (p.headingDegrees, p.headingAccuracyDegrees, p.speedMetersPerSecond)),
+        [(null, null, null), (null, null, 0.4), (null, null, 0.4)],
+      );
     });
 
     test('is empty, without asking, when the permission is not granted',
