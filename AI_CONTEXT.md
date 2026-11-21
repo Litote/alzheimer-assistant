@@ -41,6 +41,12 @@ Flutter App
 Flutter App (STT) ──→ POST /run_sse ──→ ADK Agent ──→ SSE ──→ Flutter (TTS)
 ```
 
+**Phone calls (prototype, no app involved)**
+```
+Cloud Scheduler ──→ POST /phone/calls/run ──→ Agent ──→ Telnyx Call Control (dial) ──→ landline of the user
+Telnyx ──→ WebSocket /phone_stream (media stream) ──→ same live session as /run_live
+```
+
 ---
 
 ## Components
@@ -85,6 +91,8 @@ See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md) for the full message format spe
 **Life stories:** the app has no dedicated screen or session message; its settings screen reads and changes the consent through `GET` / `PUT <ADK_BASE_URL>/life-stories/settings` (`{capture_enabled, keep_audio}`), the same settings the caregiver changes in the back-office. In live modes (WS, LiveKit) the agent keeps the transcript of the session and, when the session ends, extracts the memories the user told into the Supabase table `life_stories`; with the caregiver's consent the matching microphone audio is stored server-side as well. The transcript is also saved as the session goes (`life_story_drafts`), so that a session that never closes properly is extracted later, without the audio. Capture is opt-in per user (`life_story_settings`) and read when a session opens, so a change applies to the next session; when enabled, the `session_info` welcome text lists "Vos souvenirs". The agent reads memories back through its `recall_life_stories` tool in every mode. In WebSocket mode only, when the user asks to hear their own voice again, its `play_life_story_recording` tool sends the stored recording as ordinary `audio/pcm;rate=24000` chunks, like the assistant voice (the app needs no change), with the mic muted meanwhile; it plays nothing when the voice consent is off. Text SSE mode does not capture.
 
 **Walking guidance:** in WebSocket mode only, the user can ask to be guided on foot to a place the caregiver allowed (`places.guidance_enabled`, set in the back-office). The agent's `start_guidance` tool asks the app for the position of the phone (`tool_call` `get_location`), computes a walking route (Google Routes API) and sends `{"guidance": {active, destination, instruction, maneuver, distance_m}}`; while `active`, the app sends `{"location": {lat, lng, accuracy}}` as the user walks. The server alone decides when the next instruction is due and what it says: the model only repeats it, and the app shows the server's text. Positions are never stored. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md#walking-guidance).
+
+**Phone calls (prototype):** the agent can call the user on their landline through Telnyx: a morning call (day, date, programme of the day) and reminder calls for the events the caregiver flagged (`events.phone_call`, at the time of the event's reminder), then talk as in the app. The caregiver sets them in the back-office (Events page): consent and number, optional morning call time and days — no time, no morning call (`phone_call_settings`); every call is logged in `phone_call_log`, which also keeps a call from being placed twice. Cloud Scheduler asks the agent every 5 minutes for the calls due (`POST /phone/calls/run`); the back-office can ask for a test call through `alzheimer-assistant-backagent` (`POST /phone/calls/test`), both behind a shared secret. Telnyx streams the call audio to the agent's `WS /phone_stream` (enabled by `ENABLE_PHONE=true`; a signed token in the call's Telnyx `client_state`, never in the URL, names the user and why they are called), which runs the same live session as `/run_live`; `call_phone` and walking guidance are unavailable on a call. No contract with `front/`: the app is not involved. See the agent README, « Appels téléphoniques ».
 
 **Authentication:** every transport sends the Supabase access token of the signed-in user (`Authorization: Bearer` header for HTTP, `access_token` in the WebSocket `setup` message). The agent verifies it and derives the user id from it. See [`front/AI_CONTEXT.md`](front/AI_CONTEXT.md).
 
