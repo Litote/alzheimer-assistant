@@ -31,3 +31,18 @@ updates:
     labels:
       - dependencies
       - flutter
+
+  # ── Firebase CLI (front-android-distribution workflow) ──────────────────────
+  - package-ecosystem: npm
+    directory: /.github/firebase-tools
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    # Only firebase-tools itself: its transitive dependencies follow its releases
+    allow:
+      - dependency-type: direct
+    labels:
+      - dependencies
+      - github-actions
